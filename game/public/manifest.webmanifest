@@ -1,0 +1,16 @@
+{
+  "name": "干瞪眼麻将",
+  "short_name": "干瞪眼",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0b1a12",
+  "theme_color": "#0b1a12",
+  "start_url": ".",
+  "icons": [
+    {
+      "src": "assets/img/emblem_chaotian.png",
+      "sizes": "110x100",
+      "type": "image/png"
+    }
+  ]
+}

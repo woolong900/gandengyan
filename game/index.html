@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>干瞪眼麻将</title>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#0b1a12" />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
+      }
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #0b1a12;
+        font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
+      }
+      #game {
+        display: block;
+        touch-action: none;
+      }
+      #loading {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        color: #ffe9a8;
+        background: #0b1a12;
+        z-index: 10;
+      }
+      #loading h1 {
+        font-size: 26px;
+        letter-spacing: 4px;
+        font-weight: 700;
+      }
+      #loading-track {
+        width: 220px;
+        height: 8px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.16);
+        overflow: hidden;
+      }
+      #loading-bar {
+        width: 0;
+        height: 100%;
+        background: linear-gradient(90deg, #c8891f, #ffd54a);
+        transition: width 0.15s linear;
+      }
+      #loading p {
+        font-size: 13px;
+        color: rgba(255, 255, 255, 0.5);
+      }
+      #rotate {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        background: #0b1a12;
+        color: #ffe9a8;
+        font-size: 22px;
+        letter-spacing: 2px;
+      }
+      @media (orientation: portrait) and (max-width: 900px) {
+        #rotate {
+          display: flex;
+        }
+      }
+    </style>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="assets/img/emblem_chaotian.png" />
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+    <div id="loading">
+      <h1>干瞪眼麻将</h1>
+      <div id="loading-track"><div id="loading-bar"></div></div>
+      <p>资源加载中…</p>
+    </div>
+    <div id="rotate">请横屏游玩</div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

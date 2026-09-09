@@ -1,0 +1,14 @@
+# 参考 APK 超过 GitHub 100MB 限制，只留本地
+qjqp.apk
+*.apk
+
+.DS_Store
+
+game/node_modules/
+game/dist/
+game/android/.gradle/
+game/android/app/build/
+game/android/build/
+game/ios/App/Pods/
+game/ios/App/build/
+game/ios/DerivedData/

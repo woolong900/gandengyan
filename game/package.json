@@ -1,0 +1,29 @@
+{
+  "name": "gandengyan-mahjong",
+  "version": "1.0.0",
+  "private": true,
+  "description": "干瞪眼麻将 - 108张牌，赖子/朝天玩法，支持 Android 与 iOS",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "sync": "npm run build && cap sync",
+    "android": "npm run sync && cap open android",
+    "ios": "npm run sync && cap open ios"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.4.4",
+    "@capacitor/core": "^7.4.4",
+    "@capacitor/ios": "^7.4.4"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.4.4",
+    "pngjs": "^7.0.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.14",
+    "vitest": "^3.2.4"
+  }
+}
