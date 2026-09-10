@@ -5,7 +5,7 @@
  *   碰杠离开暗牌墙；头像在边角。
  */
 
-import type { ImageName } from './assets';
+import { RIVER_TILES, type ImageName } from './assets';
 
 export const DESIGN_W = 1280;
 export const DESIGN_H = 720;
@@ -126,20 +126,6 @@ export const HAND = {
 /** 中央指示器（轮次高亮 + 剩余张数） */
 export const CENTER = { x: DESIGN_W / 2, y: 312, w: 104, h: 104 } as const;
 
-/**
- * 出牌河：四家围着桌心排成一圈。rotate 让牌面朝向出牌的那一家。
- * 使用同一张立着的出牌贴图旋转，避免左右两侧被侧视贴图压扁。
- */
-export const RIVER: Record<
-  Anchor,
-  { x: number; y: number; dx: number; dy: number; perRow: number; rowDx: number; rowDy: number; scale: number; rotate: number }
-> = {
-  bottom: { x: 500, y: 418, dx: 38, dy: 0, perRow: 8, rowDx: 0, rowDy: -44, scale: 0.82, rotate: 0 },
-  top: { x: 780, y: 168, dx: -38, dy: 0, perRow: 8, rowDx: 0, rowDy: 44, scale: 0.82, rotate: Math.PI },
-  left: { x: 368, y: 230, dx: 0, dy: 36, perRow: 6, rowDx: 48, rowDy: 0, scale: 0.78, rotate: Math.PI / 2 },
-  right: { x: 908, y: 230, dx: 0, dy: 36, perRow: 6, rowDx: -48, rowDy: 0, scale: 0.78, rotate: -Math.PI / 2 },
-};
-
 function cocosCenter(x: number, y: number): { x: number; y: number } {
   return { x, y: DESIGN_H - y };
 }
@@ -252,13 +238,12 @@ export const MELD_AREA: Record<
  * （见 `SideMeldSlot.shear`）。canvas 正旋转为顺时针，故 glyphRot = -euler.z。
  * 每组前 3 张成一排，第 4 张是杠的叠牌，恒在预制体子节点末位。
  */
-export type SideMeldSlot = {
+/** 画牌面字所需的最小信息，碰杠、甩出的赖子、牌河共用一套变换 */
+export type FaceSlot = {
   /** 该槽位专属的预渲染长方体贴图，按原始尺寸 1:1 绘制 */
   sprite: ImageName;
   x: number;
   y: number;
-  w: number;
-  h: number;
   cardX: number;
   cardY: number;
   /** 对家为负值：APK 用负缩放把牌面字转 180° */
@@ -271,6 +256,9 @@ export type SideMeldSlot = {
    */
   shear: number;
 };
+
+/** 碰杠槽位：牌身按 `w`x`h` 的原始尺寸摆（贴图没加载出来时用作兜底） */
+export type SideMeldSlot = FaceSlot & { w: number; h: number };
 
 /**
  * 为什么不搬预制体的 skew 角度：预制体 card 的 skew 是在**缩放之后**参与复合的
@@ -292,6 +280,17 @@ export type SideMeldSlot = {
  */
 const LEFT_MELD_SHEAR = -0.2;
 const RIGHT_MELD_SHEAR = 0.252;
+
+/**
+ * 剪切量其实只取决于这张牌离镜头轴（屏幕 x = 640）的横向距离，四家、各个区域是同一条
+ * 直线：拿牌河那 120 张贴图逐张量出来拟合，`shear = 0.000545 × (x − 640)`，残差中位 0.009。
+ * 这条线也复现了上面几个手量的值——x=270 → −0.201（对 `LEFT_MELD_SHEAR` −0.2）、
+ * x=1100 → +0.250（对 `RIGHT_MELD_SHEAR` +0.252）、自家碰杠最左端 x=200 → −0.240（对 −0.230）。
+ * 牌河槽位多达 200 个，逐槽列表没有意义，直接按这条线算。
+ */
+function faceShear(x: number): number {
+  return Math.round(0.000545 * (x - DESIGN_W / 2) * 1000) / 1000;
+}
 
 function gangSlot(
   sprite: ImageName,
@@ -612,4 +611,187 @@ export const LAIZI_OUT: Record<
     badge: { x: 20.0, y: -29.4, w: 42, h: 48 },
     slots: lzDepthRow('yqjlz1_2', 944.97, 601.66, 23.445, LZ_LEAD.right, 57, 40, -0.67, 8.37, 0.24, 0.37, 0.159),
   },
+};
+
+/**
+ * 出牌河：按 APK CardLayer3D `*_out_show`。每槽一张预渲染长方体，Sprite sizeMode=RAW
+ * ——透视和厚度都已经画进贴图，1:1 摆在槽位中心即可，**禁止**用一张平牌贴图旋转顶替。
+ *
+ * 四家一个套路：桌面上 3 排，**第 1 排贴桌心**、往自己这边一排排长；满了以后第 4、5 排
+ * 原样**摞在第 1、2 排头上**（整排一个固定偏移，约一个牌厚）。一排从那一家自己的
+ * **左手边**排到右手边（自家往屏幕右、对家往屏幕左、左家往屏幕下、右家往屏幕上）。
+ * 每排的容量不同：自家/对家 13 张，左右两家 7 张，所以上限 65 / 35 张。
+ *
+ * 贴图编号跟的是离镜头轴的横向距离（`_0` 在正中），四家的方向还不一样，所以整排列在
+ * `RIVER_TILES.order` 里，**不要**按下标推算。
+ */
+export type RiverSlot = FaceSlot;
+
+/** 一槽。坐标一律是**屏幕**坐标（`tools/dumpscene.js` 的输出即是），`cardY` 负值表示字在牌身上方 */
+function riverSlot(
+  sprite: ImageName,
+  x: number,
+  y: number,
+  cardY: number,
+  cardSx: number,
+  cardSy: number,
+  cardX = 0
+): RiverSlot {
+  return { sprite, x, y, cardX, cardY, cardSx, cardSy, shear: faceShear(x) };
+}
+
+/** 自家/对家：一排横着走、同排等距。预制体那 ±0.9px 是手摆的抖动，抹平了反而齐 */
+function riverRowH(
+  prefix: string,
+  sprRow: number,
+  order: ReadonlyArray<number>,
+  y: number,
+  x0: number,
+  pitch: number,
+  cardY: number,
+  cardSx: number,
+  cardSy: number
+): RiverSlot[] {
+  return order.map((t, i) =>
+    riverSlot(`${prefix}${sprRow}_${t}` as ImageName, x0 + pitch * i, y, cardY, cardSx, cardSy)
+  );
+}
+
+/**
+ * 左右两家：一排沿视线方向走。纵向格距是真透视（近端 30px、远端 25px），照搬预制体的
+ * y 阶梯；横向则严格随 y 线性（拟合残差 ≤0.85px），别照搬手摆的 x。牌面缩放也逐槽变。
+ */
+function riverRowV(
+  prefix: string,
+  sprRow: number,
+  order: ReadonlyArray<number>,
+  ys: ReadonlyArray<number>,
+  x0: number,
+  xSlope: number,
+  cardX: number,
+  cardY: number,
+  cardSx: ReadonlyArray<number>,
+  cardSy: ReadonlyArray<number>
+): RiverSlot[] {
+  return order.map((t, i) =>
+    riverSlot(
+      `${prefix}${sprRow}_${t}` as ImageName,
+      x0 + xSlope * (ys[i] - ys[0]),
+      ys[i],
+      cardY,
+      cardSx[i],
+      cardSy[i],
+      cardX
+    )
+  );
+}
+
+/** 第 4、5 排：整排照搬第 1、2 排再抬一个牌厚 */
+function riverStack(row: ReadonlyArray<RiverSlot>, dx: number, dy: number): RiverSlot[] {
+  return row.map((s) => ({ ...s, x: s.x + dx, y: s.y + dy }));
+}
+
+/**
+ * 画序不等于落牌序：相邻两张重叠 9~18px，必须远的先画。规则照预制体的子节点顺序：
+ * 排与排一律**从远画到近**（自家的落牌序正好是远→近，其余三家都得反过来）；横排排内
+ * 还要**从两端往中间**画（预制体就是 card_1..7 再 card_13..8），中间那两张压在最上面；
+ * 纵排排内就是远→近。摞在第 1、2 排头上的那两排最后画。
+ *
+ * 这些方向全部从槽位坐标推，不额外传参：横排看屏幕 y（小的远），纵排看离画面中线的
+ * 横向距离（越靠外越远）。
+ */
+function riverSide(
+  glyphRot: number,
+  rows: ReadonlyArray<ReadonlyArray<RiverSlot>>,
+  stacks: ReadonlyArray<readonly [number, number]>
+): RiverSide {
+  const perRow = rows[0].length;
+  const horizontal = Math.abs(rows[0][0].y - rows[0][perRow - 1].y) < 1;
+  const far = (r: ReadonlyArray<RiverSlot>) => (horizontal ? r[0].y : -Math.abs(r[0].x - DESIGN_W / 2));
+  const rowOrder = rows.map((_, i) => i).sort((a, b) => far(rows[a]) - far(rows[b]));
+  const half = Math.ceil(perRow / 2);
+  const inRow = horizontal
+    ? Array.from({ length: perRow }, (_, i) => (i < half ? i : perRow - 1 - (i - half)))
+    : rows[0].map((_, i) => i).sort((a, b) => rows[0][a].y - rows[0][b].y);
+  const base = rows.length * perRow;
+  return {
+    glyphRot,
+    perRow,
+    slots: [...rows.flat(), ...stacks.flatMap(([dx, dy], i) => riverStack(rows[i], dx, dy))],
+    paint: [
+      ...rowOrder.flatMap((r) => inRow.map((i) => r * perRow + i)),
+      ...rowOrder.filter((r) => r < stacks.length).flatMap((r) => inRow.map((i) => base + r * perRow + i)),
+    ],
+  };
+}
+
+type RiverSide = {
+  glyphRot: number;
+  /** 一排几张：自家/对家 13、左右两家 7 */
+  perRow: number;
+  /** 落牌序 */
+  slots: ReadonlyArray<RiverSlot>;
+  /** 画序，元素是 `slots` 的下标 */
+  paint: ReadonlyArray<number>;
+};
+
+const LEFT_RIVER_Y = [236.79, 262.31, 289.67, 317.45, 346.53, 376.53, 406.54];
+const RIGHT_RIVER_Y = [374.29, 342.66, 315.06, 286.35, 258.82, 232.87, 207.89];
+/** 左右两家牌面字的缩放：一排从远到近逐槽变大 */
+const LEFT_RIVER_SX = [0.27, 0.28, 0.29, 0.3, 0.31, 0.32, 0.33];
+const LEFT_RIVER_SY = [0.39, 0.4, 0.4, 0.41, 0.43, 0.44, 0.45];
+const RIGHT_RIVER_SX = [0.3, 0.3, 0.3, 0.29, 0.28, 0.27, 0.25];
+const RIGHT_RIVER_SY = [0.45, 0.45, 0.44, 0.42, 0.4, 0.39, 0.37];
+
+export const RIVER: Record<Anchor, RiverSide> = {
+  // 排号和贴图前缀号是反的：贴桌心那排最远、用 xq3
+  bottom: riverSide(
+    0,
+    [
+      riverRowH('xq', 3, RIVER_TILES.bottom.order, 413.69, 369.65, 41.8, -10.18, 0.37, 0.37),
+      riverRowH('xq', 2, RIVER_TILES.bottom.order, 457.51, 362.93, 42.81, -10.58, 0.38, 0.38),
+      riverRowH('xq', 1, RIVER_TILES.bottom.order, 504.61, 356.2, 43.87, -10.27, 0.41, 0.41),
+    ],
+    [
+      [-0.56, -16.14],
+      [-0.74, -14.76],
+    ]
+  ),
+  // 对家的牌面字靠 card 的负缩放转 180°，和碰杠一样
+  top: riverSide(
+    0,
+    [
+      riverRowH('sq', 1, RIVER_TILES.top.order, 205.52, 880.79, -37.02, -7.77, -0.37, -0.27),
+      riverRowH('sq', 2, RIVER_TILES.top.order, 172.06, 875.98, -36.24, -7.1, -0.35, -0.26),
+      riverRowH('sq', 3, RIVER_TILES.top.order, 140.09, 871.82, -35.58, -7.51, -0.34, -0.25),
+    ],
+    [
+      [-0.2, -19.05],
+      [-0.58, -20.13],
+    ]
+  ),
+  left: riverSide(
+    Math.PI / 2,
+    [
+      riverRowV('zq', 1, RIVER_TILES.left.order, LEFT_RIVER_Y, 500.26, -0.0771, 1.3, -8.4, LEFT_RIVER_SX, LEFT_RIVER_SY),
+      riverRowV('zq', 2, RIVER_TILES.left.order, LEFT_RIVER_Y, 448.59, -0.1119, 1.2, -8.4, LEFT_RIVER_SX, LEFT_RIVER_SY),
+      riverRowV('zq', 3, RIVER_TILES.left.order, LEFT_RIVER_Y, 398.16, -0.1505, 0.4, -8.4, LEFT_RIVER_SX, LEFT_RIVER_SY),
+    ],
+    [
+      [-2.28, -17.75],
+      [-3.12, -17.58],
+    ]
+  ),
+  right: riverSide(
+    -Math.PI / 2,
+    [
+      riverRowV('yq', 3, RIVER_TILES.right.order, RIGHT_RIVER_Y, 790.0, 0.0728, -2.5, -8.2, RIGHT_RIVER_SX, RIGHT_RIVER_SY),
+      riverRowV('yq', 2, RIVER_TILES.right.order, RIGHT_RIVER_Y, 845.76, 0.1069, 0.1, -8.2, RIGHT_RIVER_SX, RIGHT_RIVER_SY),
+      riverRowV('yq', 1, RIVER_TILES.right.order, RIGHT_RIVER_Y, 902.29, 0.1455, 0.2, -8.2, RIGHT_RIVER_SX, RIGHT_RIVER_SY),
+    ],
+    [
+      [2.19, -18.72],
+      [3.1, -19.5],
+    ]
+  ),
 };

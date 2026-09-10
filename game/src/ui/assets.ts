@@ -66,8 +66,24 @@ const QJ_LAIZI = [
   'yqjlz1_2',
 ] as const;
 
+/**
+ * 出牌河：CardLayer3D `*_out_show` 每槽一张预渲染长方体。`order` 是一排从**该家自己的
+ * 左手边**数过来各槽的贴图编号——编号跟的是离镜头轴的横向距离（0 在正中），不是槽序，
+ * 而且四家的排布方向不同，所以必须整排列出来，不能按下标推算。
+ */
+export const RIVER_TILES = {
+  bottom: { prefix: 'xq', order: [13, 11, 9, 7, 5, 3, 1, 0, 2, 4, 6, 8, 10] },
+  top: { prefix: 'sq', order: [14, 12, 10, 8, 6, 4, 2, 0, 1, 3, 5, 7, 9] },
+  left: { prefix: 'zq', order: [7, 6, 5, 4, 3, 2, 1] },
+  right: { prefix: 'yq', order: [1, 2, 3, 4, 5, 6, 7] },
+} as const;
+
 export type ImageName =
   | (typeof IMAGE_NAMES)[number]
+  | `xq${number}_${number}`
+  | `sq${number}_${number}`
+  | `zq${number}_${number}`
+  | `yq${number}_${number}`
   | `glyph_${number}_${number}`
   | `zlp_${number}`
   | `ylp_${number}`
@@ -146,6 +162,11 @@ export class Assets {
       }
     }
     for (const n of QJ_LAIZI) imgTasks.push([n, `${BASE}/img/${n}.png`]);
+    for (const { prefix, order } of Object.values(RIVER_TILES)) {
+      for (let row = 1; row <= 3; row++) {
+        for (const t of order) imgTasks.push([`${prefix}${row}_${t}`, `${BASE}/img/${prefix}${row}_${t}.png`]);
+      }
+    }
 
     const sndTasks: Array<[string, string]> = SOUND_NAMES.map((n) => [n, `${BASE}/audio/${n}.mp3`]);
     const ops: VoiceOp[] = ['peng', 'gang', 'hu', 'zimo', 'qj_ag', 'qj_mg', 'qj_bg', 'qj_ctx', 'qj_lzg'];

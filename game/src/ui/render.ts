@@ -26,7 +26,7 @@ import {
   PANEL,
   RIVER,
   SIDE_MELD,
-  SideMeldSlot,
+  FaceSlot,
   TILE,
   anchorFor,
 } from './layout';
@@ -457,17 +457,22 @@ export class Renderer {
     }
   }
 
-  /** 出牌河：牌面随出牌人旋转，朝向那一家自己的一侧 */
+  /**
+   * 出牌河：每槽一张预渲染长方体，按原始尺寸 1:1 摆在槽位中心，牌面字单独按 card 变换。
+   * 落牌按 `slots` 顺序占位，但要按 `paint` 的顺序画——远的先画（见 layout 的 riverSide）。
+   */
   private drawRiver(game: Game, p: PlayerState, anchor: Anchor): void {
-    const cfg = RIVER[anchor];
+    const { glyphRot, slots, paint } = RIVER[anchor];
     const river = p.discards.filter((k) => k !== game.laizi);
-    river.forEach((kind, i) => {
-      const row = Math.floor(i / cfg.perRow);
-      const col = i % cfg.perRow;
-      const x = cfg.x + col * cfg.dx + row * cfg.rowDx;
-      const y = cfg.y + col * cfg.dy + row * cfg.rowDy;
-      this.drawTile('tile_discard', kind, x, y, cfg.scale, game, { rotate: cfg.rotate });
-    });
+    const c = this.ctx;
+    for (const i of paint) {
+      if (i >= river.length) continue;
+      const pos = slots[i];
+      const img = this.img(pos.sprite);
+      if (!img) continue;
+      c.drawImage(img, pos.x - img.width / 2, pos.y - img.height / 2);
+      this.drawSideMeldFace(river[i], pos, 0, glyphRot, false);
+    }
   }
 
   private meldTileCount(m: Meld): number {
@@ -532,11 +537,11 @@ export class Renderer {
    * 剪切放在**旋转之前**、屏幕空间里：四家的预渲染牌面都是「上下边水平、侧边倾斜」的
    * 平行四边形，所以只需沿 y 剪 x 一次，`pos.shear` 就是那条侧边的 `dx/dy`。
    * 这样字的横轴恒为水平、竖轴恰好和牌面侧边平行，不必再分 skewX / skewY，
-   * 也不会像搬预制体角度那样被 card 的非等比缩放放大（见 `SideMeldSlot.shear`）。
+   * 也不会像搬预制体角度那样被 card 的非等比缩放放大（见 `FaceSlot.shear`）。
    */
   private drawSideMeldFace(
     kind: Kind,
-    pos: SideMeldSlot,
+    pos: FaceSlot,
     dx: number,
     glyphRot: number,
     highlight: boolean,

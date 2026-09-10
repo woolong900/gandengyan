@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LAIZI_OUT, SIDE_HAND, SIDE_MELD } from '../src/ui/layout';
+import { LAIZI_OUT, RIVER, SIDE_HAND, SIDE_MELD } from '../src/ui/layout';
 
 /**
  * 暗杠和明牌共用同一批槽位，只换贴图。照抄预制体 `*_gang_hide` 子节点的局部坐标会让
@@ -139,6 +139,79 @@ describe('甩出的赖子排布', () => {
       for (let i = 1; i < slots.length - 1; i++) {
         expect(slots[i + 1].x - slots[i].x).toBeCloseTo(slots[i].x - slots[i - 1].x, 6);
         expect(slots[i + 1].y - slots[i].y).toBeCloseTo(slots[i].y - slots[i - 1].y, 6);
+      }
+    }
+  });
+});
+
+/**
+ * 出牌河：桌面 3 排 + 摞在第 1、2 排头上的 2 排。牌与牌重叠 9~18px，画序必须远的先画，
+ * 落牌序则是从那一家自己的左手边排起。
+ */
+describe('出牌河', () => {
+  const anchors = ['bottom', 'top', 'left', 'right'] as const;
+
+  it('每家 3 排铺桌面、2 排摞在头上', () => {
+    for (const anchor of anchors) {
+      const { perRow, slots } = RIVER[anchor];
+      expect(perRow).toBe(anchor === 'left' || anchor === 'right' ? 7 : 13);
+      expect(slots.length).toBe(perRow * 5);
+      // 第 4、5 排是第 1、2 排抬起一个牌厚，贴图一一对应
+      for (let i = 0; i < perRow * 2; i++) {
+        const base = slots[i];
+        const up = slots[perRow * 3 + i];
+        expect(up.sprite).toBe(base.sprite);
+        expect(up.y).toBeLessThan(base.y);
+        expect(base.y - up.y).toBeGreaterThan(13);
+        expect(base.y - up.y).toBeLessThan(22);
+      }
+    }
+  });
+
+  it('落牌从那一家自己的左手边排起', () => {
+    // 自家面朝上→往屏幕右；对家面朝下→往左；左家面朝右→往下；右家面朝左→往上
+    const dir = { bottom: [1, 0], top: [-1, 0], left: [0, 1], right: [0, -1] } as const;
+    for (const anchor of anchors) {
+      const { perRow, slots } = RIVER[anchor];
+      const [sx, sy] = dir[anchor];
+      for (let i = 1; i < perRow; i++) {
+        if (sx) expect(Math.sign(slots[i].x - slots[i - 1].x)).toBe(sx);
+        if (sy) expect(Math.sign(slots[i].y - slots[i - 1].y)).toBe(sy);
+      }
+    }
+  });
+
+  it('画序是完整排列，且摞上去那两排最后画', () => {
+    for (const anchor of anchors) {
+      const { perRow, slots, paint } = RIVER[anchor];
+      expect([...paint].sort((a, b) => a - b)).toEqual(slots.map((_, i) => i));
+      const firstStacked = paint.findIndex((i) => i >= perRow * 3);
+      expect(firstStacked).toBe(perRow * 3);
+    }
+  });
+
+  it('同一排里远的先画', () => {
+    for (const anchor of anchors) {
+      const { perRow, slots, paint } = RIVER[anchor];
+      const horizontal = anchor === 'bottom' || anchor === 'top';
+      for (let r = 0; r < 5; r++) {
+        const row = paint.slice(r * perRow, (r + 1) * perRow).map((i) => slots[i]);
+        if (horizontal) {
+          // 横排从两端往中间画，中间那两张压在最上面
+          const mid = 640;
+          expect(Math.abs(row[0].x - mid)).toBeGreaterThan(Math.abs(row[row.length - 1].x - mid));
+        } else {
+          for (let i = 1; i < row.length; i++) expect(row[i].y).toBeGreaterThan(row[i - 1].y);
+        }
+      }
+    }
+  });
+
+  it('牌面剪切量随离画面中线的距离线性变化，中线处为 0', () => {
+    for (const anchor of anchors) {
+      for (const s of RIVER[anchor].slots) {
+        expect(Math.sign(s.shear)).toBe(Math.sign(Math.round(s.x - 640)));
+        expect(Math.abs(s.shear)).toBeCloseTo(0.000545 * Math.abs(s.x - 640), 2);
       }
     }
   });
