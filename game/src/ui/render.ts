@@ -67,6 +67,16 @@ export interface ViewState {
 
 const FONT = '"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
 
+/**
+ * 赖子金罩：以 multiply 压上去，实际只压蓝通道。
+ * 拿实机同一排的普通手牌和赖子对比，比值是 (0.997, 0.975, 0.388)——R、G 几乎不动，
+ * 只有 B 掉到 0.39，所以是个纯黄滤镜。**不要**用偏橙的 `#ffd56a`（G 压太多，牌会发橙），
+ * 也不要用整体压暗的 `#d9de5a`（那是把桌面的环境暗部误算进了罩色）。
+ * 手牌、牌河、甩出的赖子共用这一个值，几处颜色才一致。
+ */
+const LAIZI_TINT = '#f2ed5f';
+const TINT_RGB = [0xf2, 0xed, 0x5f] as const;
+
 export class Renderer {
   private ctx: CanvasRenderingContext2D;
   private scale = 1;
@@ -243,14 +253,10 @@ export class Renderer {
     const r = Math.max(2, Math.min(fw, fh) * 0.04);
 
     c.save();
-    this.pathFaceTint(x, y, fw, fh, r);
-    c.clip();
     c.globalCompositeOperation = 'multiply';
-    c.fillStyle = '#ffd56a';
-    c.fillRect(x - 2, y - 2, fw + 4, fh + 4);
-    c.globalCompositeOperation = 'source-over';
-    c.fillStyle = 'rgba(255, 196, 40, 0.36)';
-    c.fillRect(x - 2, y - 2, fw + 4, fh + 4);
+    c.fillStyle = LAIZI_TINT;
+    this.pathFaceTint(x, y, fw, fh, r);
+    c.fill();
     c.restore();
   }
 
@@ -513,17 +519,23 @@ export class Renderer {
         const w = img?.width ?? pos.w;
         const h = img?.height ?? pos.h;
         if (img) c.drawImage(img, pos.x + dx - w / 2, pos.y - h / 2, w, h);
-        if (!hide && m.kind !== undefined) this.drawSideMeldFace(m.kind, pos, dx, glyphRot, skewY, m.kind === game.laizi);
+        if (!hide && m.kind !== undefined) this.drawSideMeldFace(m.kind, pos, dx, glyphRot, 0, skewY, m.kind === game.laizi);
       }
     }
   }
 
-  /** APK card 子节点：T · R(-euler.z) · S · SkewY(-cocos.skewY) */
+  /**
+   * APK card 子节点：T · R(−euler.z) · S · Skew。
+   * cocos 的 skew 矩阵是 `(1, tan skewY, tan skewX, 1)`，即 skewX 沿 y 剪切 x、
+   * skewY 沿 x 剪切 y；换到 canvas（y 向下）两个都要取反。自家/对家用的是 **skewX**
+   * 而不是 skewY——牌面本身就是往右倾 5° 的平行四边形，少了这层剪切字会看着歪。
+   */
   private drawSideMeldFace(
     kind: Kind,
     pos: SideMeldSlot,
     dx: number,
     glyphRot: number,
+    skewX: number,
     skewY: number,
     highlight: boolean,
     /** 「癞」角标，坐标在 card 局部空间，跟着 card 的缩放走（对家为负缩放，会自动翻到左下） */
@@ -536,7 +548,7 @@ export class Renderer {
     c.translate(pos.x + dx + pos.cardX, pos.y + pos.cardY);
     c.rotate(glyphRot);
     c.scale(pos.cardSx, pos.cardSy);
-    c.transform(1, Math.tan(skewY), 0, 1, 0, 0);
+    c.transform(1, Math.tan(skewY), Math.tan(skewX), 1, 0, 0);
     c.drawImage(glyph, -glyph.width / 2, -glyph.height / 2, glyph.width, glyph.height);
     if (highlight) {
       c.fillStyle = 'rgba(255, 213, 106, 0.35)';
@@ -557,7 +569,7 @@ export class Renderer {
   private drawLaiziOut(game: Game, p: PlayerState, anchor: Anchor, _view: ViewState): void {
     const tossed = p.discards.filter((k) => k === game.laizi);
     if (!tossed.length) return;
-    const { glyphRot, skewY, badge, slots } = LAIZI_OUT[anchor];
+    const { glyphRot, skewX, skewY, badge, slots } = LAIZI_OUT[anchor];
     const c = this.ctx;
     for (const pos of slots.slice(0, tossed.length)) {
       const img = this.img(pos.sprite);
@@ -574,13 +586,12 @@ export class Renderer {
         c.drawImage(gold, x, y);
         c.restore();
       }
-      this.drawSideMeldFace(game.laizi, pos, 0, glyphRot, skewY, false, badge);
+      this.drawSideMeldFace(game.laizi, pos, 0, glyphRot, skewX, skewY, false, badge);
     }
   }
 
   /**
-   * 赖子金罩的剪影：从贴图自身取象牙面，绿边和透明处不上色。
-   * 罩色是拿实机截图的牌面（173,179,71）除以贴图原色反解出来的，偏橄榄不偏橙。
+   * 赖子金罩的剪影：从贴图自身取象牙面，绿边和透明处不上色。罩色见 `LAIZI_TINT`。
    * 立体贴图各不相同，没法像 `FACE_TINT` 那样逐张写死矩形；
    * 也不能拿字形位图的边界铺，那会飘出牌面。一张贴图只算一次。
    */
@@ -598,9 +609,9 @@ export class Renderer {
     for (let i = 0; i < d.length; i += 4) {
       // 象牙面 r≈g，绿边 g 明显高于 r
       const ivory = d[i + 3] > 8 && d[i] > 120 && d[i] >= d[i + 1] - 12;
-      d[i] = 0xd9;
-      d[i + 1] = 0xde;
-      d[i + 2] = 0x5a;
+      d[i] = TINT_RGB[0];
+      d[i + 1] = TINT_RGB[1];
+      d[i + 2] = TINT_RGB[2];
       if (!ivory) d[i + 3] = 0;
     }
     g.putImageData(px, 0, 0);

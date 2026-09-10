@@ -572,6 +572,9 @@ export const LAIZI_OUT: Record<
   Anchor,
   {
     glyphRot: number;
+    /** cocos `skewX`（自家 −9° / 对家 +8°），canvas 的 y 向下故取反 */
+    skewX: number;
+    /** cocos `skewY`（左家 −10° / 右家 +13°），同样取反 */
     skewY: number;
     /** 「癞」角标：card 的 `pz` 子节点，坐标在 card 局部空间里 */
     badge: { x: number; y: number; w: number; h: number };
@@ -580,24 +583,28 @@ export const LAIZI_OUT: Record<
 > = {
   bottom: {
     glyphRot: 0,
+    skewX: (9 * Math.PI) / 180,
     skewY: 0,
     badge: { x: 24.1, y: -30.7, w: 42, h: 48 },
     slots: lzRow('xqjlz1_2', 972.51, 135.31, -44.81, -0.11, 60, 70, 1.4, 10.32, 0.46, 0.42),
   },
   top: {
     glyphRot: 0,
+    skewX: (-8 * Math.PI) / 180,
     skewY: 0,
     badge: { x: 26.2, y: -26.3, w: 42, h: 48 },
     slots: lzRow('sqjlz2_2', 391.51, 631.95, 34.29, -0.14, 43, 47, -1.46, 6.92, -0.32, -0.2409),
   },
   left: {
     glyphRot: Math.PI / 2,
+    skewX: 0,
     skewY: (10 * Math.PI) / 180,
     badge: { x: 18.9, y: -35.4, w: 42, h: 48 },
     slots: lzRow('zqjlz2_2', 262.95, 222.95, -6.32, -35.36, 72, 52, 0.1, 8.04, 0.35, 0.4581),
   },
   right: {
     glyphRot: -Math.PI / 2,
+    skewX: 0,
     skewY: (-13 * Math.PI) / 180,
     badge: { x: 20.0, y: -29.4, w: 42, h: 48 },
     slots: lzRow('yqjlz1_2', 944.97, 601.66, 3.37, -23.44, 57, 40, -1.64, 7.3, 0.24, 0.37),
