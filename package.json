@@ -4,5 +4,9 @@
   "type": "commonjs",
   "devDependencies": {
     "rollup": "^4.0.0"
+  },
+  "dependencies": {
+    "protobufjs": "^8.8.0",
+    "ws": "^8.21.3"
   }
 }
