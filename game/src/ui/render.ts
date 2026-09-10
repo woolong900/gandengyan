@@ -525,7 +525,9 @@ export class Renderer {
     dx: number,
     glyphRot: number,
     skewY: number,
-    highlight: boolean
+    highlight: boolean,
+    /** 「癞」角标，坐标在 card 局部空间，跟着 card 的缩放走（对家为负缩放，会自动翻到左下） */
+    badge?: { x: number; y: number; w: number; h: number }
   ): void {
     const glyph = this.assets.glyph(kind);
     if (!glyph) return;
@@ -540,6 +542,10 @@ export class Renderer {
       c.fillStyle = 'rgba(255, 213, 106, 0.35)';
       c.fillRect(-glyph.width / 2, -glyph.height / 2, glyph.width, glyph.height);
     }
+    const badgeImg = badge ? this.img('badge_laizi') : undefined;
+    if (badge && badgeImg) {
+      c.drawImage(badgeImg, badge.x - badge.w / 2, badge.y - badge.h / 2, badge.w, badge.h);
+    }
     c.restore();
   }
 
@@ -551,33 +557,30 @@ export class Renderer {
   private drawLaiziOut(game: Game, p: PlayerState, anchor: Anchor, _view: ViewState): void {
     const tossed = p.discards.filter((k) => k === game.laizi);
     if (!tossed.length) return;
-    const { glyphRot, slots } = LAIZI_OUT[anchor];
+    const { glyphRot, skewY, badge, slots } = LAIZI_OUT[anchor];
     const c = this.ctx;
     for (const pos of slots.slice(0, tossed.length).sort((a, b) => a.z - b.z)) {
       const img = this.img(pos.sprite);
       if (!img) continue;
       const x = pos.x - img.width / 2;
       const y = pos.y - img.height / 2;
-      c.save();
-      c.shadowColor = 'rgba(255, 186, 28, 0.9)';
-      c.shadowBlur = 14;
+      // 不加发光：实机的甩牌就是平铺在桌布上，光晕会糊掉桌面
       c.drawImage(img, x, y);
-      c.restore();
-      this.drawSideMeldFace(game.laizi, pos, 0, glyphRot, pos.skewY, false);
+      // 金罩只染牌身，压在牌面字和角标下面——实机里字仍是深绿、角标仍是亮蓝
       const gold = this.laiziMask(pos.sprite, img);
-      if (!gold) continue;
-      c.save();
-      c.globalCompositeOperation = 'multiply';
-      c.drawImage(gold, x, y);
-      c.globalCompositeOperation = 'source-over';
-      c.globalAlpha = 0.36;
-      c.drawImage(gold, x, y);
-      c.restore();
+      if (gold) {
+        c.save();
+        c.globalCompositeOperation = 'multiply';
+        c.drawImage(gold, x, y);
+        c.restore();
+      }
+      this.drawSideMeldFace(game.laizi, pos, 0, glyphRot, skewY, false, badge);
     }
   }
 
   /**
    * 赖子金罩的剪影：从贴图自身取象牙面，绿边和透明处不上色。
+   * 罩色是拿实机截图的牌面（173,179,71）除以贴图原色反解出来的，偏橄榄不偏橙。
    * 立体贴图各不相同，没法像 `FACE_TINT` 那样逐张写死矩形；
    * 也不能拿字形位图的边界铺，那会飘出牌面。一张贴图只算一次。
    */
@@ -595,9 +598,9 @@ export class Renderer {
     for (let i = 0; i < d.length; i += 4) {
       // 象牙面 r≈g，绿边 g 明显高于 r
       const ivory = d[i + 3] > 8 && d[i] > 120 && d[i] >= d[i + 1] - 12;
-      d[i] = 0xff;
-      d[i + 1] = 0xd5;
-      d[i + 2] = 0x6a;
+      d[i] = 0xd9;
+      d[i + 1] = 0xde;
+      d[i + 2] = 0x5a;
       if (!ivory) d[i + 3] = 0;
     }
     g.putImageData(px, 0, 0);

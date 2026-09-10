@@ -79,19 +79,23 @@ const IMAGES = {
       }).flat()
     ).flat()
   ),
-  // 甩出的赖子：CardLayer3D `*_lz_show` 的预渲染长方体，2 组 x 6 张
+  // 甩出的赖子：CardLayer3D `qj_*_lz_show` 的预渲染长方体，四家各 2~4 张。
+  // 注意不是 `*_lz_show`：那是另一套状态，实机甩赖子用的是 qj 这套。
   ...Object.fromEntries(
-    Array.from({ length: 2 }, (_, g) =>
-      Array.from({ length: 6 }, (_, t) => {
-        const name = `${g + 1}_${t + 1}`;
-        return [
-          [`xlz${name}.png`, `xlz${name}`],
-          [`slz${name}.png`, `slz${name}`],
-          [`zlz${name}.png`, `zlz${name}`],
-          [`ylz${name}.png`, `ylz${name}`],
-        ];
-      }).flat()
-    ).flat()
+    [
+      'xqjlz1_1',
+      'xqjlz1_2',
+      'xqjlz2_1',
+      'sqjlz1_2',
+      'sqjlz2_1',
+      'sqjlz2_2',
+      'zqjlz1_1',
+      'zqjlz1_2',
+      'zqjlz2_2',
+      'zqjlz_2_1',
+      'yqjlz1_1',
+      'yqjlz1_2',
+    ].map((n) => [`${n}.png`, n])
   ),
   'tile_discard_side.png': 'bg_left_right_qp',
   'tile_meld_side.png': 'bg_left_right_g',

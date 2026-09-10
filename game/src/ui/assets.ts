@@ -50,6 +50,22 @@ export const IMAGE_NAMES = [
   'radio_on',
 ] as const;
 
+/** 甩出的赖子：CardLayer3D `qj_*_lz_show` 用到的预渲染长方体 */
+const QJ_LAIZI = [
+  'xqjlz1_1',
+  'xqjlz1_2',
+  'xqjlz2_1',
+  'sqjlz1_2',
+  'sqjlz2_1',
+  'sqjlz2_2',
+  'zqjlz1_1',
+  'zqjlz1_2',
+  'zqjlz2_2',
+  'zqjlz_2_1',
+  'yqjlz1_1',
+  'yqjlz1_2',
+] as const;
+
 export type ImageName =
   | (typeof IMAGE_NAMES)[number]
   | `glyph_${number}_${number}`
@@ -63,10 +79,7 @@ export type ImageName =
   | `sag${number}_${number}`
   | `xpg${number}_${number}`
   | `xag${number}_${number}`
-  | `xlz${number}_${number}`
-  | `slz${number}_${number}`
-  | `zlz${number}_${number}`
-  | `ylz${number}_${number}`;
+  | (typeof QJ_LAIZI)[number];
 
 export const SOUND_NAMES = [
   'bgm',
@@ -132,14 +145,7 @@ export class Assets {
         imgTasks.push([`xag${g}_${t}`, `${BASE}/img/xag${g}_${t}.png`]);
       }
     }
-    for (let g = 1; g <= 2; g++) {
-      for (let t = 1; t <= 6; t++) {
-        imgTasks.push([`xlz${g}_${t}`, `${BASE}/img/xlz${g}_${t}.png`]);
-        imgTasks.push([`slz${g}_${t}`, `${BASE}/img/slz${g}_${t}.png`]);
-        imgTasks.push([`zlz${g}_${t}`, `${BASE}/img/zlz${g}_${t}.png`]);
-        imgTasks.push([`ylz${g}_${t}`, `${BASE}/img/ylz${g}_${t}.png`]);
-      }
-    }
+    for (const n of QJ_LAIZI) imgTasks.push([n, `${BASE}/img/${n}.png`]);
 
     const sndTasks: Array<[string, string]> = SOUND_NAMES.map((n) => [n, `${BASE}/audio/${n}.mp3`]);
     const ops: VoiceOp[] = ['peng', 'gang', 'hu', 'zimo', 'qj_ag', 'qj_mg', 'qj_bg', 'qj_ctx', 'qj_lzg'];
