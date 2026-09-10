@@ -62,7 +62,11 @@ export type ImageName =
   | `spg${number}_${number}`
   | `sag${number}_${number}`
   | `xpg${number}_${number}`
-  | `xag${number}_${number}`;
+  | `xag${number}_${number}`
+  | `xlz${number}_${number}`
+  | `slz${number}_${number}`
+  | `zlz${number}_${number}`
+  | `ylz${number}_${number}`;
 
 export const SOUND_NAMES = [
   'bgm',
@@ -126,6 +130,14 @@ export class Assets {
         imgTasks.push([`sag${g}_${t}`, `${BASE}/img/sag${g}_${t}.png`]);
         imgTasks.push([`xpg${g}_${t}`, `${BASE}/img/xpg${g}_${t}.png`]);
         imgTasks.push([`xag${g}_${t}`, `${BASE}/img/xag${g}_${t}.png`]);
+      }
+    }
+    for (let g = 1; g <= 2; g++) {
+      for (let t = 1; t <= 6; t++) {
+        imgTasks.push([`xlz${g}_${t}`, `${BASE}/img/xlz${g}_${t}.png`]);
+        imgTasks.push([`slz${g}_${t}`, `${BASE}/img/slz${g}_${t}.png`]);
+        imgTasks.push([`zlz${g}_${t}`, `${BASE}/img/zlz${g}_${t}.png`]);
+        imgTasks.push([`ylz${g}_${t}`, `${BASE}/img/ylz${g}_${t}.png`]);
       }
     }
 

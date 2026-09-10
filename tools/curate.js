@@ -79,6 +79,20 @@ const IMAGES = {
       }).flat()
     ).flat()
   ),
+  // 甩出的赖子：CardLayer3D `*_lz_show` 的预渲染长方体，2 组 x 6 张
+  ...Object.fromEntries(
+    Array.from({ length: 2 }, (_, g) =>
+      Array.from({ length: 6 }, (_, t) => {
+        const name = `${g + 1}_${t + 1}`;
+        return [
+          [`xlz${name}.png`, `xlz${name}`],
+          [`slz${name}.png`, `slz${name}`],
+          [`zlz${name}.png`, `zlz${name}`],
+          [`ylz${name}.png`, `ylz${name}`],
+        ];
+      }).flat()
+    ).flat()
+  ),
   'tile_discard_side.png': 'bg_left_right_qp',
   'tile_meld_side.png': 'bg_left_right_g',
   'tile_concealed_side.png': 'bg_left_right_ag',

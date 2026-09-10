@@ -527,36 +527,106 @@ export const SIDE_MELD: Record<Anchor, SideMeldSide> = {
 export const BUTTONS = { x: 1216, y: 618, step: -110, size: 126, scale: 0.78 } as const;
 
 /**
- * 甩出的赖子：各家手牌前方出牌格的最右侧（自己视角）。
- * 尺寸与该家出牌河同一格（同一张 tile_discard + 同一 scale/rotate）。
+ * 甩出的赖子：按 APK CardLayer3D `*_lz_show`。
+ * 和碰杠同一套路——每槽一张预渲染长方体（`xlz*` / `slz*` / `zlz*` / `ylz*`），
+ * Sprite sizeMode=RAW，透视已经画进贴图，按槽位中心 1:1 摆放，不要拉伸或错切。
+ * 槽位按预制体里的 `card_N` 排序，即甩牌的填充顺序：card_1 就是该家自己视角
+ * 前方格的最右侧，往左依次排开。左家的 skewY 逐槽不同，所以存在槽位上。
  */
-export const LAIZI_OUT: Record<Anchor, { x: number; y: number; dx: number; dy: number; scale: number }> = {
+export type LaiziSlot = SideMeldSlot & {
+  /** canvas 号的 skewY（= -预制体值），左家逐槽不同 */
+  skewY: number;
+  /** 预制体子节点次序，决定叠压先后 */
+  z: number;
+};
+
+function lzSlot(
+  sprite: ImageName,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  cardX: number,
+  cardY: number,
+  cardSx: number,
+  cardSy: number,
+  skewYDeg: number,
+  z: number
+): LaiziSlot {
+  return {
+    ...gangSlot(sprite, x, y, w, h, cardX, cardY, cardSx, cardSy),
+    skewY: (skewYDeg * Math.PI) / 180,
+    z,
+  };
+}
+
+export const LAIZI_OUT: Record<Anchor, { glyphRot: number; slots: ReadonlyArray<LaiziSlot> }> = {
   bottom: {
-    x: RIVER.bottom.x + RIVER.bottom.dx * RIVER.bottom.perRow,
-    y: RIVER.bottom.y,
-    dx: -RIVER.bottom.dx,
-    dy: 0,
-    scale: RIVER.bottom.scale,
+    glyphRot: 0,
+    slots: [
+      lzSlot('xlz2_3', 956.6, 217.37, 56, 64, 1.5, 9.81, 0.45, 0.4, 0, 3),
+      lzSlot('xlz2_2', 912.61, 217.04, 54, 64, 1.12, 10.28, 0.45, 0.4, 0, 4),
+      lzSlot('xlz2_1', 868.55, 217.04, 52, 64, 0.74, 10.4, 0.45, 0.4, 0, 5),
+      lzSlot('xlz2_6', 948.84, 264.55, 54, 62, 1.39, 10.1, 0.43, 0.38, 0, 0),
+      lzSlot('xlz2_5', 906.2, 264.76, 52, 62, 1.01, 9.95, 0.43, 0.38, 0, 1),
+      lzSlot('xlz2_4', 863.28, 264.55, 52, 62, 0.76, 10.22, 0.43, 0.38, 0, 2),
+      lzSlot('xlz1_3', 960.96, 235.09, 57, 66, 0.78, 10.6, 0.45, 0.4, 0, 9),
+      lzSlot('xlz1_2', 915.76, 235.25, 55, 66, 1.85, 10.51, 0.45, 0.4, 0, 10),
+      lzSlot('xlz1_1', 871.52, 235.63, 54, 66, 1.22, 10.26, 0.45, 0.4, 0, 11),
+      lzSlot('xlz1_6', 952.61, 282.28, 55, 64, 1.11, 11.26, 0.43, 0.38, 0, 6),
+      lzSlot('xlz1_5', 908.78, 282.95, 53, 64, 0.86, 10.69, 0.43, 0.38, 0, 7),
+      lzSlot('xlz1_4', 865.57, 282.86, 52, 64, 0.83, 10.48, 0.43, 0.38, 0, 8),
+    ],
   },
   top: {
-    x: RIVER.top.x + RIVER.top.dx * RIVER.top.perRow,
-    y: RIVER.top.y,
-    dx: -RIVER.top.dx,
-    dy: 0,
-    scale: RIVER.top.scale,
+    glyphRot: 0,
+    slots: [
+      lzSlot('slz2_6', 385.39, 582.8, 44, 50, -1.71, 6.63, -0.33, -0.26, 0, 0),
+      lzSlot('slz2_5', 420.33, 582.8, 43, 50, -1.59, 6.82, -0.33, -0.26, 0, 1),
+      lzSlot('slz2_4', 455.66, 582.8, 42, 50, -1.84, 6.85, -0.33, -0.26, 0, 2),
+      lzSlot('slz2_3', 379.55, 549.83, 45, 50, -1.6, 7.03, -0.35, -0.27, 0, 3),
+      lzSlot('slz2_2', 415.91, 549.83, 44, 50, -1.16, 7.43, -0.35, -0.27, 0, 4),
+      lzSlot('slz2_1', 452.21, 549.52, 43, 50, -2.07, 7.49, -0.35, -0.27, 0, 5),
+      lzSlot('slz1_6', 382.92, 599.41, 44, 50, -1.33, 7.65, -0.33, -0.26, 0, 6),
+      lzSlot('slz1_5', 418.15, 599.41, 44, 50, -1.79, 7.8, -0.33, -0.26, 0, 7),
+      lzSlot('slz1_4', 453.48, 599.41, 42, 50, -1.6, 7.8, -0.33, -0.26, 0, 8),
+      lzSlot('slz1_3', 377.54, 568.1, 45, 51, -1.44, 6.97, -0.35, -0.27, 0, 9),
+      lzSlot('slz1_2', 413.03, 568.1, 44, 51, -1.04, 6.97, -0.35, -0.27, 0, 10),
+      lzSlot('slz1_1', 449.52, 568.1, 44, 51, -1.63, 7.55, -0.35, -0.27, 0, 11),
+    ],
   },
   left: {
-    x: RIVER.left.x,
-    y: RIVER.left.y + RIVER.left.dy * RIVER.left.perRow,
-    dx: 0,
-    dy: -RIVER.left.dy,
-    scale: RIVER.left.scale,
+    glyphRot: Math.PI / 2,
+    slots: [
+      lzSlot('zlz2_4', 354.42, 191.3, 71, 52, 0.99, 7.86, 0.38, 0.48, 9, 2),
+      lzSlot('zlz2_5', 360.09, 227.11, 70, 52, 0.84, 7.69, 0.37, 0.47, 7, 1),
+      lzSlot('zlz2_6', 365.28, 261.04, 68, 51, 1.0, 7.27, 0.36, 0.46, 9, 0),
+      lzSlot('zlz2_1', 415.72, 191.29, 69, 52, 1.65, 7.96, 0.38, 0.48, 7, 5),
+      lzSlot('zlz2_2', 419.5, 227.11, 67, 52, 1.33, 7.69, 0.37, 0.47, 7, 4),
+      lzSlot('zlz2_3', 423.27, 261.09, 67, 51, 1.21, 7.3, 0.36, 0.46, 7, 3),
+      lzSlot('zlz1_4', 351.12, 207.35, 73, 53, 0.44, 8.48, 0.39, 0.48, 9, 8),
+      lzSlot('zlz1_5', 356.79, 243.22, 70, 52, 0.26, 8.26, 0.38, 0.48, 9, 7),
+      lzSlot('zlz1_6', 361.98, 277.67, 69, 51, 0.91, 7.7, 0.37, 0.46, 9, 6),
+      lzSlot('zlz1_1', 411.95, 207.65, 70, 53, 1.58, 8.18, 0.39, 0.48, 9, 11),
+      lzSlot('zlz1_2', 416.66, 243.36, 69, 52, 1.72, 8.12, 0.38, 0.48, 9, 10),
+      lzSlot('zlz1_3', 421.39, 277.67, 68, 51, 0.6, 7.7, 0.37, 0.46, 9, 9),
+    ],
   },
   right: {
-    x: RIVER.right.x,
-    y: RIVER.right.y - RIVER.right.dy,
-    dx: 0,
-    dy: RIVER.right.dy,
-    scale: RIVER.right.scale,
+    glyphRot: -Math.PI / 2,
+    slots: [
+      lzSlot('ylz2_3', 866.25, 599.43, 55, 40, 1.61, 8.36, 0.24, 0.35, -7, 0),
+      lzSlot('ylz2_2', 868.14, 576.78, 56, 40, 3.38, 9.02, 0.24, 0.36, -7, 1),
+      lzSlot('ylz2_1', 872.29, 554.0, 56, 41, 1.96, 10.02, 0.24, 0.36, -7, 2),
+      lzSlot('ylz2_6', 818.27, 599.09, 54, 40, 1.28, 8.13, 0.24, 0.35, -7, 3),
+      lzSlot('ylz2_5', 820.45, 576.78, 55, 40, 1.74, 8.53, 0.24, 0.36, -7, 4),
+      lzSlot('ylz2_4', 822.71, 553.63, 56, 41, 2.52, 8.86, 0.24, 0.36, -7, 5),
+      lzSlot('ylz1_3', 868.64, 618.98, 55, 41, 1.91, 8.62, 0.23, 0.35, -7, 6),
+      lzSlot('ylz1_2', 871.7, 596.26, 56, 41, 2.36, 8.75, 0.24, 0.36, -7, 7),
+      lzSlot('ylz1_1', 875.13, 573.1, 57, 42, 1.88, 9.13, 0.24, 0.36, -7, 8),
+      lzSlot('ylz1_6', 820.16, 619.1, 54, 41, 1.39, 9.12, 0.23, 0.35, -7, 9),
+      lzSlot('ylz1_5', 822.2, 596.26, 55, 41, 2.1, 8.72, 0.24, 0.36, -7, 10),
+      lzSlot('ylz1_4', 825.0, 573.02, 57, 42, 1.06, 9.37, 0.24, 0.36, -7, 11),
+    ],
   },
 };

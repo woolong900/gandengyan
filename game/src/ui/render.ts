@@ -512,7 +512,7 @@ export class Renderer {
         const w = img?.width ?? pos.w;
         const h = img?.height ?? pos.h;
         if (img) c.drawImage(img, pos.x + dx - w / 2, pos.y - h / 2, w, h);
-        if (!hide && m.kind !== undefined) this.drawSideMeldFace(m.kind, pos, dx, glyphRot, skewY, game);
+        if (!hide && m.kind !== undefined) this.drawSideMeldFace(m.kind, pos, dx, glyphRot, skewY, m.kind === game.laizi);
       }
     }
   }
@@ -524,7 +524,7 @@ export class Renderer {
     dx: number,
     glyphRot: number,
     skewY: number,
-    game: Game
+    highlight: boolean
   ): void {
     const glyph = this.assets.glyph(kind);
     if (!glyph) return;
@@ -535,7 +535,7 @@ export class Renderer {
     c.scale(pos.cardSx, pos.cardSy);
     c.transform(1, Math.tan(skewY), 0, 1, 0, 0);
     c.drawImage(glyph, -glyph.width / 2, -glyph.height / 2, glyph.width, glyph.height);
-    if (kind === game.laizi) {
+    if (highlight) {
       c.fillStyle = 'rgba(255, 213, 106, 0.35)';
       c.fillRect(-glyph.width / 2, -glyph.height / 2, glyph.width, glyph.height);
     }
@@ -543,14 +543,22 @@ export class Renderer {
   }
 
   /** 甩出的赖子：前方格最右侧，牌面朝向该家自己 */
+  /**
+   * 甩出的赖子：和碰杠一样每槽一张预渲染长方体，按槽位中心 1:1 摆。
+   * 槽位数组已是甩牌顺序（最右侧起往左排），叠压另按预制体子节点次序。
+   */
   private drawLaiziOut(game: Game, p: PlayerState, anchor: Anchor, _view: ViewState): void {
     const tossed = p.discards.filter((k) => k === game.laizi);
     if (!tossed.length) return;
-    const cfg = LAIZI_OUT[anchor];
-    const rotate = RIVER[anchor].rotate;
-    tossed.forEach((kind, i) => {
-      this.drawTile('tile_discard', kind, cfg.x + i * cfg.dx, cfg.y + i * cfg.dy, cfg.scale, game, { rotate });
-    });
+    const { glyphRot, slots } = LAIZI_OUT[anchor];
+    const c = this.ctx;
+    for (const pos of slots.slice(0, tossed.length).sort((a, b) => a.z - b.z)) {
+      const img = this.img(pos.sprite);
+      const w = img?.width ?? pos.w;
+      const h = img?.height ?? pos.h;
+      if (img) c.drawImage(img, pos.x - w / 2, pos.y - h / 2, w, h);
+      this.drawSideMeldFace(game.laizi, pos, 0, glyphRot, pos.skewY, false);
+    }
   }
 
   /**
