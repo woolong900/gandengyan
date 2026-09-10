@@ -1,0 +1,34 @@
+---
+description: 左右家手牌用 APK 预渲染长方体槽位
+globs: game/src/ui/{layout,render,sideWall3d}.ts
+alwaysApply: true
+---
+
+# 左右家手牌（3D 牌墙）
+
+APK CardLayer3D 的 `left_hand_hide` / `right_hand_hide`：每张是预渲染长方体（`zlp_1..14` / `ylp_1..14`），按预制体中心点摆。绿背朝桌心，象牙顶和近端侧面已经画在贴图里。
+
+- 槽位在 `SIDE_HAND`，绘制在 `sideWall3d.ts`。
+- 满手从远端对齐；摸牌用独立的 `drawn` 槽。
+- **禁止**把 `tile_back_up` 仿射贴成一块扁四边形。
+- **禁止**对 `tile_side` / `tile_back_up` 整列 `rotate`、错切，或把 `tile_back_up` 转 90° 当左右立牌。
+
+# 四家碰杠
+
+四家同一套路：`{left,right,up,down}_gang_show` 的 Sprite 是 `sizeMode: RAW`，每个槽位一张独立的
+预渲染长方体（明牌 左 `zpg*` / 右 `ygp*` / 对家 `spg*` / 自家 `xpg*`，暗杠 `zag*` / `yag*` /
+`sag*` / `xag*`，每套 16 张）。透视和厚度都已经画进贴图，按 `SIDE_MELD` 的槽位中心 1:1 摆上去即可。
+
+- **禁止**用扁平的 `tile_meld` 充当任何一家的碰杠牌身。它没有立体侧面，
+  自家看过去会是「直直的」，而 `xpg*` 能看到最左侧那张牌的左侧面。
+- **禁止**把自家的 `tile_meld` 转 180° 当对家的碰杠。对家要用 `spg*`：绿边在**下**，
+  才是从自己玩家视角看过去的样子；转 180° 会把绿边翻到上面，看着像从对面视角看的。
+- 对家的牌面字不是靠旋转，而是 card 节点的**负缩放** `(-0.32, -0.21)`。
+- 自家手牌居中、碰得越多越窄，所以自家碰杠区右缘要顶着**实际**手牌左缘
+  （`bottomMeldShift`），不能锚在满 13 张时的左缘，否则会被挤出屏幕。
+
+- **禁止**把矩形的 `bg_left_right_g`（`tile_meld_side`）拉伸进槽位尺寸，再用错切伪造斜边。
+  牌身节点在预制体里没有任何 skew／rotate，斜边不是算出来的。
+- 牌面字是 card 子节点，单独变换：euler.z 左 −90° / 右 +90°，skewY 左 −10° / 右 +15°。
+  这个 skew 只作用于字，**不要**把牌身的形变叠加上去，否则字会二次倾斜。
+- 绘制顺序照预制体子节点：远→近，杠的第 4 张最后。

@@ -21,12 +21,16 @@ import {
   HEAD_POS,
   LAIZI_OUT,
   LOBBY,
+  MELD_HAND_GAP,
   OTHER_HAND,
   PANEL,
   RIVER,
+  SIDE_MELD,
+  SideMeldSlot,
   TILE,
   anchorFor,
 } from './layout';
+import { drawSideWall3d } from './sideWall3d';
 
 export type HitKind = { t: 'tile'; kind: Kind; slot: number } | { t: 'button'; id: string } | { t: 'ui'; id: string };
 
@@ -317,8 +321,17 @@ export class Renderer {
 
   private drawTable(): void {
     const c = this.ctx;
-    c.fillStyle = '#1a120c';
+    c.fillStyle = '#071014';
     c.fillRect(0, 0, DESIGN_W, DESIGN_H);
+
+    const img = this.img('table');
+    if (img) {
+      const s = Math.max(DESIGN_W / img.width, DESIGN_H / img.height);
+      const dw = img.width * s;
+      const dh = img.height * s;
+      c.drawImage(img, (DESIGN_W - dw) / 2, (DESIGN_H - dh) / 2, dw, dh);
+      return;
+    }
 
     const woodPadX = 40;
     const woodPadY = 18;
@@ -415,9 +428,9 @@ export class Renderer {
     }
 
     const name = p.seat === view.humanSeat ? '我' : `电脑${p.seat}`;
-    const nameX = anchor === 'top' ? pos.x + 78 : pos.x;
-    const nameY = anchor === 'top' ? pos.y + 6 : pos.y + PANEL.nameDy;
-    const scoreY = anchor === 'top' ? pos.y + 32 : pos.y + PANEL.scoreDy;
+    const nameX = pos.x;
+    const nameY = anchor === 'top' ? pos.y + 44 : pos.y + PANEL.nameDy;
+    const scoreY = anchor === 'top' ? pos.y + 70 : pos.y + PANEL.scoreDy;
     this.drawCentered('name_bg', nameX, nameY);
     this.text(name, nameX, nameY, { size: 16, stroke: 'rgba(0,0,0,0.8)' });
     this.text(`${p.score >= 0 ? '+' : ''}${p.score}`, nameX, scoreY, {
@@ -454,80 +467,82 @@ export class Renderer {
     return m.type === 'peng' || m.type === 'chaoTianGang' || m.type === 'chaoTianPeng' ? 3 : 4;
   }
 
-  /** 碰/杠：贴在各家满手 13 张的左侧，不随当前手牌张数移动 */
-  private drawMelds(game: Game, p: PlayerState, anchor: Anchor, _view: ViewState): void {
+  /** 碰/杠：各家视角手牌左侧，牌面朝向该家自己（与出牌河同一套旋转） */
+  private drawMelds(game: Game, p: PlayerState, anchor: Anchor, view: ViewState): void {
     if (!p.melds.length) return;
-    const rotate = RIVER[anchor].rotate;
     const hideFaces = (m: Meld) => m.type === 'anGang' && p.isBot;
-    const groupGap = 8;
 
-    if (anchor === 'bottom') {
-      const hh = (this.img('tile_hand')?.height ?? TILE.hand.h) * HAND.scale;
-      const scale = 0.5;
-      const step = Math.round(TILE.meld.w * scale * 0.86);
-      const mh = TILE.meld.h * scale;
-      const cy = HAND.baseY + (hh - mh) / 2;
-      let width = 0;
-      p.melds.forEach((m, i) => {
-        if (i) width += groupGap;
-        width += this.meldTileCount(m) * step;
-      });
-      const fullLeft = HAND.centerX - (FULL_HAND * HAND.step) / 2;
-      const x = fullLeft - 14 - width + step / 2;
-      let px = x;
-      for (const m of p.melds) {
-        const n = this.meldTileCount(m);
-        for (let i = 0; i < n; i++) {
-          const body: ImageName = hideFaces(m) ? 'tile_concealed' : 'tile_meld';
-          this.drawTile(body, hideFaces(m) ? null : m.kind, px + i * step, cy, scale, game);
-        }
-        px += n * step + groupGap;
-      }
-      return;
-    }
+    // 自家的碰杠区右缘顶着手牌左缘：手牌居中，碰得越多越窄，左边就腾出越多位置。
+    const dx = anchor === 'bottom' ? this.bottomMeldShift(game, p, view) : 0;
+    this.drawSideMelds(game, p, anchor, hideFaces, dx);
+  }
 
-    const scale = 0.4;
-    const step = Math.round(TILE.meld.w * scale * 0.86);
-    const hand = OTHER_HAND[anchor];
-    let width = 0;
-    p.melds.forEach((m, i) => {
-      if (i) width += groupGap;
-      width += this.meldTileCount(m) * step;
-    });
+  /** 把 APK 的自家碰杠槽位整体平移，使最后一组的右缘落在手牌左缘之前 */
+  private bottomMeldShift(game: Game, p: PlayerState, view: ViewState): number {
+    const slots = SIDE_MELD.bottom.groups[p.melds.length - 1];
+    if (!slots) return 0;
+    const apkRight = Math.max(...slots.map((s) => s.x + s.w / 2));
+    const hand = this.handSlots(game, view);
+    const handLeft = hand.length ? hand[0].x - (TILE.hand.w * HAND.scale) / 2 : HAND.centerX;
+    return handLeft - MELD_HAND_GAP - apkRight;
+  }
 
-    if (anchor === 'top') {
-      const leftCenter = hand.x - ((FULL_HAND - 1) * hand.dx) / 2;
-      const tileW = TILE.backUp.w * hand.scale;
-      const x = leftCenter - tileW / 2 - 12 - width + step / 2;
-      const y = hand.y + 8;
-      let px = x;
-      for (const m of p.melds) {
-        const n = this.meldTileCount(m);
-        for (let i = 0; i < n; i++) {
-          const body: ImageName = hideFaces(m) ? 'tile_concealed' : 'tile_meld';
-          this.drawTile(body, hideFaces(m) ? null : m.kind, px + i * step, y, scale, game, { rotate });
-        }
-        px += n * step + groupGap;
-      }
-      return;
-    }
-
-    const visW = TILE.side.w * hand.scale;
-    const meldW = TILE.meld.h * scale;
-    const x = hand.x - visW / 2 - 10 - meldW / 2;
-    const originY = hand.y - ((FULL_HAND - 1) * hand.dy) / 2;
-    let y = originY;
-    for (const m of p.melds) {
+  /**
+   * 左右碰/杠：每槽一张预渲染长方体，按原始尺寸摆在槽位中心。
+   * 透视斜边已画在贴图里，禁止拉伸、旋转或错切；牌面字单独按 card 节点变换。
+   */
+  private drawSideMelds(
+    game: Game,
+    p: PlayerState,
+    anchor: Anchor,
+    hideFaces: (m: Meld) => boolean,
+    dx = 0
+  ): void {
+    const { groups, hidden, glyphRot, skewY } = SIDE_MELD[anchor];
+    const c = this.ctx;
+    for (let gi = 0; gi < p.melds.length; gi++) {
+      const m = p.melds[gi];
+      const hide = hideFaces(m);
+      const slots = (hide ? hidden : groups)[gi];
+      if (!slots) break;
       const n = this.meldTileCount(m);
-      for (let i = 0; i < n; i++) {
-        const body: ImageName = hideFaces(m) ? 'tile_concealed' : 'tile_meld';
-        this.drawTile(body, hideFaces(m) ? null : m.kind, x, y + i * step, scale, game, { rotate });
+      // 槽位已是预制体子节点顺序：先画被压住的，杠的第 4 张恒在末位叠最上面。
+      for (const pos of slots.slice(0, n)) {
+        const img = this.img(pos.sprite);
+        const w = img?.width ?? pos.w;
+        const h = img?.height ?? pos.h;
+        if (img) c.drawImage(img, pos.x + dx - w / 2, pos.y - h / 2, w, h);
+        if (!hide && m.kind !== undefined) this.drawSideMeldFace(m.kind, pos, dx, glyphRot, skewY, game);
       }
-      y += n * step + groupGap;
     }
   }
 
-  /** 甩出的赖子：固定在手牌右前方，不随手牌长短移动，也不超出满手右沿 */
+  /** APK card 子节点：T · R(-euler.z) · S · SkewY(-cocos.skewY) */
+  private drawSideMeldFace(
+    kind: Kind,
+    pos: SideMeldSlot,
+    dx: number,
+    glyphRot: number,
+    skewY: number,
+    game: Game
+  ): void {
+    const glyph = this.assets.glyph(kind);
+    if (!glyph) return;
+    const c = this.ctx;
+    c.save();
+    c.translate(pos.x + dx + pos.cardX, pos.y + pos.cardY);
+    c.rotate(glyphRot);
+    c.scale(pos.cardSx, pos.cardSy);
+    c.transform(1, Math.tan(skewY), 0, 1, 0, 0);
+    c.drawImage(glyph, -glyph.width / 2, -glyph.height / 2, glyph.width, glyph.height);
+    if (kind === game.laizi) {
+      c.fillStyle = 'rgba(255, 213, 106, 0.35)';
+      c.fillRect(-glyph.width / 2, -glyph.height / 2, glyph.width, glyph.height);
+    }
+    c.restore();
+  }
+
+  /** 甩出的赖子：前方格最右侧，牌面朝向该家自己 */
   private drawLaiziOut(game: Game, p: PlayerState, anchor: Anchor, _view: ViewState): void {
     const tossed = p.discards.filter((k) => k === game.laizi);
     if (!tossed.length) return;
@@ -538,28 +553,38 @@ export class Renderer {
     });
   }
 
-  /** 对家用立着的牌背；左右用侧视立牌，右家翻转让绿背朝桌心 */
+  /**
+   * 左右手牌：APK 预渲染长方体（zlp / ylp），按 CardLayer3D 槽位摆。
+   */
+  private drawSideHandBoxes(game: Game, p: PlayerState, anchor: 'left' | 'right'): void {
+    const n = p.hand.length;
+    if (n <= 0) return;
+    const waiting = 3 * (4 - p.melds.length) + 1;
+    const splitDrawn = game.turn === p.seat && game.drawn !== null && n === waiting + 1;
+    const packed = splitDrawn ? n - 1 : n;
+    // 左家视角左侧是远端，余牌从近端排；右家反之。
+    drawSideWall3d(this.ctx, (name) => this.img(name), anchor, n, packed, anchor === 'left' ? 'near' : 'far');
+  }
+
+  /** 对家用立着的牌背；左右用 zlp/ylp 长方体暗牌。 */
   private drawOtherHand(game: Game, p: PlayerState, anchor: Anchor): void {
+    if (anchor === 'left' || anchor === 'right') {
+      this.drawSideHandBoxes(game, p, anchor);
+      return;
+    }
     const cfg = OTHER_HAND[anchor];
     const n = p.hand.length;
     if (n <= 0) return;
     const waiting = 3 * (4 - p.melds.length) + 1;
     const splitDrawn = game.turn === p.seat && game.drawn !== null && n === waiting + 1;
-    const step = anchor === 'top' ? cfg.dx : cfg.dy;
+    const step = cfg.dx;
     const packed = splitDrawn ? n - 1 : n;
     const gap = splitDrawn ? cfg.drawnGap : 0;
-    const total = packed * step + gap + (splitDrawn ? step : 0);
-    const originY = cfg.y - ((FULL_HAND - 1) * cfg.dy) / 2;
-    const start = anchor === 'top' ? -total / 2 + step / 2 : 0;
-    const side = anchor === 'left' || anchor === 'right';
-    const body: ImageName = side ? 'tile_side' : 'tile_back_up';
-    const opts = anchor === 'right' ? { flipX: true } : {};
+    const fullStart = cfg.x - ((FULL_HAND - 1) * step) / 2;
 
     for (let i = 0; i < n; i++) {
-      const along = i < packed ? start + i * step : start + packed * step + gap;
-      const x = Math.round(anchor === 'top' ? cfg.x + along : cfg.x);
-      const y = Math.round(anchor === 'top' ? cfg.y : originY + along);
-      this.drawTile(body, null, x, y, cfg.scale, game, opts);
+      const along = i < packed ? fullStart + i * step : fullStart + packed * step + gap;
+      this.drawTile('tile_back_up', null, Math.round(along), Math.round(cfg.y), cfg.scale, game);
     }
   }
 

@@ -38,7 +38,7 @@ function resolveImg(name) {
 /** 目标名 -> 参考游戏中的资源名 */
 const IMAGES = {
   // 桌面
-  'table.png': 'bg_full_1',
+  'table.png': 't_0',
   'table_mask.png': 'bg_table_mask',
   // 牌身
   'tile_hand.png': 'bg_down_sp',
@@ -48,6 +48,37 @@ const IMAGES = {
   'tile_concealed_up.png': 'bg_up_ag',
   'tile_discard.png': 'bg_up_down_qp',
   'tile_side.png': 'bg_left_rigt_sp',
+  // 3D 桌左右暗牌：CardLayer3D left/right_hand_hide 的预渲染长方体
+  ...Object.fromEntries(
+    Array.from({ length: 14 }, (_, i) => {
+      const n = i + 1;
+      return [
+        [`zlp_${n}.png`, `zlp_${n}`],
+        [`ylp_${n}.png`, `ylp_${n}`],
+      ];
+    }).flat()
+  ),
+  // 3D 桌左右碰/杠：CardLayer3D left/right_gang_show（明）与 _gang_hide（暗杠）的预渲染长方体。
+  // 每槽一张，sizeMode=RAW，透视斜边已画在贴图里，禁止拉伸或错切。
+  ...Object.fromEntries(
+    Array.from({ length: 4 }, (_, g) =>
+      Array.from({ length: 4 }, (_, t) => {
+        const name = `${g + 1}_${t + 1}`;
+        return [
+          [`zpg${name}.png`, `zpg${name}`],
+          [`ygp${name}.png`, `ygp${name}`],
+          [`zag${name}.png`, `zag${name}`],
+          [`yag${name}.png`, `yag${name}`],
+          // 对家 up_gang_show / _hide
+          [`spg${name}.png`, `spg${name}`],
+          [`sag${name}.png`, `sag${name}`],
+          // 自家 down_gang_show / _hide
+          [`xpg${name}.png`, `xpg${name}`],
+          [`xag${name}.png`, `xag${name}`],
+        ];
+      }).flat()
+    ).flat()
+  ),
   'tile_discard_side.png': 'bg_left_right_qp',
   'tile_meld_side.png': 'bg_left_right_g',
   'tile_concealed_side.png': 'bg_left_right_ag',

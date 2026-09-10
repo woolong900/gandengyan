@@ -83,6 +83,12 @@ export class App {
         }
         return true;
       });
+      // 碰完还要打一张：其他家收到等待张数，免得手牌墙占掉碰牌的槽位。
+      const waiting = 3 * (4 - p.melds.length) + 1;
+      if (p.isBot && p.hand.length > waiting) p.hand.length = waiting;
+      p.discards.push(g.laizi, g.laizi);
+      p.laiziOut = 2;
+      p.mul = g.rules.laiziMultiplier * g.rules.laiziMultiplier;
     }
     const me = g.players[0];
     if (!me.hand.includes(g.laizi)) me.hand.unshift(g.laizi);

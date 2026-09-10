@@ -50,7 +50,19 @@ export const IMAGE_NAMES = [
   'radio_on',
 ] as const;
 
-export type ImageName = (typeof IMAGE_NAMES)[number] | `glyph_${number}_${number}`;
+export type ImageName =
+  | (typeof IMAGE_NAMES)[number]
+  | `glyph_${number}_${number}`
+  | `zlp_${number}`
+  | `ylp_${number}`
+  | `zpg${number}_${number}`
+  | `ygp${number}_${number}`
+  | `zag${number}_${number}`
+  | `yag${number}_${number}`
+  | `spg${number}_${number}`
+  | `sag${number}_${number}`
+  | `xpg${number}_${number}`
+  | `xag${number}_${number}`;
 
 export const SOUND_NAMES = [
   'bgm',
@@ -99,6 +111,22 @@ export class Assets {
     for (let k = 0; k < KIND_COUNT; k++) {
       const key = `glyph_${suitOf(k)}_${rankOf(k)}`;
       imgTasks.push([key, `${BASE}/img/${key}.png`]);
+    }
+    for (let i = 1; i <= 14; i++) {
+      imgTasks.push([`zlp_${i}`, `${BASE}/img/zlp_${i}.png`]);
+      imgTasks.push([`ylp_${i}`, `${BASE}/img/ylp_${i}.png`]);
+    }
+    for (let g = 1; g <= 4; g++) {
+      for (let t = 1; t <= 4; t++) {
+        imgTasks.push([`zpg${g}_${t}`, `${BASE}/img/zpg${g}_${t}.png`]);
+        imgTasks.push([`ygp${g}_${t}`, `${BASE}/img/ygp${g}_${t}.png`]);
+        imgTasks.push([`zag${g}_${t}`, `${BASE}/img/zag${g}_${t}.png`]);
+        imgTasks.push([`yag${g}_${t}`, `${BASE}/img/yag${g}_${t}.png`]);
+        imgTasks.push([`spg${g}_${t}`, `${BASE}/img/spg${g}_${t}.png`]);
+        imgTasks.push([`sag${g}_${t}`, `${BASE}/img/sag${g}_${t}.png`]);
+        imgTasks.push([`xpg${g}_${t}`, `${BASE}/img/xpg${g}_${t}.png`]);
+        imgTasks.push([`xag${g}_${t}`, `${BASE}/img/xag${g}_${t}.png`]);
+      }
     }
 
     const sndTasks: Array<[string, string]> = SOUND_NAMES.map((n) => [n, `${BASE}/audio/${n}.mp3`]);
