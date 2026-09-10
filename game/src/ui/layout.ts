@@ -561,16 +561,19 @@ function lzSlot(
 }
 
 /**
- * 赖子落在牌河长条里、该家自己视角最右侧的那一格，往里依次排开。
- * APK 的 `*_lz_show` 是摆在牌河外侧空地上的，那套绝对坐标配我们更窄的牌河会飘出方格；
- * 槽距也比牌河密（右家 22 对 36），照搬会挤成一摞。所以只借贴图和牌面变换，
- * 位置一律落到 `RIVER` 的格子上。每 3 张一排，排与排照牌河的换行方向往里走。
+ * 赖子落在该家长条方格尽头的那个拐角——即自己视角的最右侧，往里依次排开。
+ * 起点是对着桌面截图量出来的，不能从 `RIVER` 推：牌河是从长条中段起排的，
+ * 尽头拐角还在它外面一截。四家的「最右侧」方向各不相同：自家向东、对家向西、
+ * 左家向南、右家向北，所以拐角分别是右下、左上、左下、右上。
+ *
+ * 槽距沿用牌河：APK `*_lz_show` 自带的槽距比牌河密（右家 22 对 36），照搬会挤成一摞。
+ * 每 3 张一排，排与排照牌河的换行方向往桌心走。
  */
 const LAIZI_GRID: Record<Anchor, { x: number; y: number; dx: number; dy: number }> = {
-  bottom: { x: RIVER.bottom.x + RIVER.bottom.dx * RIVER.bottom.perRow, y: RIVER.bottom.y, dx: -RIVER.bottom.dx, dy: 0 },
-  top: { x: RIVER.top.x + RIVER.top.dx * RIVER.top.perRow, y: RIVER.top.y, dx: -RIVER.top.dx, dy: 0 },
-  left: { x: RIVER.left.x, y: RIVER.left.y + RIVER.left.dy * RIVER.left.perRow, dx: 0, dy: -RIVER.left.dy },
-  right: { x: RIVER.right.x, y: RIVER.right.y - RIVER.right.dy, dx: 0, dy: RIVER.right.dy },
+  bottom: { x: 963, y: 591, dx: -RIVER.bottom.dx, dy: 0 },
+  top: { x: 414, y: 98, dx: -RIVER.top.dx, dy: 0 },
+  left: { x: 259, y: 527, dx: 0, dy: -RIVER.left.dy },
+  right: { x: 955, y: 140, dx: 0, dy: RIVER.right.dy },
 };
 
 const LAIZI_PER_ROW = 3;
