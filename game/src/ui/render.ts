@@ -436,8 +436,8 @@ export class Renderer {
 
     const name = p.seat === view.humanSeat ? '我' : `电脑${p.seat}`;
     const nameX = pos.x;
-    const nameY = anchor === 'top' ? pos.y + 44 : pos.y + PANEL.nameDy;
-    const scoreY = anchor === 'top' ? pos.y + 70 : pos.y + PANEL.scoreDy;
+    const nameY = pos.y + PANEL.nameDy;
+    const scoreY = pos.y + PANEL.scoreDy;
     this.drawCentered('name_bg', nameX, nameY);
     this.text(name, nameX, nameY, { size: 16, stroke: 'rgba(0,0,0,0.8)' });
     this.text(`${p.score >= 0 ? '+' : ''}${p.score}`, nameX, scoreY, {

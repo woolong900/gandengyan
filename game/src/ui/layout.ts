@@ -82,14 +82,17 @@ export function anchorFor(seat: number, humanSeat: number, playerCount: number):
 
 /**
  * 各方位玩家面板中心点。头像落在牌区以外的边角，避免压住牌墙/出牌河。
- * 对家头像在 HUD 与对家手牌之间，不占屏幕正中（正中是对家牌背）。
- * 对家摸的那张牌摆在满手最左槽再往左一格（对家自己的右手边），头像得给它让出这一格。
+ * 方位照 APK GameScene/3dLayer/PlayerLayer（Canvas 中心为原点，已换成屏幕坐标）：
+ * Up (1141.5, 72.5)、Right (1230.5, 276)、Left (40.5, 216.5)、Down (40.5, 553.5)。
+ * 对家在**右上角**，正好让开它自己摸牌的那一格（在满手最左槽再往左一格）。
+ * y 比 APK 低一些：我们的面板比 APK 的 65x65 头像高得多，上面还挂着倍数角标，
+ * 顶在 72 会被右上角的功能按钮条（y <= 48）压住。
  */
 export const HEAD_POS: Record<Anchor, { x: number; y: number }> = {
   bottom: { x: 78, y: 538 },
   left: { x: 56, y: 292 },
   right: { x: 1224, y: 292 },
-  top: { x: 344, y: 26 },
+  top: { x: 1141, y: 132 },
 };
 
 /** 面板内部尺寸：底板 84x108，头像 79x79，名条 74x26 */
