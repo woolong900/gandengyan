@@ -528,40 +528,44 @@ export const BUTTONS = { x: 1216, y: 618, step: -110, size: 126, scale: 0.78 } a
 
 /**
  * 甩出的赖子：按 APK CardLayer3D `qj_*_lz_show`（**不是** `*_lz_show`——后者摆在牌河外侧的
- * 空地上，和实机差 50~80px）。每槽一张预渲染长方体（`xqjlz*` / `sqjlz*` / `zqjlz*` / `yqjlz*`），
+ * 空地上，和实机差 50~80px）。每家一张预渲染长方体（`xqjlz*` / `sqjlz*` / `zqjlz*` / `yqjlz*`），
  * Sprite sizeMode=RAW，透视和厚度已经画进贴图，按槽位中心 1:1 摆放，禁止拉伸或错切。
  *
  * 预制体那 6 个槽其实是 2 层 × 3 张：第 4 张起会摞到第 1 张头上（层间偏移约 +7, −17）。
  * 我们不摞，一律平铺成一排——赖子最多 4 张，一排放得下。
- * 起点照搬 `card_1`（实机截图里赖子就落在这个点），格距取近排三张 `card_1/2/5` 的**平均**
- * 步长：预制体是手摆的，步长有参差（右家 −25.23 与 −21.66），照搬会看着没对齐。
+ *
+ * 一排要看着齐，两件事都得做到：
+ * 1. 格距取匀。预制体是手摆的，近排三张的步长有参差（右家 −25.23 与 −21.66），
+ *    所以取 `card_1/2/5` 的平均步长，起点仍照搬 `card_1`——实机截图里赖子就落在这个点。
+ * 2. 整排只用 `card_1` 那张贴图。预制体给每槽配了不同的预渲染变体，尺寸和象牙面在图内的
+ *    位置都差 1~2px，混用会让肉眼看到的牌缘一步一跳（右家上缘 22.44 / 24.44 / 23.44）。
+ *    右家重叠最深（格距 23 对牌高 40），每张只露一条，这点偏移最扎眼。
  */
 export type LaiziSlot = SideMeldSlot;
 
-/** 平铺一排时循环取用的贴图与牌面位移，坐标是 cocos 号 */
-type LaiziTile = { sprite: ImageName; w: number; h: number; cardX: number; cardY: number };
-
-function lzTile(sprite: ImageName, w: number, h: number, cardX: number, cardY: number): LaiziTile {
-  return { sprite, w, h, cardX, cardY };
-}
-
-/** 赖子上限 4 张（每种牌 4 张），排满即够 */
+/** 赖子上限 4 张（每种牌 4 张），一排放得下 */
 const LAIZI_MAX = 4;
 
-/** 从 `card_1` 起沿等距直线平铺；坐标是 cocos 号，翻 y 交给 `gangSlot` */
+/**
+ * 从 `card_1` 起沿等距直线平铺同一张贴图；坐标是 cocos 号，翻 y 交给 `gangSlot`。
+ * 后甩的排在数组后面、压在前一张上（左右两家正好是近的压远的）。
+ */
 function lzRow(
+  sprite: ImageName,
   x: number,
   y: number,
   dx: number,
   dy: number,
+  w: number,
+  h: number,
+  cardX: number,
+  cardY: number,
   cardSx: number,
-  cardSy: number,
-  tiles: ReadonlyArray<LaiziTile>
+  cardSy: number
 ): ReadonlyArray<LaiziSlot> {
-  return Array.from({ length: LAIZI_MAX }, (_, i) => {
-    const t = tiles[i % tiles.length];
-    return gangSlot(t.sprite, x + dx * i, y + dy * i, t.w, t.h, t.cardX, t.cardY, cardSx, cardSy);
-  });
+  return Array.from({ length: LAIZI_MAX }, (_, i) =>
+    gangSlot(sprite, x + dx * i, y + dy * i, w, h, cardX, cardY, cardSx, cardSy)
+  );
 }
 
 export const LAIZI_OUT: Record<
@@ -578,40 +582,24 @@ export const LAIZI_OUT: Record<
     glyphRot: 0,
     skewY: 0,
     badge: { x: 24.1, y: -30.7, w: 42, h: 48 },
-    slots: lzRow(972.51, 135.31, -44.81, -0.11, 0.46, 0.42, [
-      lzTile('xqjlz1_2', 60, 70, 1.4, 10.32),
-      lzTile('xqjlz2_1', 57, 69, 1.48, 10.25),
-      lzTile('xqjlz1_1', 58, 70, 2.31, 10.37),
-    ]),
+    slots: lzRow('xqjlz1_2', 972.51, 135.31, -44.81, -0.11, 60, 70, 1.4, 10.32, 0.46, 0.42),
   },
   top: {
     glyphRot: 0,
     skewY: 0,
     badge: { x: 26.2, y: -26.3, w: 42, h: 48 },
-    slots: lzRow(391.51, 631.95, 34.29, -0.14, -0.32, -0.2409, [
-      lzTile('sqjlz2_2', 43, 47, -1.46, 6.92),
-      lzTile('sqjlz2_1', 42, 47, -3.45, 5.73),
-      lzTile('sqjlz1_2', 42, 47, -1.57, 8.14),
-    ]),
+    slots: lzRow('sqjlz2_2', 391.51, 631.95, 34.29, -0.14, 43, 47, -1.46, 6.92, -0.32, -0.2409),
   },
   left: {
     glyphRot: Math.PI / 2,
     skewY: (10 * Math.PI) / 180,
     badge: { x: 18.9, y: -35.4, w: 42, h: 48 },
-    slots: lzRow(262.95, 222.95, -6.32, -35.36, 0.35, 0.4581, [
-      lzTile('zqjlz2_2', 72, 52, 0.1, 8.04),
-      lzTile('zqjlz_2_1', 73, 53, -0.12, 8.11),
-      lzTile('zqjlz1_2', 73, 52, -0.39, 7.91),
-    ]),
+    slots: lzRow('zqjlz2_2', 262.95, 222.95, -6.32, -35.36, 72, 52, 0.1, 8.04, 0.35, 0.4581),
   },
   right: {
     glyphRot: -Math.PI / 2,
     skewY: (-13 * Math.PI) / 180,
     badge: { x: 20.0, y: -29.4, w: 42, h: 48 },
-    slots: lzRow(944.97, 601.66, 3.37, -23.44, 0.24, 0.37, [
-      lzTile('yqjlz1_2', 57, 40, -1.64, 7.3),
-      lzTile('yqjlz1_1', 58, 42, 0.35, 8.79),
-      lzTile('yqjlz1_2', 57, 40, -0.73, 9.03),
-    ]),
+    slots: lzRow('yqjlz1_2', 944.97, 601.66, 3.37, -23.44, 57, 40, -1.64, 7.3, 0.24, 0.37),
   },
 };
