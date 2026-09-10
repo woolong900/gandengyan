@@ -9,7 +9,12 @@
  *
  * 热更地址也一并改掉：留着原厂的地址，客户端有可能把我们的脚本覆盖回去。
  *
- * usage: node tools/patchapk.js --apk <原始.apk> --host <主机[:端口]> [--tls] [--out <输出.apk>]
+ * `--guest` 把登录页的游客按钮放出来。原版是 `guestNode.active = isDebug()`，
+ * 而 `isDebug()` 走 Java 桥问这个包是不是 debuggable——与其去改二进制 manifest，
+ * 不如就在这里改 JS，反正 project.jsc 本来就要重新加密。别顺手把 `isDebug()`
+ * 整个改成 true：那会把 gameMode 切到 debug，牵动的地方远不止一个按钮。
+ *
+ * usage: node tools/patchapk.js --apk <原始.apk> --host <主机[:端口]> [--tls] [--guest] [--out <输出.apk>]
  */
 const fs = require('fs');
 const os = require('os');
@@ -48,6 +53,9 @@ const RULES = [
   ['http://ylsoft.qj.dayuehuyu.com', http],
   ['http://hotupgrade.yuanlaihuyu.com', http],
 ];
+if (argv.includes('--guest')) {
+  RULES.push(['this.guestNode.active = v.default.isDebug();', 'this.guestNode.active = true;']);
+}
 
 const run = (cmd, args, cwd) => execFileSync(cmd, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] }).toString();
 const tool = (name) => {

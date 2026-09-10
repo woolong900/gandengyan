@@ -38,6 +38,11 @@ const server = http.createServer((req, res) => {
     return json(res, { err_code: '0', data: {} });
   }
 
+  if (url.pathname === '/v1/config' || url.pathname === '/n') {
+    // 活动横幅等杂项配置。LoadingLayer 每 2 秒轮一次，data 为空就是「没有活动」
+    return json(res, { err_code: '0', data: null });
+  }
+
   if (url.pathname === '/login') {
     const uid = nextUid++;
     const token = `t_${q.get('accountType') || 'guest'}_${uid}`;
@@ -72,9 +77,27 @@ wss.on('connection', (ws) => {
       }));
     }
 
+    if (proto === 99) {
+      // 心跳。客户端每 3 秒发一次，**20 秒收不到回包就重连**（见客户端 Heartbeat.js），
+      // 不回的话大厅会一直盖着「重连中」。time 是服务器时间，客户端拿它对时。
+      return ws.send(pack(99, { time: Date.now() }));
+    }
+
     if (proto === 113) {
       console.log('  113 俱乐部列表（空）');
       return ws.send(pack(113, { res: { error: 0, what: '' }, clubs: [], count: 0, total: 0 }));
+    }
+
+    if (proto === 101) {
+      // 实名信息。realName 空着客户端就会弹「实名认证」挡住大厅，自建服务端不需要这一关
+      console.log('  101 实名（已认证）');
+      return ws.send(pack(101, { res: { error: 0, what: '' }, realName: '测试', idCard: '', giveCard: 0 }));
+    }
+
+    if (proto === 105) {
+      // 同理：手机号空着会催绑定
+      console.log('  105 手机号（已绑定）');
+      return ws.send(pack(105, { res: { error: 0, what: '' }, mobile: '13800000000', giveCard: 0 }));
     }
 
     if (protocol[proto]) {
