@@ -73,6 +73,7 @@ export class Renderer {
   private offX = 0;
   private offY = 0;
   private hits: HitBox[] = [];
+  private laiziMasks = new Map<ImageName, HTMLCanvasElement | null>();
 
   constructor(private canvas: HTMLCanvasElement, private assets: Assets) {
     const ctx = canvas.getContext('2d');
@@ -554,11 +555,54 @@ export class Renderer {
     const c = this.ctx;
     for (const pos of slots.slice(0, tossed.length).sort((a, b) => a.z - b.z)) {
       const img = this.img(pos.sprite);
-      const w = img?.width ?? pos.w;
-      const h = img?.height ?? pos.h;
-      if (img) c.drawImage(img, pos.x - w / 2, pos.y - h / 2, w, h);
+      if (!img) continue;
+      const x = pos.x - img.width / 2;
+      const y = pos.y - img.height / 2;
+      c.save();
+      c.shadowColor = 'rgba(255, 186, 28, 0.9)';
+      c.shadowBlur = 14;
+      c.drawImage(img, x, y);
+      c.restore();
       this.drawSideMeldFace(game.laizi, pos, 0, glyphRot, pos.skewY, false);
+      const gold = this.laiziMask(pos.sprite, img);
+      if (!gold) continue;
+      c.save();
+      c.globalCompositeOperation = 'multiply';
+      c.drawImage(gold, x, y);
+      c.globalCompositeOperation = 'source-over';
+      c.globalAlpha = 0.36;
+      c.drawImage(gold, x, y);
+      c.restore();
     }
+  }
+
+  /**
+   * 赖子金罩的剪影：从贴图自身取象牙面，绿边和透明处不上色。
+   * 立体贴图各不相同，没法像 `FACE_TINT` 那样逐张写死矩形；
+   * 也不能拿字形位图的边界铺，那会飘出牌面。一张贴图只算一次。
+   */
+  private laiziMask(name: ImageName, img: HTMLImageElement): HTMLCanvasElement | null {
+    const hit = this.laiziMasks.get(name);
+    if (hit !== undefined) return hit;
+    const cv = document.createElement('canvas');
+    cv.width = img.width;
+    cv.height = img.height;
+    const g = cv.getContext('2d', { willReadFrequently: true });
+    if (!g) return null;
+    g.drawImage(img, 0, 0);
+    const px = g.getImageData(0, 0, cv.width, cv.height);
+    const d = px.data;
+    for (let i = 0; i < d.length; i += 4) {
+      // 象牙面 r≈g，绿边 g 明显高于 r
+      const ivory = d[i + 3] > 8 && d[i] > 120 && d[i] >= d[i + 1] - 12;
+      d[i] = 0xff;
+      d[i + 1] = 0xd5;
+      d[i + 2] = 0x6a;
+      if (!ivory) d[i + 3] = 0;
+    }
+    g.putImageData(px, 0, 0);
+    this.laiziMasks.set(name, cv);
+    return cv;
   }
 
   /**

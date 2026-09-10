@@ -560,10 +560,35 @@ function lzSlot(
   };
 }
 
+/**
+ * 赖子落在牌河长条里、该家自己视角最右侧的那一格，往里依次排开。
+ * APK 的 `*_lz_show` 是摆在牌河外侧空地上的，那套绝对坐标配我们更窄的牌河会飘出方格；
+ * 槽距也比牌河密（右家 22 对 36），照搬会挤成一摞。所以只借贴图和牌面变换，
+ * 位置一律落到 `RIVER` 的格子上。每 3 张一排，排与排照牌河的换行方向往里走。
+ */
+const LAIZI_GRID: Record<Anchor, { x: number; y: number; dx: number; dy: number }> = {
+  bottom: { x: RIVER.bottom.x + RIVER.bottom.dx * RIVER.bottom.perRow, y: RIVER.bottom.y, dx: -RIVER.bottom.dx, dy: 0 },
+  top: { x: RIVER.top.x + RIVER.top.dx * RIVER.top.perRow, y: RIVER.top.y, dx: -RIVER.top.dx, dy: 0 },
+  left: { x: RIVER.left.x, y: RIVER.left.y + RIVER.left.dy * RIVER.left.perRow, dx: 0, dy: -RIVER.left.dy },
+  right: { x: RIVER.right.x, y: RIVER.right.y - RIVER.right.dy, dx: 0, dy: RIVER.right.dy },
+};
+
+const LAIZI_PER_ROW = 3;
+
+function lzBlock(anchor: Anchor, slots: LaiziSlot[]): ReadonlyArray<LaiziSlot> {
+  const g = LAIZI_GRID[anchor];
+  const r = RIVER[anchor];
+  return slots.map((s, i) => {
+    const col = i % LAIZI_PER_ROW;
+    const row = Math.floor(i / LAIZI_PER_ROW);
+    return { ...s, x: g.x + col * g.dx + row * r.rowDx, y: g.y + col * g.dy + row * r.rowDy };
+  });
+}
+
 export const LAIZI_OUT: Record<Anchor, { glyphRot: number; slots: ReadonlyArray<LaiziSlot> }> = {
   bottom: {
     glyphRot: 0,
-    slots: [
+    slots: lzBlock('bottom', [
       lzSlot('xlz2_3', 956.6, 217.37, 56, 64, 1.5, 9.81, 0.45, 0.4, 0, 3),
       lzSlot('xlz2_2', 912.61, 217.04, 54, 64, 1.12, 10.28, 0.45, 0.4, 0, 4),
       lzSlot('xlz2_1', 868.55, 217.04, 52, 64, 0.74, 10.4, 0.45, 0.4, 0, 5),
@@ -576,11 +601,11 @@ export const LAIZI_OUT: Record<Anchor, { glyphRot: number; slots: ReadonlyArray<
       lzSlot('xlz1_6', 952.61, 282.28, 55, 64, 1.11, 11.26, 0.43, 0.38, 0, 6),
       lzSlot('xlz1_5', 908.78, 282.95, 53, 64, 0.86, 10.69, 0.43, 0.38, 0, 7),
       lzSlot('xlz1_4', 865.57, 282.86, 52, 64, 0.83, 10.48, 0.43, 0.38, 0, 8),
-    ],
+    ]),
   },
   top: {
     glyphRot: 0,
-    slots: [
+    slots: lzBlock('top', [
       lzSlot('slz2_6', 385.39, 582.8, 44, 50, -1.71, 6.63, -0.33, -0.26, 0, 0),
       lzSlot('slz2_5', 420.33, 582.8, 43, 50, -1.59, 6.82, -0.33, -0.26, 0, 1),
       lzSlot('slz2_4', 455.66, 582.8, 42, 50, -1.84, 6.85, -0.33, -0.26, 0, 2),
@@ -593,11 +618,11 @@ export const LAIZI_OUT: Record<Anchor, { glyphRot: number; slots: ReadonlyArray<
       lzSlot('slz1_3', 377.54, 568.1, 45, 51, -1.44, 6.97, -0.35, -0.27, 0, 9),
       lzSlot('slz1_2', 413.03, 568.1, 44, 51, -1.04, 6.97, -0.35, -0.27, 0, 10),
       lzSlot('slz1_1', 449.52, 568.1, 44, 51, -1.63, 7.55, -0.35, -0.27, 0, 11),
-    ],
+    ]),
   },
   left: {
     glyphRot: Math.PI / 2,
-    slots: [
+    slots: lzBlock('left', [
       lzSlot('zlz2_4', 354.42, 191.3, 71, 52, 0.99, 7.86, 0.38, 0.48, 9, 2),
       lzSlot('zlz2_5', 360.09, 227.11, 70, 52, 0.84, 7.69, 0.37, 0.47, 7, 1),
       lzSlot('zlz2_6', 365.28, 261.04, 68, 51, 1.0, 7.27, 0.36, 0.46, 9, 0),
@@ -610,11 +635,11 @@ export const LAIZI_OUT: Record<Anchor, { glyphRot: number; slots: ReadonlyArray<
       lzSlot('zlz1_1', 411.95, 207.65, 70, 53, 1.58, 8.18, 0.39, 0.48, 9, 11),
       lzSlot('zlz1_2', 416.66, 243.36, 69, 52, 1.72, 8.12, 0.38, 0.48, 9, 10),
       lzSlot('zlz1_3', 421.39, 277.67, 68, 51, 0.6, 7.7, 0.37, 0.46, 9, 9),
-    ],
+    ]),
   },
   right: {
     glyphRot: -Math.PI / 2,
-    slots: [
+    slots: lzBlock('right', [
       lzSlot('ylz2_3', 866.25, 599.43, 55, 40, 1.61, 8.36, 0.24, 0.35, -7, 0),
       lzSlot('ylz2_2', 868.14, 576.78, 56, 40, 3.38, 9.02, 0.24, 0.36, -7, 1),
       lzSlot('ylz2_1', 872.29, 554.0, 56, 41, 1.96, 10.02, 0.24, 0.36, -7, 2),
@@ -627,6 +652,6 @@ export const LAIZI_OUT: Record<Anchor, { glyphRot: number; slots: ReadonlyArray<
       lzSlot('ylz1_6', 820.16, 619.1, 54, 41, 1.39, 9.12, 0.23, 0.35, -7, 9),
       lzSlot('ylz1_5', 822.2, 596.26, 55, 41, 2.1, 8.72, 0.24, 0.36, -7, 10),
       lzSlot('ylz1_4', 825.0, 573.02, 57, 42, 1.06, 9.37, 0.24, 0.36, -7, 11),
-    ],
+    ]),
   },
 };
