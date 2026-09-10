@@ -552,14 +552,14 @@ export class Renderer {
   /** 甩出的赖子：前方格最右侧，牌面朝向该家自己 */
   /**
    * 甩出的赖子：和碰杠一样每槽一张预渲染长方体，按槽位中心 1:1 摆。
-   * 槽位数组已是甩牌顺序（最右侧起往左排），叠压另按预制体子节点次序。
+   * 槽位是一排平铺，数组顺序即甩牌顺序（自己视角最右侧起往左排），后甩的更靠近视角、压在前一张上。
    */
   private drawLaiziOut(game: Game, p: PlayerState, anchor: Anchor, _view: ViewState): void {
     const tossed = p.discards.filter((k) => k === game.laizi);
     if (!tossed.length) return;
     const { glyphRot, skewY, badge, slots } = LAIZI_OUT[anchor];
     const c = this.ctx;
-    for (const pos of slots.slice(0, tossed.length).sort((a, b) => a.z - b.z)) {
+    for (const pos of slots.slice(0, tossed.length)) {
       const img = this.img(pos.sprite);
       if (!img) continue;
       const x = pos.x - img.width / 2;
