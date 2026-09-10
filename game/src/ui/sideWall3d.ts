@@ -30,10 +30,10 @@ export function drawSideWall3d(
   };
 
   for (let i = 0; i < packedCount; i++) {
-    const slotIndex = start + i;
-    drawSlot(wall.packed[slotIndex].x, wall.packed[slotIndex].y, 14 - slotIndex);
+    const slot = wall.packed[start + i];
+    drawSlot(slot.x, slot.y, slot.tile);
   }
   if (n > packed) {
-    drawSlot(wall.drawn.x, wall.drawn.y, 1);
+    drawSlot(wall.drawn.x, wall.drawn.y, wall.drawn.tile);
   }
 }

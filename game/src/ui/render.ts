@@ -627,7 +627,7 @@ export class Renderer {
     const waiting = 3 * (4 - p.melds.length) + 1;
     const splitDrawn = game.turn === p.seat && game.drawn !== null && n === waiting + 1;
     const packed = splitDrawn ? n - 1 : n;
-    // 左家视角左侧是远端，余牌从近端排；右家反之。
+    // 余牌要朝摸牌槽那一端对齐，才和摸的那张挨着；碰杠区正好在另一端（见 SIDE_HAND）。
     drawSideWall3d(this.ctx, (name) => this.img(name), anchor, n, packed, anchor === 'left' ? 'near' : 'far');
   }
 
@@ -648,7 +648,9 @@ export class Renderer {
     const fullStart = cfg.x - ((FULL_HAND - 1) * step) / 2;
 
     for (let i = 0; i < n; i++) {
-      const along = i < packed ? fullStart + i * step : fullStart + packed * step + gap;
+      // 摸的那张放在对家自己的右手边：对家面朝屏幕下方，右手边是屏幕**左侧**，
+      // 所以它落在满手最左槽再往左一格（APK up_hand_hide 的 card_14 也在那儿）。
+      const along = i < packed ? fullStart + i * step : fullStart - step - gap;
       this.drawTile('tile_back_up', null, Math.round(along), Math.round(cfg.y), cfg.scale, game);
     }
   }

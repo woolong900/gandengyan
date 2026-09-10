@@ -83,12 +83,13 @@ export function anchorFor(seat: number, humanSeat: number, playerCount: number):
 /**
  * 各方位玩家面板中心点。头像落在牌区以外的边角，避免压住牌墙/出牌河。
  * 对家头像在 HUD 与对家手牌之间，不占屏幕正中（正中是对家牌背）。
+ * 对家摸的那张牌摆在满手最左槽再往左一格（对家自己的右手边），头像得给它让出这一格。
  */
 export const HEAD_POS: Record<Anchor, { x: number; y: number }> = {
   bottom: { x: 78, y: 538 },
   left: { x: 56, y: 292 },
   right: { x: 1224, y: 292 },
-  top: { x: 380, y: 26 },
+  top: { x: 344, y: 26 },
 };
 
 /** 面板内部尺寸：底板 84x108，头像 79x79，名条 74x26 */
@@ -136,52 +137,63 @@ export const RIVER: Record<
   right: { x: 908, y: 230, dx: 0, dy: 36, perRow: 6, rowDx: -48, rowDy: 0, scale: 0.78, rotate: -Math.PI / 2 },
 };
 
-/**
- * 左右暗牌槽位，直接取自 APK CardLayer3D：
- * left_hand_hide（zlp_14→zlp_1）、right_hand_hide（ylp_14→ylp_1）。
- * Cocos 原点在画布左下、Y 向上；这里已换成屏幕坐标（中心点，Y 向下）。
- * packed 从远端（对家方向）排到近端，drawn 是摸牌的独立空隙槽。
- */
 function cocosCenter(x: number, y: number): { x: number; y: number } {
   return { x, y: DESIGN_H - y };
 }
 
+/** 左右暗牌的一个槽位；`tile` 是该槽专属的预渲染长方体编号（zlp / ylp，1 最近最大、14 最远最小） */
+function handSlot(x: number, y: number, tile: number): { x: number; y: number; tile: number } {
+  return { ...cocosCenter(x, y), tile };
+}
+
+/**
+ * 左右暗牌槽位，直接取自 APK CardLayer3D 的 left_hand_hide / right_hand_hide（各 14 槽）。
+ * Cocos 原点在画布左下、Y 向上；这里已换成屏幕坐标（中心点，Y 向下）。
+ * `packed` 一律从远端（对家方向）排到近端，`drawn` 是摸牌的独立空隙槽。
+ *
+ * 摸牌槽在**那一家自己的右手边**，而两家面朝的方向相反，所以在屏幕上分处两端：
+ * 左家面朝右，右手边是屏幕**下方**；右家面朝左，右手边是屏幕**上方**。
+ * 预制体里这个位置是靠步距认出来的——14 个槽的步距随透视单调变化，唯一破规律的那一处
+ * 就是留给摸牌的缝：左家在最后（33.35 → 50.70），右家在**最前**（本该 ~23 却是 31.41）。
+ * 预制体的槽名也跟着各自的手别走：两家都是 `card_14` 当摸牌槽，但左家 card_1 在远端、
+ * 右家 card_1 在近端。所以**别**按名字或数组下标推贴图编号，编号记在槽位里。
+ */
 export const SIDE_HAND = {
   left: {
     packed: [
-      cocosCenter(254.3922, 610.6987),
-      cocosCenter(248.8036, 588.1175),
-      cocosCenter(242.8333, 564.5009),
-      cocosCenter(236.4665, 541.0208),
-      cocosCenter(230.0234, 516.8203),
-      cocosCenter(223.7081, 490.6755),
-      cocosCenter(216.7253, 464.3221),
-      cocosCenter(209.9832, 435.9215),
-      cocosCenter(203.0022, 407.7044),
-      cocosCenter(195.5844, 377.4639),
-      cocosCenter(187.3102, 345.6964),
-      cocosCenter(179.0687, 314.4915),
-      cocosCenter(171.4452, 281.1396),
+      handSlot(254.3922, 610.6987, 14),
+      handSlot(248.8036, 588.1175, 13),
+      handSlot(242.8333, 564.5009, 12),
+      handSlot(236.4665, 541.0208, 11),
+      handSlot(230.0234, 516.8203, 10),
+      handSlot(223.7081, 490.6755, 9),
+      handSlot(216.7253, 464.3221, 8),
+      handSlot(209.9832, 435.9215, 7),
+      handSlot(203.0022, 407.7044, 6),
+      handSlot(195.5844, 377.4639, 5),
+      handSlot(187.3102, 345.6964, 4),
+      handSlot(179.0687, 314.4915, 3),
+      handSlot(171.4452, 281.1396, 2),
     ],
-    drawn: cocosCenter(158.0248, 230.4422),
+    drawn: handSlot(158.0248, 230.4422, 1),
   },
   right: {
     packed: [
-      cocosCenter(1030.573, 588.4651),
-      cocosCenter(1039.7072, 557.0616),
-      cocosCenter(1045.369, 533.339),
-      cocosCenter(1051.9065, 506.8266),
-      cocosCenter(1058.8059, 480.5877),
-      cocosCenter(1065.9592, 453.5947),
-      cocosCenter(1073.3523, 425.3692),
-      cocosCenter(1080.432, 397.4307),
-      cocosCenter(1088.0693, 367.2261),
-      cocosCenter(1096.0636, 336.0368),
-      cocosCenter(1104.2064, 304.122),
-      cocosCenter(1112.5077, 270.4631),
-      cocosCenter(1121.0497, 235.9869),
+      handSlot(1039.7072, 557.0616, 13),
+      handSlot(1045.369, 533.339, 12),
+      handSlot(1051.9065, 506.8266, 11),
+      handSlot(1058.8059, 480.5877, 10),
+      handSlot(1065.9592, 453.5947, 9),
+      handSlot(1073.3523, 425.3692, 8),
+      handSlot(1080.432, 397.4307, 7),
+      handSlot(1088.0693, 367.2261, 6),
+      handSlot(1096.0636, 336.0368, 5),
+      handSlot(1104.2064, 304.122, 4),
+      handSlot(1112.5077, 270.4631, 3),
+      handSlot(1121.0497, 235.9869, 2),
+      handSlot(1129.9746, 199.2666, 1),
     ],
-    drawn: cocosCenter(1129.9746, 199.2666),
+    drawn: handSlot(1030.573, 588.4651, 14),
   },
 } as const;
 

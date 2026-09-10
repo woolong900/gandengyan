@@ -1,5 +1,48 @@
 import { describe, expect, it } from 'vitest';
-import { LAIZI_OUT } from '../src/ui/layout';
+import { LAIZI_OUT, SIDE_HAND } from '../src/ui/layout';
+
+/**
+ * 摸的那张要摆在**那一家自己的右手边**。左右两家面朝的方向相反，所以右手边在屏幕上
+ * 分处两端：左家面朝右，右手边是屏幕下方；右家面朝左，右手边是屏幕上方。
+ */
+describe('左右两家的摸牌槽', () => {
+  it('左家在近端（屏幕下方）、右家在远端（屏幕上方）', () => {
+    const l = SIDE_HAND.left;
+    expect(l.drawn.y).toBeGreaterThan(l.packed[l.packed.length - 1].y);
+    const r = SIDE_HAND.right;
+    expect(r.drawn.y).toBeLessThan(r.packed[0].y);
+  });
+
+  it('摸的那张紧挨着余牌对齐的那一端，缝比相邻步距略大', () => {
+    // 余牌左家从近端对齐、右家从远端对齐，所以两边都是和摸牌槽相邻的那一端不动。
+    // 步距随透视一路变大（近端更宽），所以只能跟摸牌槽**相邻**的那一步比。
+    const cases = [
+      { wall: SIDE_HAND.left, end: 12, next: 11 },
+      { wall: SIDE_HAND.right, end: 0, next: 1 },
+    ];
+    for (const { wall, end, next } of cases) {
+      const step = Math.abs(wall.packed[end].y - wall.packed[next].y);
+      const gap = Math.abs(wall.drawn.y - wall.packed[end].y);
+      expect(gap).toBeGreaterThan(step);
+      expect(gap).toBeLessThan(step * 2);
+    }
+  });
+
+  it('14 个槽用满 14 张预渲染贴图，不重号', () => {
+    for (const wall of [SIDE_HAND.left, SIDE_HAND.right]) {
+      const tiles = [...wall.packed.map((s) => s.tile), wall.drawn.tile];
+      expect([...tiles].sort((a, b) => a - b)).toEqual(Array.from({ length: 14 }, (_, i) => i + 1));
+    }
+  });
+
+  it('贴图编号 1 最近、14 最远：编号随槽位离屏幕近端由近到远递增', () => {
+    // 近端在屏幕下方，y 越大越近，所以贴图编号应随 y 减小而增大
+    for (const wall of [SIDE_HAND.left, SIDE_HAND.right]) {
+      const all = [...wall.packed, wall.drawn].sort((a, b) => b.y - a.y);
+      expect(all.map((s) => s.tile)).toEqual(Array.from({ length: 14 }, (_, i) => i + 1));
+    }
+  });
+});
 
 /**
  * 甩出的赖子排成一排时，步进方向必须和牌面那条挨着的边平行，否则接缝上会露出
