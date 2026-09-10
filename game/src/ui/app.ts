@@ -86,6 +86,8 @@ export class App {
       // 预览只摆稳定态：碰完还要打一张，这里直接给等着别人出牌时的张数。
       const waiting = 3 * (4 - p.melds.length) + 1;
       if (p.isBot && p.hand.length > waiting) p.hand.length = waiting;
+      // 牌河也摆出来：一排 7 张再多两张，能一并核对换排和排间叠压
+      for (let i = 0; i < 9; i++) p.discards.push((i % 27) as Kind);
       p.discards.push(g.laizi, g.laizi);
       p.laiziOut = 2;
       p.mul = g.rules.laiziMultiplier * g.rules.laiziMultiplier;

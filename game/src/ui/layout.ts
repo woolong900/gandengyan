@@ -620,7 +620,11 @@ export const LAIZI_OUT: Record<
  * 四家一个套路：桌面上 3 排，**第 1 排贴桌心**、往自己这边一排排长；满了以后第 4、5 排
  * 原样**摞在第 1、2 排头上**（整排一个固定偏移，约一个牌厚）。一排从那一家自己的
  * **左手边**排到右手边（自家往屏幕右、对家往屏幕左、左家往屏幕下、右家往屏幕上）。
- * 每排的容量不同：自家/对家 13 张，左右两家 7 张，所以上限 65 / 35 张。
+ *
+ * **一排一律 7 张**，上限 5 排 35 张。自家/对家的槽位虽有 13 个，平时只用居中的
+ * `card_5..card_11`——APK 的 `_outIndex` 就是这么算的：
+ *   `13 * floor(i / 7) + (i % 7 + 4)`，二人局（`isErRen`）才退化成 `i`、铺满 13 个。
+ * 从 `card_1` 起铺满 13 个会让整排偏向那一家的左手边，还会长到和左右两家的牌河打架。
  *
  * 贴图编号跟的是离镜头轴的横向距离（`_0` 在正中），四家的方向还不一样，所以整排列在
  * `RIVER_TILES.order` 里，**不要**按下标推算。
@@ -702,17 +706,23 @@ function riverStack(row: ReadonlyArray<RiverSlot>, dx: number, dy: number): Rive
  */
 function riverSide(
   glyphRot: number,
-  rows: ReadonlyArray<ReadonlyArray<RiverSlot>>,
-  stacks: ReadonlyArray<readonly [number, number]>
+  full: ReadonlyArray<ReadonlyArray<RiverSlot>>,
+  stacks: ReadonlyArray<readonly [number, number]>,
+  /** 实际用到的槽位窗口（自家/对家平时只用居中的 7 个） */
+  [from, to]: readonly [number, number] = [0, full[0].length]
 ): RiverSide {
-  const perRow = rows[0].length;
-  const horizontal = Math.abs(rows[0][0].y - rows[0][perRow - 1].y) < 1;
+  const width = full[0].length;
+  const horizontal = Math.abs(full[0][0].y - full[0][width - 1].y) < 1;
   const far = (r: ReadonlyArray<RiverSlot>) => (horizontal ? r[0].y : -Math.abs(r[0].x - DESIGN_W / 2));
-  const rowOrder = rows.map((_, i) => i).sort((a, b) => far(rows[a]) - far(rows[b]));
-  const half = Math.ceil(perRow / 2);
-  const inRow = horizontal
-    ? Array.from({ length: perRow }, (_, i) => (i < half ? i : perRow - 1 - (i - half)))
-    : rows[0].map((_, i) => i).sort((a, b) => rows[0][a].y - rows[0][b].y);
+  const rowOrder = full.map((_, i) => i).sort((a, b) => far(full[a]) - far(full[b]));
+  // 画序在**整排**上算（预制体子节点就是 card_1..7 再 card_13..8），再截到窗口内
+  const half = Math.ceil(width / 2);
+  const fullOrder = horizontal
+    ? Array.from({ length: width }, (_, i) => (i < half ? i : width - 1 - (i - half)))
+    : full[0].map((_, i) => i).sort((a, b) => full[0][a].y - full[0][b].y);
+  const inRow = fullOrder.filter((i) => i >= from && i < to).map((i) => i - from);
+  const rows = full.map((r) => r.slice(from, to));
+  const perRow = to - from;
   const base = rows.length * perRow;
   return {
     glyphRot,
@@ -743,33 +753,32 @@ const LEFT_RIVER_SY = [0.39, 0.4, 0.4, 0.41, 0.43, 0.44, 0.45];
 const RIGHT_RIVER_SX = [0.3, 0.3, 0.3, 0.29, 0.28, 0.27, 0.25];
 const RIGHT_RIVER_SY = [0.45, 0.45, 0.44, 0.42, 0.4, 0.39, 0.37];
 
+// 排号和贴图前缀号是反的：贴桌心那排最远、用 xq3
+const BOTTOM_RIVER_ROWS = [
+  riverRowH('xq', 3, RIVER_TILES.bottom.order, 413.69, 369.65, 41.8, -10.18, 0.37, 0.37),
+  riverRowH('xq', 2, RIVER_TILES.bottom.order, 457.51, 362.93, 42.81, -10.58, 0.38, 0.38),
+  riverRowH('xq', 1, RIVER_TILES.bottom.order, 504.61, 356.2, 43.87, -10.27, 0.41, 0.41),
+];
+const BOTTOM_RIVER_STACKS = [
+  [-0.56, -16.14],
+  [-0.74, -14.76],
+] as const;
+// 对家的牌面字靠 card 的负缩放转 180°，和碰杠一样
+const TOP_RIVER_ROWS = [
+  riverRowH('sq', 1, RIVER_TILES.top.order, 205.52, 880.79, -37.02, -7.77, -0.37, -0.27),
+  riverRowH('sq', 2, RIVER_TILES.top.order, 172.06, 875.98, -36.24, -7.1, -0.35, -0.26),
+  riverRowH('sq', 3, RIVER_TILES.top.order, 140.09, 871.82, -35.58, -7.51, -0.34, -0.25),
+];
+const TOP_RIVER_STACKS = [
+  [-0.2, -19.05],
+  [-0.58, -20.13],
+] as const;
+/** 自家/对家平时只用 13 个槽里居中的 7 个，见 `_outIndex` */
+const MID7 = [4, 11] as const;
+
 export const RIVER: Record<Anchor, RiverSide> = {
-  // 排号和贴图前缀号是反的：贴桌心那排最远、用 xq3
-  bottom: riverSide(
-    0,
-    [
-      riverRowH('xq', 3, RIVER_TILES.bottom.order, 413.69, 369.65, 41.8, -10.18, 0.37, 0.37),
-      riverRowH('xq', 2, RIVER_TILES.bottom.order, 457.51, 362.93, 42.81, -10.58, 0.38, 0.38),
-      riverRowH('xq', 1, RIVER_TILES.bottom.order, 504.61, 356.2, 43.87, -10.27, 0.41, 0.41),
-    ],
-    [
-      [-0.56, -16.14],
-      [-0.74, -14.76],
-    ]
-  ),
-  // 对家的牌面字靠 card 的负缩放转 180°，和碰杠一样
-  top: riverSide(
-    0,
-    [
-      riverRowH('sq', 1, RIVER_TILES.top.order, 205.52, 880.79, -37.02, -7.77, -0.37, -0.27),
-      riverRowH('sq', 2, RIVER_TILES.top.order, 172.06, 875.98, -36.24, -7.1, -0.35, -0.26),
-      riverRowH('sq', 3, RIVER_TILES.top.order, 140.09, 871.82, -35.58, -7.51, -0.34, -0.25),
-    ],
-    [
-      [-0.2, -19.05],
-      [-0.58, -20.13],
-    ]
-  ),
+  bottom: riverSide(0, BOTTOM_RIVER_ROWS, BOTTOM_RIVER_STACKS, MID7),
+  top: riverSide(0, TOP_RIVER_ROWS, TOP_RIVER_STACKS, MID7),
   left: riverSide(
     Math.PI / 2,
     [
@@ -794,4 +803,13 @@ export const RIVER: Record<Anchor, RiverSide> = {
       [3.1, -19.5],
     ]
   ),
+};
+
+/**
+ * 二人局只有自家和对家，一家能打出去的牌多得多，所以整排 13 个槽都用上
+ * （APK `_outIndex` 里 `isErRen` 那条分支），上限 65 张。
+ */
+export const RIVER_ER: Record<'bottom' | 'top', RiverSide> = {
+  bottom: riverSide(0, BOTTOM_RIVER_ROWS, BOTTOM_RIVER_STACKS),
+  top: riverSide(0, TOP_RIVER_ROWS, TOP_RIVER_STACKS),
 };

@@ -25,6 +25,7 @@ import {
   OTHER_HAND,
   PANEL,
   RIVER,
+  RIVER_ER,
   SIDE_MELD,
   FaceSlot,
   TILE,
@@ -475,7 +476,9 @@ export class Renderer {
    * 落牌按 `slots` 顺序占位，但要按 `paint` 的顺序画——远的先画（见 layout 的 riverSide）。
    */
   private drawRiver(game: Game, p: PlayerState, anchor: Anchor): void {
-    const { glyphRot, slots, paint } = RIVER[anchor];
+    // 二人局自家/对家整排铺满 13 个槽，其余一律一排 7 张（见 layout 的 RIVER_ER）
+    const erRen = game.rules.playerCount === 2 && (anchor === 'bottom' || anchor === 'top');
+    const { glyphRot, slots, paint } = erRen ? RIVER_ER[anchor] : RIVER[anchor];
     const river = p.discards.filter((k) => k !== game.laizi);
     const c = this.ctx;
     for (const i of paint) {

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { LAIZI_OUT, RIVER, SIDE_HAND, SIDE_MELD } from '../src/ui/layout';
+import { LAIZI_OUT, RIVER, RIVER_ER, SIDE_HAND, SIDE_MELD } from '../src/ui/layout';
 
 /**
  * 暗杠和明牌共用同一批槽位，只换贴图。照抄预制体 `*_gang_hide` 子节点的局部坐标会让
@@ -193,7 +193,7 @@ describe('出牌河', () => {
   it('每家 3 排铺桌面、2 排摞在头上', () => {
     for (const anchor of anchors) {
       const { perRow, slots } = RIVER[anchor];
-      expect(perRow).toBe(anchor === 'left' || anchor === 'right' ? 7 : 13);
+      expect(perRow).toBe(7);
       expect(slots.length).toBe(perRow * 5);
       // 第 4、5 排是第 1、2 排抬起一个牌厚，贴图一一对应
       for (let i = 0; i < perRow * 2; i++) {
@@ -252,6 +252,29 @@ describe('出牌河', () => {
         expect(Math.sign(s.shear)).toBe(Math.sign(Math.round(s.x - 640)));
         expect(Math.abs(s.shear)).toBeCloseTo(0.000545 * Math.abs(s.x - 640), 2);
       }
+    }
+  });
+
+  /**
+   * 自家/对家那 13 个槽平时只用居中的 7 个。APK `_outIndex`：
+   * `13 * floor(i / 7) + (i % 7 + 4)`，二人局才退化成 `i`。
+   */
+  it('自家/对家取 13 槽里居中的 7 个，二人局才铺满', () => {
+    for (const anchor of ['bottom', 'top'] as const) {
+      const { perRow, slots } = RIVER[anchor];
+      const er = RIVER_ER[anchor];
+      expect(er.perRow).toBe(13);
+      expect(er.slots.length).toBe(65);
+      for (let i = 0; i < slots.length; i++) {
+        expect(slots[i]).toEqual(er.slots[13 * Math.floor(i / perRow) + (i % perRow) + 4]);
+      }
+      // 收到居中 7 个，横排才不会长进左右两家的牌河：只在拐角处和邻家挨着
+      const xs = slots.map((s) => s.x);
+      const near = anchor === 'bottom' ? RIVER.right : RIVER.left;
+      const overshoot = anchor === 'bottom'
+        ? Math.max(...xs) - Math.min(...near.slots.map((s) => s.x))
+        : Math.max(...near.slots.map((s) => s.x)) - Math.min(...xs);
+      expect(overshoot).toBeLessThan(20);
     }
   });
 });
