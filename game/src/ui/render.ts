@@ -510,16 +510,19 @@ export class Renderer {
     for (let gi = 0; gi < p.melds.length; gi++) {
       const m = p.melds[gi];
       const hide = hideFaces(m);
-      const slots = (hide ? hidden : groups)[gi];
-      if (!slots) break;
+      if (!groups[gi]) break;
       const n = this.meldTileCount(m);
-      // 槽位已是预制体子节点顺序：先画被压住的，杠的第 4 张恒在末位叠最上面。
-      for (const pos of slots.slice(0, n)) {
+      // 槽位已是预制体子节点顺序：先画被压住的，杠的第 4 张恒在末位、叠在中间那张上面。
+      for (let i = 0; i < n; i++) {
+        // 暗杠扣着摆，但摞在最上面那张（第 4 张）翻开亮出牌面，好让人看出杠了什么。
+        // 明暗两套槽位坐标相同（见 layout 的 hiddenOf），所以只是换贴图、加不加牌面字。
+        const faceUp = !hide || i === 3;
+        const pos = (faceUp ? groups : hidden)[gi][i];
         const img = this.img(pos.sprite);
         const w = img?.width ?? pos.w;
         const h = img?.height ?? pos.h;
         if (img) c.drawImage(img, pos.x + dx - w / 2, pos.y - h / 2, w, h);
-        if (!hide && m.kind !== undefined) this.drawSideMeldFace(m.kind, pos, dx, glyphRot, m.kind === game.laizi);
+        if (faceUp && m.kind !== undefined) this.drawSideMeldFace(m.kind, pos, dx, glyphRot, m.kind === game.laizi);
       }
     }
   }

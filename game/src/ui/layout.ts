@@ -351,10 +351,39 @@ type SideMeldSide = {
   hidden: ReadonlyArray<ReadonlyArray<SideMeldSlot>>;
 };
 
+/**
+ * 暗杠 `*_gang_hide`：另有一套绿背朝上的贴图，但槽位和明牌 `*_gang_show` 是**同一批**。
+ * 预制体里 `left_gang_hide` / `right_gang_hide` 这两个节点自身带偏移
+ * （(6.94, -29.96) / (10, -10)），加上之后逐槽和明牌重合到 1.2px 以内，贴图编号也一一
+ * 对应（`zag4_3` <-> `zpg4_3`）；上下两家偏移是 0，坐标本来就一样。所以暗杠槽位一律从
+ * 明牌槽**换贴图**得来。**禁止**照抄 hide 子节点的局部坐标——那样左右两家的暗杠会和碰
+ * 错开 30px / 14px，看着就是「碰牌和杠牌不在一条线上」。
+ *
+ * 顺带纠正 APK 自己的一处错配：`down_gang_hide` 第 4 组把 `xag4_1`（50px 宽）摆在了要
+ * 54px 的那一格上，组内三张的编号是反的。按 show 的编号换贴图就对了。
+ */
+function hiddenOf(
+  groups: ReadonlyArray<ReadonlyArray<SideMeldSlot>>,
+  show: string,
+  hide: string
+): ReadonlyArray<ReadonlyArray<SideMeldSlot>> {
+  // 扣着的那几张没有牌面字，牌面那套变换参数一律清零
+  return groups.map((g) =>
+    g.map((s) => ({ ...s, sprite: s.sprite.replace(show, hide) as ImageName, cardSx: 0, cardSy: 0, shear: 0 }))
+  );
+}
+
+function meldSide(
+  glyphRot: number,
+  show: string,
+  hide: string,
+  groups: ReadonlyArray<ReadonlyArray<SideMeldSlot>>
+): SideMeldSide {
+  return { glyphRot, groups, hidden: hiddenOf(groups, show, hide) };
+}
+
 export const SIDE_MELD: Record<Anchor, SideMeldSide> = {
-  left: {
-    glyphRot: Math.PI / 2,
-    groups: [
+  left: meldSide(Math.PI / 2, 'zpg', 'zag', [
       [
         gangSlot('zpg4_3', 267.51, 634.74, 56, 39, 1.53, 9.81, 0.21, 0.35, LEFT_MELD_SHEAR),
         gangSlot('zpg4_2', 262.3, 614.82, 57, 39, 2.15, 8.99, 0.23, 0.36, LEFT_MELD_SHEAR),
@@ -379,37 +408,8 @@ export const SIDE_MELD: Record<Anchor, SideMeldSide> = {
         gangSlot('zpg1_1', 191.11, 328.88, 69, 47, 0.22, 9.11, 0.32, 0.43, LEFT_MELD_SHEAR),
         gangSlot('zpg1_4', 192.98, 377.88, 68, 48, -1.09, 8.78, 0.31, 0.43, LEFT_MELD_SHEAR),
       ],
-    ],
-    hidden: [
-      [
-        gangSlot('zag4_3', 261.76, 664.66, 56, 39, 0, 0, 0, 0),
-        gangSlot('zag4_2', 255.55, 644.74, 57, 39, 0, 0, 0, 0),
-        gangSlot('zag4_1', 250.12, 624.13, 58, 39, 0, 0, 0, 0),
-        gangSlot('zag4_4', 251.2, 662.1, 57, 39, 0, 0, 0, 0),
-      ],
-      [
-        gangSlot('zag3_3', 243.81, 592.05, 59, 41, 0, 0, 0, 0),
-        gangSlot('zag3_2', 237.05, 569.75, 60, 41, 0, 0, 0, 0),
-        gangSlot('zag3_1', 231.79, 545.04, 61, 42, 0, 0, 0, 0),
-        gangSlot('zag3_4', 233.39, 587.15, 60, 42, 0, 0, 0, 0),
-      ],
-      [
-        gangSlot('zag2_3', 222.38, 510.42, 63, 43, 0, 0, 0, 0),
-        gangSlot('zag2_2', 216.11, 485.95, 63, 44, 0, 0, 0, 0),
-        gangSlot('zag2_1', 209.76, 457.42, 65, 45, 0, 0, 0, 0),
-        gangSlot('zag2_4', 210.08, 502.43, 65, 44, 0, 0, 0, 0),
-      ],
-      [
-        gangSlot('zag1_3', 199.63, 419.24, 66, 46, 0, 0, 0, 0),
-        gangSlot('zag1_2', 192.21, 389.85, 67, 47, 0, 0, 0, 0),
-        gangSlot('zag1_1', 184.35, 358.8, 69, 47, 0, 0, 0, 0),
-        gangSlot('zag1_4', 186.22, 407.8, 68, 47, 0, 0, 0, 0),
-      ],
-    ],
-  },
-  right: {
-    glyphRot: -Math.PI / 2,
-    groups: [
+    ]),
+  right: meldSide(-Math.PI / 2, 'ygp', 'yag', [
       [
         gangSlot('ygp1_3', 1129.34, 192.57, 77, 53, 0.52, 9.12, 0.38, 0.46, RIGHT_MELD_SHEAR),
         gangSlot('ygp1_2', 1138.46, 155.95, 79, 55, 0.73, 7.88, 0.42, 0.47, RIGHT_MELD_SHEAR),
@@ -434,37 +434,8 @@ export const SIDE_MELD: Record<Anchor, SideMeldSide> = {
         gangSlot('ygp4_1', 1063.0, 453.71, 65, 46, 0.45, 9.35, 0.28, 0.41, RIGHT_MELD_SHEAR),
         gangSlot('ygp4_4', 1060.46, 500.83, 65, 45, 0.67, 8.48, 0.28, 0.41, RIGHT_MELD_SHEAR),
       ],
-    ],
-    hidden: [
-      [
-        gangSlot('yag1_3', 1119.49, 202.41, 77, 53, 0, 0, 0, 0),
-        gangSlot('yag1_2', 1128.62, 165.79, 79, 55, 0, 0, 0, 0),
-        gangSlot('yag1_1', 1138.76, 127.47, 81, 56, 0, 0, 0, 0),
-        gangSlot('yag1_4', 1135.52, 183.32, 81, 55, 0, 0, 0, 0),
-      ],
-      [
-        gangSlot('yag2_3', 1088.72, 320.33, 73, 50, 0, 0, 0, 0),
-        gangSlot('yag2_2', 1096.94, 287.3, 74, 50, 0, 0, 0, 0),
-        gangSlot('yag2_1', 1105.87, 253.33, 75, 52, 0, 0, 0, 0),
-        gangSlot('yag2_4', 1103.46, 306.49, 74, 51, 0, 0, 0, 0),
-      ],
-      [
-        gangSlot('yag3_3', 1062.56, 424.93, 68, 47, 0, 0, 0, 0),
-        gangSlot('yag3_2', 1069.95, 395.26, 69, 48, 0, 0, 0, 0),
-        gangSlot('yag3_1', 1077.5, 364.72, 71, 48, 0, 0, 0, 0),
-        gangSlot('yag3_4', 1075.44, 414.79, 70, 48, 0, 0, 0, 0),
-      ],
-      [
-        gangSlot('yag4_3', 1039.25, 518.57, 63, 43, 0, 0, 0, 0),
-        gangSlot('yag4_2', 1046.05, 491.68, 64, 45, 0, 0, 0, 0),
-        gangSlot('yag4_1', 1053.16, 463.91, 66, 46, 0, 0, 0, 0),
-        gangSlot('yag4_4', 1050.62, 510.67, 66, 44, 0, 0, 0, 0),
-      ],
-    ],
-  },
-  top: {
-    glyphRot: 0,
-    groups: [
+    ]),
+  top: meldSide(0, 'spg', 'sag', [
       [
         topSlot('spg4_3', 967.15, 677, 43, 46, 1.76, 7.17, -0.32, -0.21, 0.209),
         topSlot('spg4_2', 933.74, 677, 42, 46, 1.27, 7.17, -0.32, -0.21, 0.189),
@@ -489,37 +460,8 @@ export const SIDE_MELD: Record<Anchor, SideMeldSide> = {
         topSlot('spg1_1', 629.35, 677, 36, 46, -0.09, 7.57, -0.32, -0.21, 0),
         topSlot('spg1_4', 595.92, 696.55, 36, 46, 0.07, 8.11, -0.32, -0.21, -0.023),
       ],
-    ],
-    hidden: [
-      [
-        topSlot('sag4_3', 967.15, 677, 43, 46, 0, 0, 0, 0),
-        topSlot('sag4_2', 933.74, 677, 42, 46, 0, 0, 0, 0),
-        topSlot('sag4_1', 900.61, 677, 42, 46, 0, 0, 0, 0),
-        topSlot('sag4_4', 935.85, 696.31, 42, 46, 0, 0, 0, 0),
-      ],
-      [
-        topSlot('sag3_3', 854.02, 677, 40, 46, 0, 0, 0, 0),
-        topSlot('sag3_2', 825.46, 678, 39, 46, 0, 0, 0, 0),
-        topSlot('sag3_1', 788.33, 677, 39, 46, 0, 0, 0, 0),
-        topSlot('sag3_4', 824.03, 696.07, 41, 46, 0, 0, 0, 0),
-      ],
-      [
-        topSlot('sag2_3', 740.98, 677, 37, 46, 0, 0, 0, 0),
-        topSlot('sag2_2', 708.35, 677, 37, 46, 0, 0, 0, 0),
-        topSlot('sag2_1', 675.49, 677, 36, 46, 0, 0, 0, 0),
-        topSlot('sag2_4', 708.85, 695.77, 37, 46, 0, 0, 0, 0),
-      ],
-      [
-        topSlot('sag1_3', 563.07, 677, 37, 46, 0, 0, 0, 0),
-        topSlot('sag1_2', 595.92, 677, 35, 46, 0, 0, 0, 0),
-        topSlot('sag1_1', 629.35, 677, 36, 46, 0, 0, 0, 0),
-        topSlot('sag1_4', 595.92, 696.55, 36, 46, 0, 0, 0, 0),
-      ],
-    ],
-  },
-  bottom: {
-    glyphRot: 0,
-    groups: [
+    ]),
+  bottom: meldSide(0, 'xpg', 'xag', [
       [
         gangSlot('xpg1_3', 167.73, 41.76, 66, 73, -2.39, 9.82, 0.47, 0.47, -0.23),
         gangSlot('xpg1_2', 216.2, 41.76, 65, 73, -2.35, 10.33, 0.47, 0.47, -0.2),
@@ -544,34 +486,7 @@ export const SIDE_MELD: Record<Anchor, SideMeldSide> = {
         gangSlot('xpg4_1', 655.16, 41.66, 50, 73, -0.23, 11.07, 0.47, 0.47, 0),
         gangSlot('xpg4_4', 704.17, 60, 52, 74, 0.26, 10.55, 0.47, 0.47, 0.024),
       ],
-    ],
-    hidden: [
-      [
-        gangSlot('xag1_3', 167.73, 41.76, 66, 73, 0, 0, 0, 0),
-        gangSlot('xag1_2', 216.2, 41.76, 65, 73, 0, 0, 0, 0),
-        gangSlot('xag1_1', 264.17, 41.76, 63, 73, 0, 0, 0, 0),
-        gangSlot('xag1_4', 211.24, 58.66, 66, 75, 0, 0, 0, 0),
-      ],
-      [
-        gangSlot('xag2_3', 330.81, 41.1, 61, 73, 0, 0, 0, 0),
-        gangSlot('xag2_2', 377.58, 41.1, 59, 73, 0, 0, 0, 0),
-        gangSlot('xag2_1', 426.03, 41.35, 57, 73, 0, 0, 0, 0),
-        gangSlot('xag2_4', 374.0, 59.43, 60, 75, 0, 0, 0, 0),
-      ],
-      [
-        gangSlot('xag3_3', 491.82, 41.89, 54, 73, 0, 0, 0, 0),
-        gangSlot('xag3_2', 540.52, 42.08, 53, 73, 0, 0, 0, 0),
-        gangSlot('xag3_1', 587.92, 42.08, 51, 73, 0, 0, 0, 0),
-        gangSlot('xag3_4', 539.59, 59.91, 54, 75, 0, 0, 0, 0),
-      ],
-      [
-        gangSlot('xag4_1', 750.41, 41.66, 50, 73, 0, 0, 0, 0),
-        gangSlot('xag4_2', 702.8, 41.66, 52, 73, 0, 0, 0, 0),
-        gangSlot('xag4_3', 655.16, 41.66, 54, 73, 0, 0, 0, 0),
-        gangSlot('xag4_4', 704.17, 60, 52, 75, 0, 0, 0, 0),
-      ],
-    ],
-  },
+    ]),
 };
 
 /** 操作按钮：右下角，避开右侧牌墙近端与自家手牌 */

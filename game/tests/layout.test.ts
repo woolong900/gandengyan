@@ -1,5 +1,47 @@
 import { describe, expect, it } from 'vitest';
-import { LAIZI_OUT, SIDE_HAND } from '../src/ui/layout';
+import { LAIZI_OUT, SIDE_HAND, SIDE_MELD } from '../src/ui/layout';
+
+/**
+ * 暗杠和明牌共用同一批槽位，只换贴图。照抄预制体 `*_gang_hide` 子节点的局部坐标会让
+ * 左右两家的暗杠和碰错开（左 30px / 右 14px），看着「碰牌和杠牌不在一条线上」。
+ */
+describe('碰杠槽位', () => {
+  const anchors = ['bottom', 'top', 'left', 'right'] as const;
+
+  it('暗杠逐槽和明牌同位，只有贴图不同', () => {
+    for (const anchor of anchors) {
+      const { groups, hidden } = SIDE_MELD[anchor];
+      expect(hidden.length).toBe(groups.length);
+      groups.forEach((g, gi) =>
+        g.forEach((s, i) => {
+          expect(hidden[gi][i].x).toBe(s.x);
+          expect(hidden[gi][i].y).toBe(s.y);
+          expect(hidden[gi][i].sprite).not.toBe(s.sprite);
+        })
+      );
+    }
+  });
+
+  it('暗杠没有牌面字', () => {
+    for (const anchor of anchors) {
+      for (const g of SIDE_MELD[anchor].hidden) {
+        for (const s of g) expect([s.cardSx, s.cardSy, s.shear]).toEqual([0, 0, 0]);
+      }
+    }
+  });
+
+  it('杠的第 4 张摞在中间那张上面：抬起约一个牌厚', () => {
+    for (const anchor of anchors) {
+      for (const g of SIDE_MELD[anchor].groups) {
+        // 数组是预制体子节点顺序：[远, 中, 近, 摞在最上面的那张]
+        const lift = g[1].y - g[3].y;
+        expect(lift).toBeGreaterThan(14);
+        expect(lift).toBeLessThan(21);
+        expect(Math.abs(g[3].x - g[1].x)).toBeLessThan(8);
+      }
+    }
+  });
+});
 
 /**
  * 摸的那张要摆在**那一家自己的右手边**。左右两家面朝的方向相反，所以右手边在屏幕上
