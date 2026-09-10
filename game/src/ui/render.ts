@@ -77,6 +77,19 @@ const FONT = '"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
 const LAIZI_TINT = '#f2ed5f';
 const TINT_RGB = [0xf2, 0xed, 0x5f] as const;
 
+/**
+ * 一家等着别人出牌时该有的张数：每碰/杠一组少 3 张。
+ *
+ * APK 的 `*_hand_hide` 一共 14 槽 = 13 个余牌槽 + 1 个带缝的槽，而碰杠区正好压在
+ * 余牌槽靠远端（左右两家）/ 靠自己右手边（对家）的那几格上。所以有 m 组碰杠时，
+ * 余牌只剩 `13 − 3m` 格能用，多握的那一张**必须**放进带缝的那个槽——判定只能看张数，
+ * 不能看有没有真的摸牌：碰、朝天碰、朝天杠都不补牌（`drawn` 是 null），
+ * 却同样多握一张，照旧塞进余牌槽就会往碰杠区多占一格，看着就是「手牌和碰牌重叠」。
+ */
+function handWaiting(p: PlayerState): number {
+  return 3 * (4 - p.melds.length) + 1;
+}
+
 export class Renderer {
   private ctx: CanvasRenderingContext2D;
   private scale = 1;
@@ -631,12 +644,10 @@ export class Renderer {
   /**
    * 左右手牌：APK 预渲染长方体（zlp / ylp），按 CardLayer3D 槽位摆。
    */
-  private drawSideHandBoxes(game: Game, p: PlayerState, anchor: 'left' | 'right'): void {
+  private drawSideHandBoxes(p: PlayerState, anchor: 'left' | 'right'): void {
     const n = p.hand.length;
     if (n <= 0) return;
-    const waiting = 3 * (4 - p.melds.length) + 1;
-    const splitDrawn = game.turn === p.seat && game.drawn !== null && n === waiting + 1;
-    const packed = splitDrawn ? n - 1 : n;
+    const packed = Math.min(n, handWaiting(p));
     // 余牌要朝摸牌槽那一端对齐，才和摸的那张挨着；碰杠区正好在另一端（见 SIDE_HAND）。
     drawSideWall3d(this.ctx, (name) => this.img(name), anchor, n, packed, anchor === 'left' ? 'near' : 'far');
   }
@@ -644,17 +655,15 @@ export class Renderer {
   /** 对家用立着的牌背；左右用 zlp/ylp 长方体暗牌。 */
   private drawOtherHand(game: Game, p: PlayerState, anchor: Anchor): void {
     if (anchor === 'left' || anchor === 'right') {
-      this.drawSideHandBoxes(game, p, anchor);
+      this.drawSideHandBoxes(p, anchor);
       return;
     }
     const cfg = OTHER_HAND[anchor];
     const n = p.hand.length;
     if (n <= 0) return;
-    const waiting = 3 * (4 - p.melds.length) + 1;
-    const splitDrawn = game.turn === p.seat && game.drawn !== null && n === waiting + 1;
     const step = cfg.dx;
-    const packed = splitDrawn ? n - 1 : n;
-    const gap = splitDrawn ? cfg.drawnGap : 0;
+    const packed = Math.min(n, handWaiting(p));
+    const gap = n > packed ? cfg.drawnGap : 0;
     const fullStart = cfg.x - ((FULL_HAND - 1) * step) / 2;
 
     for (let i = 0; i < n; i++) {

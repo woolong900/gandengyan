@@ -83,7 +83,7 @@ export class App {
         }
         return true;
       });
-      // 碰完还要打一张：其他家收到等待张数，免得手牌墙占掉碰牌的槽位。
+      // 预览只摆稳定态：碰完还要打一张，这里直接给等着别人出牌时的张数。
       const waiting = 3 * (4 - p.melds.length) + 1;
       if (p.isBot && p.hand.length > waiting) p.hand.length = waiting;
       p.discards.push(g.laizi, g.laizi);

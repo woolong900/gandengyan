@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { LAIZI_OUT, RIVER, SIDE_HAND, SIDE_MELD } from '../src/ui/layout';
 
@@ -38,6 +39,44 @@ describe('碰杠槽位', () => {
         expect(lift).toBeGreaterThan(14);
         expect(lift).toBeLessThan(21);
         expect(Math.abs(g[3].x - g[1].x)).toBeLessThan(8);
+      }
+    }
+  });
+});
+
+/**
+ * 碰杠区压在余牌槽靠远端的那几格上，所以有 m 组碰杠时余牌只剩 `13 − 3m` 格能用。
+ * 牌墙是 20px 步距上摆 80~100px 高的长方体，压没压到只能按**边缘**算。
+ */
+describe('侧手牌墙和碰杠区', () => {
+  /** 牌墙用 `packed` 张余牌时，沿碰杠那一端的边界 */
+  function wallEdge(anchor: 'left' | 'right', packed: number): number {
+    const pk = SIDE_HAND[anchor].packed;
+    const s = anchor === 'left' ? pk[pk.length - packed] : pk[packed - 1];
+    const h = tileHeight(anchor, s.tile);
+    return anchor === 'left' ? s.y - h / 2 : s.y + h / 2;
+  }
+
+  function tileHeight(anchor: 'left' | 'right', tile: number): number {
+    const name = `${anchor === 'left' ? 'zlp' : 'ylp'}_${tile}.png`;
+    const png = readFileSync(new URL(`../public/assets/img/${name}`, import.meta.url));
+    return png.readUInt32BE(20); // IHDR 的 height
+  }
+
+  it('有 m 组碰杠时，13 - 3m 张余牌正好和碰杠区挨上而不重叠', () => {
+    for (const anchor of ['left', 'right'] as const) {
+      for (let m = 1; m <= 4; m++) {
+        const g = SIDE_MELD[anchor].groups[m - 1];
+        const meldEdge =
+          anchor === 'left'
+            ? Math.max(...g.map((s) => s.y + s.h / 2))
+            : Math.min(...g.map((s) => s.y - s.h / 2));
+        const clear = wallEdge(anchor, 13 - 3 * m);
+        const overlap = anchor === 'left' ? meldEdge - clear : clear - meldEdge;
+        expect(overlap).toBeLessThan(12);
+        // 再多一张就压进碰杠区，所以多握的那张只能进摸牌槽（见 render 的 handWaiting）
+        const packedOneMore = wallEdge(anchor, 14 - 3 * m);
+        expect(anchor === 'left' ? meldEdge - packedOneMore : packedOneMore - meldEdge).toBeGreaterThan(overlap + 10);
       }
     }
   });
