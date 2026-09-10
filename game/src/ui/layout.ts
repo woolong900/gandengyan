@@ -233,8 +233,8 @@ export const MELD_AREA: Record<
  * 左/右/对家碰杠：按 APK CardLayer3D `{left,right,up}_gang_show`。
  * 牌身每槽一张预渲染长方体（左 `zpg*` / 右 `ygp*` / 对家 `spg*`），Sprite sizeMode=RAW，
  * 所以透视斜边已经画在贴图里，按原始尺寸摆在节点中心即可——不要拉伸、旋转或错切。
- * 子节点 card 只放牌面字：左右 euler.z ∓90° + skewY，对家用负缩放转 180°。
- * canvas 正旋转为顺时针，故 glyphRot = -euler.z；Y 向下故 skewY 取反。
+ * 子节点 card 只放牌面字：左右 euler.z ∓90°，对家用负缩放转 180°，各家再按牌面剪切
+ * （见 `SideMeldSlot.shear`）。canvas 正旋转为顺时针，故 glyphRot = -euler.z。
  * 每组前 3 张成一排，第 4 张是杠的叠牌，恒在预制体子节点末位。
  */
 export type SideMeldSlot = {
@@ -249,7 +249,34 @@ export type SideMeldSlot = {
   /** 对家为负值：APK 用负缩放把牌面字转 180° */
   cardSx: number;
   cardSy: number;
+  /**
+   * 牌面字的屏幕剪切量 `dx/dy`：把字剪成和这张贴图画好的牌面同一个平行四边形。
+   * 直接取贴图自身象牙面侧缘的斜率，而不是搬预制体 card 的 `skewX`/`skewY` 角度
+   * ——见 `FACE_SHEAR` 注释。暗杠没有牌面字，恒为 0。
+   */
+  shear: number;
 };
+
+/**
+ * 为什么不搬预制体的 skew 角度：预制体 card 的 skew 是在**缩放之后**参与复合的
+ * （cocos `_updateLocalMatrix` 把 skew 乘在旋转缩放矩阵右侧），所以屏幕上看到的斜率
+ * 会被 `|sy/sx|` 放大。自家 card 缩放是等比的（0.47/0.47），放大系数为 1，量出来的
+ * 贴图牌面斜率和 `tan(skewX)` 几乎完全重合（−0.230 对 −0.231），说明美术当年就是照着
+ * 牌面调的。但左右两家和对家的 card 是非等比缩放，同一个角度经放大后就偏了：
+ * 右家赖子 `sy/sx = 1.54`，13° 放大成 0.356，而贴图牌面只有 0.159——字比牌面歪一倍多，
+ * 这就是左右两家「字看着没对齐」的来源。
+ *
+ * 所以剪切量一律**从贴图自身量**：扫象牙面（`r > 150` 且 `|r − g| < 40`）每行的左右缘，
+ * 去掉上下各 28% 的圆角，最小二乘拟合 `dx/dy`，左右缘取平均。四家贴图的上下缘量出来
+ * 都是 0.000，即牌面是「上下边水平、侧边倾斜」的平行四边形，所以剪切放在屏幕空间
+ * （旋转之前）就够，不必再区分 skewX / skewY。
+ *
+ * 量出来的值本身也自洽：自家从屏幕左 −0.230 平滑升到中线 0.000，对家 +0.209 降到 0.000
+ * ——剪切量就是牌离镜头轴的横向距离，越靠边越斜。左右两家的牌都挤在同一侧，斜率基本恒定，
+ * 逐张量出来的 ±0.05 抖动是小图圆角带来的噪声，所以整边取中位数，别逐槽取。
+ */
+const LEFT_MELD_SHEAR = -0.2;
+const RIGHT_MELD_SHEAR = 0.252;
 
 function gangSlot(
   sprite: ImageName,
@@ -260,10 +287,23 @@ function gangSlot(
   cardX: number,
   cardY: number,
   cardSx: number,
-  cardSy: number
+  cardSy: number,
+  /** 牌面剪切量 `dx/dy`，见 `SideMeldSlot.shear`。暗杠不传 */
+  shear = 0
 ): SideMeldSlot {
   const c = cocosCenter(x, y);
-  return { sprite, x: c.x, y: c.y, w, h, cardX, cardY: -cardY, cardSx, cardSy };
+  return {
+    sprite,
+    x: c.x,
+    y: c.y,
+    w,
+    h,
+    cardX,
+    cardY: -cardY,
+    cardSx,
+    cardSy,
+    shear,
+  };
 }
 
 /**
@@ -282,14 +322,14 @@ function topSlot(
   cardX: number,
   cardY: number,
   cardSx: number,
-  cardSy: number
+  cardSy: number,
+  shear = 0
 ): SideMeldSlot {
-  return gangSlot(sprite, x + TOP_MELD_DX, y, w, h, cardX, cardY, cardSx, cardSy);
+  return gangSlot(sprite, x + TOP_MELD_DX, y, w, h, cardX, cardY, cardSx, cardSy, shear);
 }
 
 type SideMeldSide = {
   glyphRot: number;
-  skewY: number;
   /** 明牌 `*_gang_show`，槽位按预制体子节点顺序，杠的第 4 张恒在末位 */
   groups: ReadonlyArray<ReadonlyArray<SideMeldSlot>>;
   /** 暗杠 `*_gang_hide`：另一套贴图和槽位，没有牌面字 */
@@ -299,31 +339,30 @@ type SideMeldSide = {
 export const SIDE_MELD: Record<Anchor, SideMeldSide> = {
   left: {
     glyphRot: Math.PI / 2,
-    skewY: (10 * Math.PI) / 180,
     groups: [
       [
-        gangSlot('zpg4_3', 267.51, 634.74, 56, 39, 1.53, 9.81, 0.21, 0.35),
-        gangSlot('zpg4_2', 262.3, 614.82, 57, 39, 2.15, 8.99, 0.23, 0.36),
-        gangSlot('zpg4_1', 256.54, 594.21, 58, 40, 1.8, 8.81, 0.23, 0.36),
-        gangSlot('zpg4_4', 257.96, 632.18, 57, 39, 2.67, 9.39, 0.23, 0.36),
+        gangSlot('zpg4_3', 267.51, 634.74, 56, 39, 1.53, 9.81, 0.21, 0.35, LEFT_MELD_SHEAR),
+        gangSlot('zpg4_2', 262.3, 614.82, 57, 39, 2.15, 8.99, 0.23, 0.36, LEFT_MELD_SHEAR),
+        gangSlot('zpg4_1', 256.54, 594.21, 58, 40, 1.8, 8.81, 0.23, 0.36, LEFT_MELD_SHEAR),
+        gangSlot('zpg4_4', 257.96, 632.18, 57, 39, 2.67, 9.39, 0.23, 0.36, LEFT_MELD_SHEAR),
       ],
       [
-        gangSlot('zpg3_3', 250.57, 562.13, 59, 40, 1.59, 9.2, 0.23, 0.38),
-        gangSlot('zpg3_2', 243.81, 539.83, 60, 41, 3.05, 8.72, 0.25, 0.39),
-        gangSlot('zpg3_1', 238.54, 515.12, 61, 42, 1.44, 9.56, 0.25, 0.39),
-        gangSlot('zpg3_4', 240.15, 557.59, 60, 42, 1.9, 8.16, 0.25, 0.39),
+        gangSlot('zpg3_3', 250.57, 562.13, 59, 40, 1.59, 9.2, 0.23, 0.38, LEFT_MELD_SHEAR),
+        gangSlot('zpg3_2', 243.81, 539.83, 60, 41, 3.05, 8.72, 0.25, 0.39, LEFT_MELD_SHEAR),
+        gangSlot('zpg3_1', 238.54, 515.12, 61, 42, 1.44, 9.56, 0.25, 0.39, LEFT_MELD_SHEAR),
+        gangSlot('zpg3_4', 240.15, 557.59, 60, 42, 1.9, 8.16, 0.25, 0.39, LEFT_MELD_SHEAR),
       ],
       [
-        gangSlot('zpg2_3', 229.13, 480.5, 63, 44, 2.33, 8.86, 0.27, 0.4),
-        gangSlot('zpg2_2', 222.86, 456.03, 64, 44, 1.93, 7.41, 0.29, 0.41),
-        gangSlot('zpg2_1', 216.52, 427.5, 65, 45, 2.33, 9.19, 0.29, 0.41),
-        gangSlot('zpg2_4', 216.84, 472.51, 64, 44, 3.08, 9.13, 0.27, 0.41),
+        gangSlot('zpg2_3', 229.13, 480.5, 63, 44, 2.33, 8.86, 0.27, 0.4, LEFT_MELD_SHEAR),
+        gangSlot('zpg2_2', 222.86, 456.03, 64, 44, 1.93, 7.41, 0.29, 0.41, LEFT_MELD_SHEAR),
+        gangSlot('zpg2_1', 216.52, 427.5, 65, 45, 2.33, 9.19, 0.29, 0.41, LEFT_MELD_SHEAR),
+        gangSlot('zpg2_4', 216.84, 472.51, 64, 44, 3.08, 9.13, 0.27, 0.41, LEFT_MELD_SHEAR),
       ],
       [
-        gangSlot('zpg1_3', 206.39, 389.32, 66, 46, 2.72, 7.56, 0.3, 0.42),
-        gangSlot('zpg1_2', 198.96, 359.92, 67, 47, 0.57, 7.95, 0.31, 0.43),
-        gangSlot('zpg1_1', 191.11, 328.88, 69, 47, 0.22, 9.11, 0.32, 0.43),
-        gangSlot('zpg1_4', 192.98, 377.88, 68, 48, -1.09, 8.78, 0.31, 0.43),
+        gangSlot('zpg1_3', 206.39, 389.32, 66, 46, 2.72, 7.56, 0.3, 0.42, LEFT_MELD_SHEAR),
+        gangSlot('zpg1_2', 198.96, 359.92, 67, 47, 0.57, 7.95, 0.31, 0.43, LEFT_MELD_SHEAR),
+        gangSlot('zpg1_1', 191.11, 328.88, 69, 47, 0.22, 9.11, 0.32, 0.43, LEFT_MELD_SHEAR),
+        gangSlot('zpg1_4', 192.98, 377.88, 68, 48, -1.09, 8.78, 0.31, 0.43, LEFT_MELD_SHEAR),
       ],
     ],
     hidden: [
@@ -355,31 +394,30 @@ export const SIDE_MELD: Record<Anchor, SideMeldSide> = {
   },
   right: {
     glyphRot: -Math.PI / 2,
-    skewY: (-15 * Math.PI) / 180,
     groups: [
       [
-        gangSlot('ygp1_3', 1129.34, 192.57, 77, 53, 0.52, 9.12, 0.38, 0.46),
-        gangSlot('ygp1_2', 1138.46, 155.95, 79, 55, 0.73, 7.88, 0.42, 0.47),
-        gangSlot('ygp1_1', 1148.6, 117.18, 81, 56, 0.34, 7.68, 0.42, 0.48),
-        gangSlot('ygp1_4', 1145.36, 173.48, 81, 55, 0.42, 9.02, 0.41, 0.49),
+        gangSlot('ygp1_3', 1129.34, 192.57, 77, 53, 0.52, 9.12, 0.38, 0.46, RIGHT_MELD_SHEAR),
+        gangSlot('ygp1_2', 1138.46, 155.95, 79, 55, 0.73, 7.88, 0.42, 0.47, RIGHT_MELD_SHEAR),
+        gangSlot('ygp1_1', 1148.6, 117.18, 81, 56, 0.34, 7.68, 0.42, 0.48, RIGHT_MELD_SHEAR),
+        gangSlot('ygp1_4', 1145.36, 173.48, 81, 55, 0.42, 9.02, 0.41, 0.49, RIGHT_MELD_SHEAR),
       ],
       [
-        gangSlot('ygp2_3', 1098.56, 310.49, 73, 50, 0.28, 8.13, 0.33, 0.44),
-        gangSlot('ygp2_2', 1106.78, 277.47, 74, 51, 0.46, 8.36, 0.35, 0.45),
-        gangSlot('ygp2_1', 1115.71, 243.49, 75, 52, 0.79, 9.39, 0.35, 0.45),
-        gangSlot('ygp2_4', 1113.3, 296.65, 74, 51, 0.63, 9.62, 0.35, 0.45),
+        gangSlot('ygp2_3', 1098.56, 310.49, 73, 50, 0.28, 8.13, 0.33, 0.44, RIGHT_MELD_SHEAR),
+        gangSlot('ygp2_2', 1106.78, 277.47, 74, 51, 0.46, 8.36, 0.35, 0.45, RIGHT_MELD_SHEAR),
+        gangSlot('ygp2_1', 1115.71, 243.49, 75, 52, 0.79, 9.39, 0.35, 0.45, RIGHT_MELD_SHEAR),
+        gangSlot('ygp2_4', 1113.3, 296.65, 74, 51, 0.63, 9.62, 0.35, 0.45, RIGHT_MELD_SHEAR),
       ],
       [
-        gangSlot('ygp3_3', 1072.4, 414.55, 68, 47, 1.44, 8.8, 0.3, 0.42),
-        gangSlot('ygp3_2', 1079.79, 385.42, 69, 48, 0.84, 8.39, 0.31, 0.43),
-        gangSlot('ygp3_1', 1087.34, 354.88, 71, 48, 0.57, 9.04, 0.31, 0.43),
-        gangSlot('ygp3_4', 1085.28, 404.96, 70, 48, 1.35, 9.23, 0.31, 0.43),
+        gangSlot('ygp3_3', 1072.4, 414.55, 68, 47, 1.44, 8.8, 0.3, 0.42, RIGHT_MELD_SHEAR),
+        gangSlot('ygp3_2', 1079.79, 385.42, 69, 48, 0.84, 8.39, 0.31, 0.43, RIGHT_MELD_SHEAR),
+        gangSlot('ygp3_1', 1087.34, 354.88, 71, 48, 0.57, 9.04, 0.31, 0.43, RIGHT_MELD_SHEAR),
+        gangSlot('ygp3_4', 1085.28, 404.96, 70, 48, 1.35, 9.23, 0.31, 0.43, RIGHT_MELD_SHEAR),
       ],
       [
-        gangSlot('ygp4_3', 1049.09, 508.74, 63, 43, -0.35, 8.66, 0.26, 0.4),
-        gangSlot('ygp4_2', 1055.89, 481.84, 64, 45, -0.1, 8.44, 0.27, 0.41),
-        gangSlot('ygp4_1', 1063.0, 453.71, 65, 46, 0.45, 9.35, 0.28, 0.41),
-        gangSlot('ygp4_4', 1060.46, 500.83, 65, 45, 0.67, 8.48, 0.28, 0.41),
+        gangSlot('ygp4_3', 1049.09, 508.74, 63, 43, -0.35, 8.66, 0.26, 0.4, RIGHT_MELD_SHEAR),
+        gangSlot('ygp4_2', 1055.89, 481.84, 64, 45, -0.1, 8.44, 0.27, 0.41, RIGHT_MELD_SHEAR),
+        gangSlot('ygp4_1', 1063.0, 453.71, 65, 46, 0.45, 9.35, 0.28, 0.41, RIGHT_MELD_SHEAR),
+        gangSlot('ygp4_4', 1060.46, 500.83, 65, 45, 0.67, 8.48, 0.28, 0.41, RIGHT_MELD_SHEAR),
       ],
     ],
     hidden: [
@@ -411,31 +449,30 @@ export const SIDE_MELD: Record<Anchor, SideMeldSide> = {
   },
   top: {
     glyphRot: 0,
-    skewY: 0,
     groups: [
       [
-        topSlot('spg4_3', 967.15, 677, 43, 46, 1.76, 7.17, -0.32, -0.21),
-        topSlot('spg4_2', 933.74, 677, 42, 46, 1.27, 7.17, -0.32, -0.21),
-        topSlot('spg4_1', 900.61, 677, 42, 46, 1.37, 7.22, -0.32, -0.21),
-        topSlot('spg4_4', 935.85, 696.31, 42, 46, 2.22, 8.61, -0.32, -0.21),
+        topSlot('spg4_3', 967.15, 677, 43, 46, 1.76, 7.17, -0.32, -0.21, 0.209),
+        topSlot('spg4_2', 933.74, 677, 42, 46, 1.27, 7.17, -0.32, -0.21, 0.189),
+        topSlot('spg4_1', 900.61, 677, 42, 46, 1.37, 7.22, -0.32, -0.21, 0.156),
+        topSlot('spg4_4', 935.85, 696.31, 42, 46, 2.22, 8.61, -0.32, -0.21, 0.181),
       ],
       [
-        topSlot('spg3_3', 854.02, 677, 40, 46, 1.12, 7.58, -0.32, -0.21),
-        topSlot('spg3_2', 825.46, 678, 39, 46, -3.89, 6.54, -0.32, -0.21),
-        topSlot('spg3_1', 788.33, 677, 39, 46, 0.44, 7.66, -0.32, -0.21),
-        topSlot('spg3_4', 824.03, 696.07, 40, 46, 0.88, 8.39, -0.32, -0.21),
+        topSlot('spg3_3', 854.02, 677, 40, 46, 1.12, 7.58, -0.32, -0.21, 0.147),
+        topSlot('spg3_2', 825.46, 678, 39, 46, -3.89, 6.54, -0.32, -0.21, 0.099),
+        topSlot('spg3_1', 788.33, 677, 39, 46, 0.44, 7.66, -0.32, -0.21, 0.083),
+        topSlot('spg3_4', 824.03, 696.07, 40, 46, 0.88, 8.39, -0.32, -0.21, 0.102),
       ],
       [
-        topSlot('spg2_3', 740.98, 677, 37, 46, 0.29, 7.26, -0.32, -0.21),
-        topSlot('spg2_2', 708.35, 677, 37, 46, 0.23, 7.28, -0.32, -0.21),
-        topSlot('spg2_1', 675.49, 677, 36, 46, -0.75, 7.06, -0.32, -0.21),
-        topSlot('spg2_4', 708.85, 695.77, 37, 46, 0.46, 8.36, -0.32, -0.21),
+        topSlot('spg2_3', 740.98, 677, 37, 46, 0.29, 7.26, -0.32, -0.21, 0.048),
+        topSlot('spg2_2', 708.35, 677, 37, 46, 0.23, 7.28, -0.32, -0.21, 0.063),
+        topSlot('spg2_1', 675.49, 677, 36, 46, -0.75, 7.06, -0.32, -0.21, 0),
+        topSlot('spg2_4', 708.85, 695.77, 37, 46, 0.46, 8.36, -0.32, -0.21, 0.039),
       ],
       [
-        topSlot('spg1_3', 563.07, 677, 37, 46, -0.95, 7.53, -0.32, -0.21),
-        topSlot('spg1_2', 595.92, 677, 35, 46, -0.48, 7.57, -0.32, -0.21),
-        topSlot('spg1_1', 629.35, 677, 36, 46, -0.09, 7.57, -0.32, -0.21),
-        topSlot('spg1_4', 595.92, 696.55, 36, 46, 0.07, 8.11, -0.32, -0.21),
+        topSlot('spg1_3', 563.07, 677, 37, 46, -0.95, 7.53, -0.32, -0.21, -0.039),
+        topSlot('spg1_2', 595.92, 677, 35, 46, -0.48, 7.57, -0.32, -0.21, -0.023),
+        topSlot('spg1_1', 629.35, 677, 36, 46, -0.09, 7.57, -0.32, -0.21, 0),
+        topSlot('spg1_4', 595.92, 696.55, 36, 46, 0.07, 8.11, -0.32, -0.21, -0.023),
       ],
     ],
     hidden: [
@@ -467,31 +504,30 @@ export const SIDE_MELD: Record<Anchor, SideMeldSide> = {
   },
   bottom: {
     glyphRot: 0,
-    skewY: 0,
     groups: [
       [
-        gangSlot('xpg1_3', 167.73, 41.76, 66, 73, -2.39, 9.82, 0.47, 0.47),
-        gangSlot('xpg1_2', 216.2, 41.76, 65, 73, -2.35, 10.33, 0.47, 0.47),
-        gangSlot('xpg1_1', 264.17, 41.76, 63, 73, -1.84, 11.29, 0.47, 0.47),
-        gangSlot('xpg1_4', 211.24, 58.66, 66, 74, -2.26, 10.03, 0.47, 0.47),
+        gangSlot('xpg1_3', 167.73, 41.76, 66, 73, -2.39, 9.82, 0.47, 0.47, -0.23),
+        gangSlot('xpg1_2', 216.2, 41.76, 65, 73, -2.35, 10.33, 0.47, 0.47, -0.2),
+        gangSlot('xpg1_1', 264.17, 41.76, 63, 73, -1.84, 11.29, 0.47, 0.47, -0.188),
+        gangSlot('xpg1_4', 211.24, 58.66, 66, 74, -2.26, 10.03, 0.47, 0.47, -0.211),
       ],
       [
-        gangSlot('xpg2_3', 330.81, 41.1, 61, 73, -1.18, 10.52, 0.47, 0.47),
-        gangSlot('xpg2_2', 377.58, 41.1, 58, 73, -0.75, 10.52, 0.47, 0.47),
-        gangSlot('xpg2_1', 426.03, 41.35, 57, 73, -0.96, 10.41, 0.47, 0.47),
-        gangSlot('xpg2_4', 374.0, 59.43, 60, 74, -1.38, 10.01, 0.47, 0.47),
+        gangSlot('xpg2_3', 330.81, 41.1, 61, 73, -1.18, 10.52, 0.47, 0.47, -0.151),
+        gangSlot('xpg2_2', 377.58, 41.1, 58, 73, -0.75, 10.52, 0.47, 0.47, -0.126),
+        gangSlot('xpg2_1', 426.03, 41.35, 57, 73, -0.96, 10.41, 0.47, 0.47, -0.099),
+        gangSlot('xpg2_4', 374.0, 59.43, 60, 74, -1.38, 10.01, 0.47, 0.47, -0.133),
       ],
       [
-        gangSlot('xpg3_3', 491.82, 41.89, 54, 73, -0.07, 10.28, 0.47, 0.47),
-        gangSlot('xpg3_2', 540.52, 42.08, 53, 73, -0.21, 10.15, 0.47, 0.47),
-        gangSlot('xpg3_1', 587.92, 42.08, 51, 73, -0.59, 10.15, 0.47, 0.47),
-        gangSlot('xpg3_4', 539.59, 59.91, 54, 74, -0.16, 10.66, 0.47, 0.47),
+        gangSlot('xpg3_3', 491.82, 41.89, 54, 73, -0.07, 10.28, 0.47, 0.47, -0.067),
+        gangSlot('xpg3_2', 540.52, 42.08, 53, 73, -0.21, 10.15, 0.47, 0.47, -0.035),
+        gangSlot('xpg3_1', 587.92, 42.08, 51, 73, -0.59, 10.15, 0.47, 0.47, -0.041),
+        gangSlot('xpg3_4', 539.59, 59.91, 54, 74, -0.16, 10.66, 0.47, 0.47, -0.051),
       ],
       [
-        gangSlot('xpg4_3', 750.41, 41.66, 54, 73, 0.36, 11.03, 0.47, 0.47),
-        gangSlot('xpg4_2', 702.8, 41.66, 52, 73, -0.08, 11.06, 0.47, 0.47),
-        gangSlot('xpg4_1', 655.16, 41.66, 50, 73, -0.23, 11.07, 0.47, 0.47),
-        gangSlot('xpg4_4', 704.17, 60, 52, 74, 0.26, 10.55, 0.47, 0.47),
+        gangSlot('xpg4_3', 750.41, 41.66, 54, 73, 0.36, 11.03, 0.47, 0.47, 0.063),
+        gangSlot('xpg4_2', 702.8, 41.66, 52, 73, -0.08, 11.06, 0.47, 0.47, 0.024),
+        gangSlot('xpg4_1', 655.16, 41.66, 50, 73, -0.23, 11.07, 0.47, 0.47, 0),
+        gangSlot('xpg4_4', 704.17, 60, 52, 74, 0.26, 10.55, 0.47, 0.47, 0.024),
       ],
     ],
     hidden: [
@@ -559,7 +595,7 @@ type LzSlot = readonly [sprite: ImageName, x: number, y: number, w: number, h: n
  * 预制体是手摆的，槽距本身就有参差（右家 25.23 / 21.66），字又各带一个偏移，
  * 两样叠起来字距成了 23.74 / 21.42 / 25.47——牌身嵌合了，字却看着不匀。
  */
-function lzSlots(slots: ReadonlyArray<LzSlot>, cardSx: number, cardSy: number): ReadonlyArray<LaiziSlot> {
+function lzSlots(slots: ReadonlyArray<LzSlot>, cardSx: number, cardSy: number, shear: number): ReadonlyArray<LaiziSlot> {
   const first = slots[0];
   const last = slots[slots.length - 1];
   const gx0 = first[1] + first[5];
@@ -577,7 +613,8 @@ function lzSlots(slots: ReadonlyArray<LzSlot>, cardSx: number, cardSy: number): 
       gx0 + ((gx1 - gx0) * i) / n - x,
       gy0 + ((gy1 - gy0) * i) / n - y,
       cardSx,
-      cardSy
+      cardSy,
+      shear
     )
   );
 }
@@ -594,10 +631,11 @@ function lzRow(
   cardX: number,
   cardY: number,
   cardSx: number,
-  cardSy: number
+  cardSy: number,
+  shear: number
 ): ReadonlyArray<LaiziSlot> {
   return Array.from({ length: LAIZI_MAX }, (_, i) =>
-    gangSlot(sprite, x + dx * i, y + dy * i, w, h, cardX, cardY, cardSx, cardSy)
+    gangSlot(sprite, x + dx * i, y + dy * i, w, h, cardX, cardY, cardSx, cardSy, shear)
   );
 }
 
@@ -605,10 +643,6 @@ export const LAIZI_OUT: Record<
   Anchor,
   {
     glyphRot: number;
-    /** cocos `skewX`（自家 −9° / 对家 +8°），canvas 的 y 向下故取反 */
-    skewX: number;
-    /** cocos `skewY`（左家 −10° / 右家 +13°），同样取反 */
-    skewY: number;
     /** 「癞」角标：card 的 `pz` 子节点，坐标在 card 局部空间里 */
     badge: { x: number; y: number; w: number; h: number };
     slots: ReadonlyArray<LaiziSlot>;
@@ -616,22 +650,16 @@ export const LAIZI_OUT: Record<
 > = {
   bottom: {
     glyphRot: 0,
-    skewX: (9 * Math.PI) / 180,
-    skewY: 0,
     badge: { x: 24.1, y: -30.7, w: 42, h: 48 },
-    slots: lzRow('xqjlz1_2', 972.51, 135.31, -44.81, -0.11, 60, 70, 1.4, 10.32, 0.46, 0.42),
+    slots: lzRow('xqjlz1_2', 972.51, 135.31, -44.81, -0.11, 60, 70, 1.4, 10.32, 0.46, 0.42, 0.17),
   },
   top: {
     glyphRot: 0,
-    skewX: (-8 * Math.PI) / 180,
-    skewY: 0,
     badge: { x: 26.2, y: -26.3, w: 42, h: 48 },
-    slots: lzRow('sqjlz2_2', 391.51, 631.95, 34.29, -0.14, 43, 47, -1.46, 6.92, -0.32, -0.2409),
+    slots: lzRow('sqjlz2_2', 391.51, 631.95, 34.29, -0.14, 43, 47, -1.46, 6.92, -0.32, -0.2409, -0.158),
   },
   left: {
     glyphRot: Math.PI / 2,
-    skewX: 0,
-    skewY: (10 * Math.PI) / 180,
     badge: { x: 18.9, y: -35.4, w: 42, h: 48 },
     // card_1/2/5 照搬；第 4 张 = card_5 + card_1→card_2 的步长，变体取近排没用过的 `zqjlz1_1`
     // （另两个变体在这个位置右缘会顶出一条）。缩放用整边一个值，card_5 自带的 0.3884/0.48 是孤例。
@@ -643,13 +671,12 @@ export const LAIZI_OUT: Record<
         ['zqjlz1_1', 243.53, 118.68, 75, 53, -1.07, 7.98],
       ],
       0.35,
-      0.4581
+      0.4581,
+      -0.203
     ),
   },
   right: {
     glyphRot: -Math.PI / 2,
-    skewX: 0,
-    skewY: (-13 * Math.PI) / 180,
     badge: { x: 20.0, y: -29.4, w: 42, h: 48 },
     // 两张变体交替；第 4 张 = card_5 + card_1→card_2 的步长 (+3.01, −25.23)
     slots: lzSlots(
@@ -660,7 +687,8 @@ export const LAIZI_OUT: Record<
         ['yqjlz1_1', 954.72, 529.54, 58, 42, 0.35, 8.79],
       ],
       0.24,
-      0.37
+      0.37,
+      0.161
     ),
   },
 };

@@ -505,7 +505,7 @@ export class Renderer {
     hideFaces: (m: Meld) => boolean,
     dx = 0
   ): void {
-    const { groups, hidden, glyphRot, skewY } = SIDE_MELD[anchor];
+    const { groups, hidden, glyphRot } = SIDE_MELD[anchor];
     const c = this.ctx;
     for (let gi = 0; gi < p.melds.length; gi++) {
       const m = p.melds[gi];
@@ -519,24 +519,23 @@ export class Renderer {
         const w = img?.width ?? pos.w;
         const h = img?.height ?? pos.h;
         if (img) c.drawImage(img, pos.x + dx - w / 2, pos.y - h / 2, w, h);
-        if (!hide && m.kind !== undefined) this.drawSideMeldFace(m.kind, pos, dx, glyphRot, 0, skewY, m.kind === game.laizi);
+        if (!hide && m.kind !== undefined) this.drawSideMeldFace(m.kind, pos, dx, glyphRot, m.kind === game.laizi);
       }
     }
   }
 
   /**
-   * APK card 子节点：T · R(−euler.z) · S · Skew。
-   * cocos 的 skew 矩阵是 `(1, tan skewY, tan skewX, 1)`，即 skewX 沿 y 剪切 x、
-   * skewY 沿 x 剪切 y；换到 canvas（y 向下）两个都要取反。自家/对家用的是 **skewX**
-   * 而不是 skewY——牌面本身就是往右倾 5° 的平行四边形，少了这层剪切字会看着歪。
+   * APK card 子节点：T · Shear · R(−euler.z) · S。
+   * 剪切放在**旋转之前**、屏幕空间里：四家的预渲染牌面都是「上下边水平、侧边倾斜」的
+   * 平行四边形，所以只需沿 y 剪 x 一次，`pos.shear` 就是那条侧边的 `dx/dy`。
+   * 这样字的横轴恒为水平、竖轴恰好和牌面侧边平行，不必再分 skewX / skewY，
+   * 也不会像搬预制体角度那样被 card 的非等比缩放放大（见 `SideMeldSlot.shear`）。
    */
   private drawSideMeldFace(
     kind: Kind,
     pos: SideMeldSlot,
     dx: number,
     glyphRot: number,
-    skewX: number,
-    skewY: number,
     highlight: boolean,
     /** 「癞」角标，坐标在 card 局部空间，跟着 card 的缩放走（对家为负缩放，会自动翻到左下） */
     badge?: { x: number; y: number; w: number; h: number }
@@ -546,9 +545,9 @@ export class Renderer {
     const c = this.ctx;
     c.save();
     c.translate(pos.x + dx + pos.cardX, pos.y + pos.cardY);
+    c.transform(1, 0, pos.shear, 1, 0, 0);
     c.rotate(glyphRot);
     c.scale(pos.cardSx, pos.cardSy);
-    c.transform(1, Math.tan(skewY), Math.tan(skewX), 1, 0, 0);
     c.drawImage(glyph, -glyph.width / 2, -glyph.height / 2, glyph.width, glyph.height);
     if (highlight) {
       c.fillStyle = 'rgba(255, 213, 106, 0.35)';
@@ -569,7 +568,7 @@ export class Renderer {
   private drawLaiziOut(game: Game, p: PlayerState, anchor: Anchor, _view: ViewState): void {
     const tossed = p.discards.filter((k) => k === game.laizi);
     if (!tossed.length) return;
-    const { glyphRot, skewX, skewY, badge, slots } = LAIZI_OUT[anchor];
+    const { glyphRot, badge, slots } = LAIZI_OUT[anchor];
     const c = this.ctx;
     for (const pos of slots.slice(0, tossed.length)) {
       const img = this.img(pos.sprite);
@@ -586,7 +585,7 @@ export class Renderer {
         c.drawImage(gold, x, y);
         c.restore();
       }
-      this.drawSideMeldFace(game.laizi, pos, 0, glyphRot, skewX, skewY, false, badge);
+      this.drawSideMeldFace(game.laizi, pos, 0, glyphRot, false, badge);
     }
   }
 
