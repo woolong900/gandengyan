@@ -1,0 +1,8 @@
+{
+  "name": "gandengyan-online",
+  "private": true,
+  "type": "commonjs",
+  "devDependencies": {
+    "rollup": "^4.0.0"
+  }
+}
