@@ -112,6 +112,26 @@ describe('甩出的赖子排布', () => {
     }
   });
 
+  /**
+   * 桌布上那条长方形方格量出来是：外缘 `x = 317 − 0.215(y−120)`、内缘 `x = 344 − 0.1793(y−250)`，
+   * 两端由 y=70/109（远）和 y=566/622（近）封口。左家的预制体槽号是反的（card_1 在他左手边），
+   * 照 card_1 往近端排，第 3、4 张就会冲出方格下端撞进自家甩牌区。
+   */
+  it('左家从方格第二格起往他左手边排，4 张都不出格', () => {
+    const { slots } = LAIZI_OUT.left;
+    const mid = (y: number) => ((317 - 0.215 * (y - 120)) + (344 - 0.1793 * (y - 250))) / 2;
+    for (let i = 1; i < slots.length; i++) {
+      // 往远端走，方格是斜的，所以屏幕上看就是从左往右
+      expect(slots[i].y).toBeLessThan(slots[i - 1].y);
+      expect(slots[i].x).toBeGreaterThan(slots[i - 1].x);
+    }
+    for (const s of slots) {
+      expect(s.y - s.h / 2).toBeGreaterThan(109);
+      expect(s.y + s.h / 2).toBeLessThan(566);
+      expect(Math.abs(s.x - mid(s.y))).toBeLessThan(12);
+    }
+  });
+
   it('四家都是等距，且够甩 4 张', () => {
     for (const anchor of ['bottom', 'top', 'left', 'right'] as const) {
       const { slots } = LAIZI_OUT[anchor];

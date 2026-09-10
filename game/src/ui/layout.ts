@@ -528,12 +528,15 @@ const LAIZI_MAX = 4;
  */
 const LZ_LEAD = { left: -0.216, right: 0.196 } as const;
 
-/** 左右两家：沿视线方向排，横向位移由 `LZ_LEAD` 定死，`pitch` 是 cocos 号的格距 */
+/**
+ * 左右两家：沿方格长边排，横向位移由 `LZ_LEAD` 定死。
+ * `step` 是**屏幕**纵向格距：正数往近端（屏幕下方）排，负数往远端（上方）排。
+ */
 function lzDepthRow(
   sprite: ImageName,
   x: number,
   y: number,
-  pitch: number,
+  step: number,
   lead: number,
   w: number,
   h: number,
@@ -543,7 +546,7 @@ function lzDepthRow(
   cardSy: number,
   shear: number
 ): ReadonlyArray<LaiziSlot> {
-  return lzRow(sprite, x, y, lead * pitch, -pitch, w, h, cardX, cardY, cardSx, cardSy, shear);
+  return lzRow(sprite, x, y, lead * step, -step, w, h, cardX, cardY, cardSx, cardSy, shear);
 }
 
 /** 单张贴图沿等距直线平铺；`dx`/`dy` 是 cocos 号的步长，方向见上面的注释 */
@@ -585,13 +588,24 @@ export const LAIZI_OUT: Record<
     badge: { x: 26.2, y: -26.3, w: 42, h: 48 },
     slots: lzRow('sqjlz2_2', 391.51, 631.95, 34.29, -0.14, 43, 47, -1.46, 6.92, -0.32, -0.2409, -0.158),
   },
-  // 左右两家：起点照搬 card_1，格距取近排平均（左 (222.95−152.22)/2、右 (601.66−554.77)/2），
-  // 横向位移 = shear × 格距。card 偏移取近排三张的平均，缩放取整边一个值
-  // （左家 card_5 自带的 0.3884/0.48 是孤例）。
+  /**
+   * 左右两家：格距取近排平均（左 (222.95−152.22)/2、右 (601.66−554.77)/2），横向位移
+   * = `LZ_LEAD` × 格距。card 偏移取近排三张的平均，缩放取整边一个值（左家 card_5 自带的
+   * 0.3884/0.48 是孤例）。
+   *
+   * 一排**往那一家自己的左手边**排（四家都是：自家往屏幕左、对家往屏幕右、右家往屏幕下）。
+   * 左家面朝右，他的左手边是屏幕**上方**，所以要往上排——屏幕上看就是从左往右，因为
+   * 方格是斜的，往上走 x 就变大。
+   *
+   * 预制体的三个底槽（card_1 / card_2 / card_5）就是方格靠近端那三格，但**左家的槽号是
+   * 反的**：card_1 在他左手边（屏幕上方 497）、card_5 在右手边（屏幕下方 568）。照 card_1
+   * 往下排，第 3、4 张会冲出方格下端（那儿到 y≈593 就到底了）撞进自家甩牌区。左家起点取
+   * **右手边数过来第二格** card_2（屏幕 530.6），往上排 4 张正好落在 y 398~557，全在格内。
+   */
   left: {
     glyphRot: Math.PI / 2,
     badge: { x: 18.9, y: -35.4, w: 42, h: 48 },
-    slots: lzDepthRow('zqjlz1_2', 262.95, 222.95, 35.365, LZ_LEAD.left, 73, 52, -0.14, 8.02, 0.35, 0.4581, -0.203),
+    slots: lzDepthRow('zqjlz1_2', 256.17, 189.41, -35.365, LZ_LEAD.left, 73, 52, -0.14, 8.02, 0.35, 0.4581, -0.203),
   },
   right: {
     glyphRot: -Math.PI / 2,
