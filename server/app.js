@@ -268,6 +268,9 @@ class GameApp {
       if (cost.host > 0 && (c.player.cardNum || 0) < cost.host) {
         return c.send(pack(201, { res: { error: 1, what: '房卡不足' } }));
       }
+      if (cost.each > 0 && (c.player.cardNum || 0) < cost.each) {
+        return c.send(pack(201, { res: { error: 1, what: '房卡不足' } }));
+      }
       const roomId = this.nextRoomId++;
       const meta = {
         roomId,
@@ -295,6 +298,16 @@ class GameApp {
       if (!table || table.closed) {
         console.log(`  202 进房 ${roomId} 不存在`);
         return c.send(pack(202, { res: { error: 1, what: '房间不存在' } }));
+      }
+      const seated = table.members.find((m) => m.player.uid === c.player.uid);
+      const cost = rules.roomCardCost({
+        num: table.num,
+        人数: table.config.人数,
+        房费: table.config.房费,
+      });
+      // AA 等要自己付钱的，坐下前先看够不够；房主支付不查入座的人
+      if (!seated && cost.each > 0 && (c.player.cardNum || 0) < cost.each) {
+        return c.send(pack(202, { res: { error: 1, what: '房卡不足' } }));
       }
       const joined = table.join(c.player, connId);
       if (joined.error) return c.send(pack(202, { res: { error: 1, what: joined.error } }));

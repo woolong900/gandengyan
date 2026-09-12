@@ -168,6 +168,47 @@ const boot = () => {
 
 {
   const { app, login } = boot();
+  const a = login('a', 't_aa_broke_host');
+  const param = rules.buildParam({ 人数: 2, 房费: 'AA' });
+  app.onMessage('a', packCs(201, {
+    gameType: 2, clubId: 0, num: 2, param1: param.param1, param2: param.param2,
+  }));
+  t('AA 没卡建不了房', last(a.box, 201).res.what, '房卡不足');
+}
+
+{
+  const { app, login } = boot();
+  const a = login('a', 't_aa_ok');
+  const b = login('b', 't_aa_broke');
+  a.player.cardNum = 5;
+  const param = rules.buildParam({ 人数: 2, 房费: 'AA' });
+  app.onMessage('a', packCs(201, {
+    gameType: 2, clubId: 0, num: 2, param1: param.param1, param2: param.param2,
+  }));
+  const roomId = num(last(a.box, 201).roomId);
+  app.onMessage('b', packCs(202, { roomId }));
+  t('AA 没卡坐不下', last(b.box, 202).res.what, '房卡不足');
+  t('AA 没卡没入座', app.tables.get(roomId).members.length, 0);
+}
+
+{
+  const { app, login } = boot();
+  const a = login('a', 't_host_ok');
+  const b = login('b', 't_guest_broke');
+  a.player.cardNum = 10;
+  const param = rules.buildParam({ 人数: 2, 房费: '房主' });
+  app.onMessage('a', packCs(201, {
+    gameType: 2, clubId: 0, num: 1, param1: param.param1, param2: param.param2,
+  }));
+  const roomId = num(last(a.box, 201).roomId);
+  app.onMessage('a', packCs(202, { roomId }));
+  app.onMessage('b', packCs(202, { roomId }));
+  t('房主支付客人0张也能坐', num(last(b.box, 202).res.error), 0);
+  t('房主支付客人入座了', app.tables.get(roomId).members.some((m) => m.player.uid === b.player.uid), true);
+}
+
+{
+  const { app, login } = boot();
   const a = login('a', 't_shop');
   app.onMessage('a', packCs(112, { limit: 10, offset: 0, page: 1, perPage: 10 }));
   t('充值未开放', last(a.box, 112).res.what, '暂未开放充值');
