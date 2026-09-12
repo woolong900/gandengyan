@@ -38,6 +38,7 @@ class Table {
     this.config = meta.config || rules.parseConfig(meta.param1, meta.param2);
     this.round = null;
     this.closed = !!meta.closed;
+    this.cardCharges = meta.cardCharges ? meta.cardCharges.map((c) => ({ ...c })) : [];
   }
 
   get host() { return this._host; }
@@ -133,6 +134,7 @@ class Table {
     this.closed = true;
     this.clearAllTimers();
     if (this.step > 0 || this.round) this.sendTotalEnd(false);
+    else this.refundCards('未开局退还');
     this.broadcast('exitroom', { reason });
     for (const m of this.members) {
       m.player.roomId = 0;
@@ -142,6 +144,30 @@ class Table {
     this.host.log(`  房 ${this.roomId} 已解散`);
     this.host.onDissolved(reason);
     this.host.persist();
+  }
+
+  refundCards(reason) {
+    if (!this.cardCharges.length || !this.host.changeCards) return;
+    for (const { uid, amount } of this.cardCharges) {
+      this.host.changeCards(uid, amount, reason);
+    }
+    this.cardCharges = [];
+  }
+
+  refundUid(uid, reason) {
+    if (!this.host.changeCards) return;
+    const kept = [];
+    for (const charge of this.cardCharges) {
+      if (charge.uid === uid) this.host.changeCards(uid, charge.amount, reason);
+      else kept.push(charge);
+    }
+    this.cardCharges = kept;
+  }
+
+  charge(uid, amount, reason) {
+    if (!amount || !this.host.changeCards) return;
+    this.host.changeCards(uid, -amount, reason);
+    this.cardCharges.push({ uid, amount });
   }
 
   armTurns() {
@@ -331,6 +357,7 @@ class Table {
       this.members = this.members.filter((m) => m.player.uid !== uid);
       still.player.roomId = 0;
       this.host.onUidRoom(uid, 0);
+      if (this.step < 1) this.refundUid(uid, '未开局退还');
       this.host.log(`  [房${this.roomId}] ${uid} 离线超时，请出`);
       if (this.members.length === 0) this.dissolve();
       else {
@@ -440,6 +467,7 @@ class Table {
       dealerUid: this.dealerUid || 0,
       lastEnd: this.lastEnd || null,
       dismiss: this.dismiss ? { agree: this.dismiss.agree, time: this.dismiss.time } : null,
+      cardCharges: this.cardCharges,
       members: this.members.map((m) => ({
         uid: m.player.uid,
         nickname: m.player.nickname,
@@ -472,14 +500,17 @@ class Table {
       dealerUid: raw.dealerUid || 0,
       lastEnd: raw.lastEnd || null,
       dismiss: raw.dismiss || null,
+      cardCharges: raw.cardCharges || [],
     }, host);
     for (const m of raw.members || []) {
       const player = (playersByUid && playersByUid.get(m.uid)) || {
         uid: m.uid,
         nickname: m.nickname || `玩家${m.uid}`,
         sex: m.sex || 1,
-        cardNum: m.cardNum == null ? 100 : m.cardNum,
+        cardNum: m.cardNum == null ? 0 : m.cardNum,
         roomId: raw.roomId,
+        invitedBy: m.invitedBy || '',
+        bot: !!m.bot,
       };
       player.roomId = raw.roomId;
       table.members.push(emptyMember(player, {

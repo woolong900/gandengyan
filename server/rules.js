@@ -24,6 +24,10 @@ const RATIO = 10;
 /** 取 param 的第 n 位十进制数字 */
 const digit = (value, n) => Math.floor(value / 10 ** n) % 10;
 
+/** param2 千位：房主 / AA / 群主 / 大赢家。客户端默认勾 AA。 */
+const 房费名 = [ '房主', 'AA', '群主', '大赢家' ];
+const 房费位 = { 房主: 0, AA: 1, 群主: 2, 大赢家: 3 };
+
 /**
  * 把 param1/param2 拆成玩法配置。
  * 括号里是客户端 RoomConfig 里对应的选项号，便于回查。
@@ -43,7 +47,7 @@ function buildParam(opts = {}) {
     + (WANFA[opts.玩法] || 0)
     + (人数 - 2) * 10
     + (opts.暗杠倍数 === 2 ? 100 : 0)
-    + 1 * 1000 // 房费位，跟客户端建房时发的一样
+    + (房费位[opts.房费] != null ? 房费位[opts.房费] : 1) * 1000 // 默认 AA，跟大厅 defCheck 一样
     + Number(喜钱档) * 10000
     + (opts.清一色 ? 1 : 0) * 1e5
     + (opts.少三张 ? 1 : 0) * 1e6
@@ -60,6 +64,8 @@ function parseConfig(param1, param2) {
     人数: 2 + digit(param2, 1),
     // 0 是「暗杠4倍」(7)，1 是「暗杠2倍」(8)
     暗杠倍数: digit(param2, 2) === 1 ? 2 : 4,
+    // 0 房主 / 1 AA / 2 群主 / 3 大赢家。群主、大赢家先按房主扣
+    房费: 房费名[digit(param2, 3)] || '房主',
     // 堆癞子客户端把喜钱选项藏掉了（rejectVisible: [26]），有残留位也不算
     喜钱: 玩法 === '堆癞子' ? 0 : (XI_QIAN[digit(param2, 4)] || 0),
     清一色: digit(param2, 5) === 1, // (18)
@@ -130,4 +136,18 @@ function gangScore(type, config) {
   return { each: an, from: 0 };
 }
 
-module.exports = { parseConfig, buildParam, huMultiplier, gangScore, unit, HU, FAN, RATIO, hasBit };
+/**
+ * 房卡：官方 QJHH `gameCountMul=8`，8 局每人 1 张、16 局每人 2 张。
+ * `num` 就是档位（1=8局，2=16局）。房主支付 = 人数 × 档位；AA 每人付档位。
+ */
+function roomCardCost({ num, 人数, 房费 }) {
+  const per = Math.max(1, Number(num) || 1);
+  const people = Math.max(2, Number(人数) || 2);
+  if (房费 === 'AA') return { host: 0, each: per };
+  return { host: people * per, each: 0 };
+}
+
+module.exports = {
+  parseConfig, buildParam, roomCardCost,
+  huMultiplier, gangScore, unit, HU, FAN, RATIO, hasBit,
+};

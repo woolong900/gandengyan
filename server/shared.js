@@ -72,12 +72,17 @@ const playerAction = (room, uid, msghead, body) => {
   }
 };
 
+/** 绑定邀请码：邀请人、被邀请人都加这么多。充值先关。 */
+const INVITE_GIVE = 1000;
+
 const emptyPlayer = (uid, extra = {}) => ({
   uid,
   nickname: extra.nickname || `玩家${uid}`,
   sex: extra.sex || 1,
-  cardNum: extra.cardNum == null ? 100 : extra.cardNum,
+  cardNum: extra.cardNum == null ? 0 : extra.cardNum,
   roomId: extra.roomId || 0,
+  invitedBy: extra.invitedBy || '',
+  bot: !!extra.bot,
 });
 
 const emptyMember = (player, extra = {}) => ({
@@ -99,6 +104,7 @@ const configBody = () => ({ err_code: '0', data: null });
 
 module.exports = {
   GAME_COUNT_MUL,
+  INVITE_GIVE,
   num,
   maxStep,
   roomInfo,

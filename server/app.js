@@ -3,8 +3,9 @@
  */
 const { pack, unpack, hasRes, protocol } = require('./net');
 const { Table } = require('./table');
+const rules = require('./rules');
 const {
-  num, roomInfo, versionBody, configBody, emptyPlayer,
+  num, roomInfo, versionBody, configBody, emptyPlayer, INVITE_GIVE,
 } = require('./shared');
 
 class GameApp {
@@ -28,6 +29,46 @@ class GameApp {
     this.persistFn(this.dump());
   }
 
+  playerByUid(uid) {
+    const id = Number(uid);
+    for (const p of this.players.values()) {
+      if (p.uid === id) return p;
+    }
+    return null;
+  }
+
+  notifyCard(player) {
+    if (!player || player.bot) return;
+    const buf = pack(1001, { card: player.cardNum || 0, gold: 0 });
+    for (const c of this.conns.values()) {
+      if (c.player && c.player.uid === player.uid && c.send) c.send(buf);
+    }
+  }
+
+  changeCards(uid, delta, reason) {
+    const player = this.playerByUid(uid);
+    if (!player || player.bot || !delta) return player ? player.cardNum : 0;
+    player.cardNum = Math.max(0, (player.cardNum || 0) + delta);
+    this.notifyCard(player);
+    console.log(`  房卡 uid=${player.uid} ${delta > 0 ? '+' : ''}${delta} -> ${player.cardNum}${reason ? ` ${reason}` : ''}`);
+    return player.cardNum;
+  }
+
+  bindInvite(player, code) {
+    if (player.invitedBy) return { error: 1, what: '已经绑定过邀请码' };
+    const raw = String(code || '').trim();
+    if (!raw) return { error: 1, what: '请输入邀请码' };
+    const uid = Number(raw);
+    if (!uid || uid === player.uid) return { error: 1, what: '邀请码无效' };
+    const inviter = this.playerByUid(uid);
+    if (!inviter || inviter.bot) return { error: 1, what: '邀请码不存在' };
+    player.invitedBy = String(uid);
+    this.changeCards(inviter.uid, INVITE_GIVE, '邀请新用户');
+    this.changeCards(player.uid, INVITE_GIVE, '绑定邀请码');
+    this.persist();
+    return { error: 0, what: '' };
+  }
+
   fillBotsOn() {
     return process.env.QJQP_FILLBOTS !== '0';
   }
@@ -35,7 +76,7 @@ class GameApp {
   mintBot(site, roomId) {
     const uid = this.nextUid++;
     const token = `t_bot_${uid}`;
-    const player = emptyPlayer(uid, { nickname: `陪玩${site}`, roomId });
+    const player = emptyPlayer(uid, { nickname: `陪玩${site}`, roomId, bot: true, cardNum: 0 });
     this.players.set(token, player);
     return player;
   }
@@ -60,6 +101,8 @@ class GameApp {
         sex: p.sex,
         cardNum: p.cardNum,
         roomId: p.roomId || 0,
+        invitedBy: p.invitedBy || '',
+        bot: !!p.bot,
       })),
       rooms: [...this.tables.values()].filter((t) => !t.closed).map((t) => t.dump()),
     };
@@ -93,6 +136,7 @@ class GameApp {
         if (c && c.send) c.send(bytes);
       },
       persist: () => app.persist(),
+      changeCards: (uid, delta, reason) => app.changeCards(uid, delta, reason),
       schedule: (name, dueAt) => app.schedule(`${roomId}:${name}`, dueAt),
       cancel: (name) => app.cancel(`${roomId}:${name}`),
       now: () => app.now(),
@@ -197,23 +241,51 @@ class GameApp {
 
     if (!c.player) return;
 
+    if (proto === 103) {
+      const inviter = c.player.invitedBy ? this.playerByUid(c.player.invitedBy) : null;
+      return c.send(pack(103, {
+        res: { error: 0, what: '' },
+        username: inviter ? inviter.nickname : '',
+        inviteCode: c.player.invitedBy || '',
+        mobile: '',
+        giveCard: INVITE_GIVE,
+      }));
+    }
+
+    if (proto === 104) {
+      return c.send(pack(104, { res: this.bindInvite(c.player, msg && msg.inviteCode) }));
+    }
+
+    if (proto === 112) {
+      return c.send(pack(112, { res: { error: 1, what: '暂未开放充值' }, goods: [] }));
+    }
+
     if (proto === 201) {
+      const param1 = num(msg.param1);
+      const param2 = num(msg.param2);
+      const config = rules.parseConfig(param1, param2);
+      const cost = rules.roomCardCost({ num: msg.num, 人数: config.人数, 房费: config.房费 });
+      if (cost.host > 0 && (c.player.cardNum || 0) < cost.host) {
+        return c.send(pack(201, { res: { error: 1, what: '房卡不足' } }));
+      }
       const roomId = this.nextRoomId++;
       const meta = {
         roomId,
         gameType: msg.gameType,
         clubId: msg.clubId,
         num: msg.num,
-        param1: num(msg.param1),
-        param2: num(msg.param2),
+        param1,
+        param2,
         host: c.player.uid,
+        config,
       };
       const table = new Table(meta, this.tableHost(roomId));
+      if (cost.host > 0) table.charge(c.player.uid, cost.host, '房主支付');
       this.tables.set(roomId, table);
       c.roomId = roomId;
       this.uidRoom.set(c.player.uid, roomId);
       this.persist();
-      console.log(`  201 建房 玩法=${table.gameType} 房卡=${table.num} -> roomId=${roomId}`);
+      console.log(`  201 建房 玩法=${table.gameType} 局数档=${table.num} 房费=${config.房费} -> roomId=${roomId}`);
       console.log(`      ${Object.entries(table.config).map(([k, v]) => `${k}=${v}`).join(' ')}`);
       return c.send(pack(201, { res: { error: 0, what: '' }, roomId }));
     }
@@ -225,8 +297,20 @@ class GameApp {
         console.log(`  202 进房 ${roomId} 不存在`);
         return c.send(pack(202, { res: { error: 1, what: '房间不存在' } }));
       }
+      const seated = table.members.find((m) => m.player.uid === c.player.uid);
+      const cost = rules.roomCardCost({
+        num: table.num,
+        人数: table.config.人数,
+        房费: table.config.房费,
+      });
+      if (!seated && cost.each > 0 && (c.player.cardNum || 0) < cost.each) {
+        return c.send(pack(202, { res: { error: 1, what: '房卡不足' } }));
+      }
       const joined = table.join(c.player, connId);
       if (joined.error) return c.send(pack(202, { res: { error: 1, what: joined.error } }));
+      if (!joined.rejoining && cost.each > 0 && !c.player.bot) {
+        table.charge(c.player.uid, cost.each, 'AA支付');
+      }
       this.maybeFillBots(table);
       c.roomId = roomId;
       const payload = JSON.stringify({ room: roomInfo(table), game: joined.game || {} });

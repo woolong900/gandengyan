@@ -61,6 +61,11 @@ const boot = (n, extra = {}) => {
   t('少三张开', c.少三张, true);
   t('只许自摸开', c.只许自摸, true);
   t('暗杠默认 4 倍', c.暗杠倍数, 4);
+  t('默认 AA', rules.parseConfig(...Object.values(rules.buildParam({}))).房费, 'AA');
+  t('房主支付', rules.parseConfig(...Object.values(rules.buildParam({ 房费: '房主' }))).房费, '房主');
+  t('4人8局房主 4 张', rules.roomCardCost({ num: 1, 人数: 4, 房费: '房主' }), { host: 4, each: 0 });
+  t('4人16局房主 8 张', rules.roomCardCost({ num: 2, 人数: 4, 房费: '房主' }), { host: 8, each: 0 });
+  t('2人8局AA 每人 1 张', rules.roomCardCost({ num: 1, 人数: 2, 房费: 'AA' }), { host: 0, each: 1 });
   t('一份底分是 25 内分', rules.unit(c), 25);
 
   t('屁胡 2 倍', rules.huMultiplier(rules.HU.屁胡, c), 2);
