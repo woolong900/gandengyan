@@ -14,8 +14,9 @@
  * 不如就在这里改 JS，反正 project.jsc 本来就要重新加密。别顺手把 `isDebug()`
  * 整个改成 true：那会把 gameMode 切到 debug，牵动的地方远不止一个按钮。
  *
- * 语音房要自己的 GVoice AppID：写在 AndroidManifest 的 SDK_VOICE_*，
+ * 语音走自己的 GME AppID：写在 AndroidManifest 的 SDK_VOICE_*，
  * 用 --voice-appid / --voice-appkey，或环境变量 / .dev.vars，不要把密钥提交进 git。
+ * 原生库从旧 GCloudVoice 换成 GME 2.9，按住说话仍走腾讯上传/下载（和原包一样）。
  *
  * usage: node tools/patchapk.js --apk <原始.apk> --host <主机[:端口]> [--tls] [--guest] [--out <输出.apk>]
  */
@@ -51,6 +52,11 @@ const STOREPASS = 'qjqp123456';
 const VOICE_APPID = arg('voice-appid', process.env.QJQP_VOICE_APPID);
 const VOICE_APPKEY = arg('voice-appkey', process.env.QJQP_VOICE_APPKEY);
 const APKTOOL = process.env.APKTOOL || '/tmp/apktool.jar';
+const GME_URL = process.env.GME_SDK_URL
+  || 'https://dl.gmertc.com/gme/GME2.9.17/Android/GME_android_audio_sdk_2.9.17.9e947c95.zip';
+const GME_DIR = process.env.GME_SDK || '/tmp/gme-sdk';
+const ANDROID_JAR = process.env.ANDROID_JAR
+  || path.join(SDK, 'platforms', 'android-34', 'android.jar');
 
 if (!APK || !HOST) {
   console.error('usage: node tools/patchapk.js --apk <原始.apk> --host <主机[:端口]> [--tls] [--out <输出.apk>]');
@@ -115,17 +121,6 @@ RULES.push([
   't.prototype._lockCreateRoomScroll = function(e, t) {\nif (!t) return;\nvar o = t.getComponent(cc.Layout);\nif (o) {\no._layoutDirty = !0;\no.updateLayout();\n}\nif (!(t.height > 0)) {\nvar n = o && void 0 !== o.spacingY ? o.spacingY : 0, r = (o && o.paddingTop || 0) + (o && o.paddingBottom || 0), i = t.children, a = 0;\nfor (var s = 0; s < i.length; s++) if (i[s].activeInHierarchy) {\na++;\nr += i[s].height;\n}\nr += Math.max(0, a - 1) * n;\nt.height = Math.max(r, 1);\n}\nif (e) {\ne.elastic = !1;\ne._calculateBoundary && e._calculateBoundary();\n}\n};\nt.prototype._updateIp = function() {',
 ]);
 
-// 按住说话：别再走腾讯 GCloud 上传。本地仍用 GCloud 录音/播放，
-// 文件进出改成我们的 /voice。录音在 files/__gv_recording_data__。
-RULES.push([
-  'e.prototype.uploadRecordedFile = function(e) {\nvar t = n.default.platform;\nr.ePlatformType.android === t || r.ePlatformType.iOS === t ? i.default.voice.invoke("uploadRecordedFile", null, function(t, o) {\ne && e(t, o);\n}) : e && e(r.eExCallBackMsg.fail);\n};',
-  'e.prototype.uploadRecordedFile = function(e) {\nvar t = n.default.gameBaseUrl() + "/voice", o = (jsb.fileUtils.getWritablePath() || "") + "__gv_recording_data__";\nif (!jsb.fileUtils.isFileExist(o)) {\ne && e(r.eExCallBackMsg.fail);\nreturn;\n}\nvar a = jsb.fileUtils.getDataFromFile(o);\nif (!a || !a.length) {\ne && e(r.eExCallBackMsg.fail);\nreturn;\n}\nvar s = new XMLHttpRequest();\ns.timeout = 1e4;\ns.onreadystatechange = function() {\nif (4 == s.readyState) {\nif (200 == s.status) try {\nvar t = JSON.parse(s.responseText);\nt && t.id ? e && e(r.eExCallBackMsg.success, t.id) : e && e(r.eExCallBackMsg.fail);\n} catch (o) {\ne && e(r.eExCallBackMsg.fail);\n} else e && e(r.eExCallBackMsg.fail);\n}\n};\ns.onerror = function() {\ne && e(r.eExCallBackMsg.fail);\n};\ns.ontimeout = function() {\ne && e(r.eExCallBackMsg.fail);\n};\ns.open("POST", t, !0);\ns.setRequestHeader("Content-Type", "application/octet-stream");\ns.send(a.buffer ? a.buffer : a);\n};',
-]);
-RULES.push([
-  'e.prototype.downloadRecordedFile = function(e, t) {\nvar o = n.default.platform;\nif (r.ePlatformType.android === o || r.ePlatformType.iOS === o) i.default.voice.invoke("downloadRecordedFile", e, function(e, o) {\nt && t(e, o);\n}); else t && t(r.eExCallBackMsg.fail);\n};',
-  'e.prototype.downloadRecordedFile = function(e, t) {\nvar o = n.default.gameBaseUrl() + "/voice/" + encodeURIComponent(e), i = (jsb.fileUtils.getWritablePath() || "") + "__gv_download_dat__", a = new XMLHttpRequest();\na.timeout = 1e4;\na.responseType = "arraybuffer";\na.onreadystatechange = function() {\nif (4 == a.readyState) {\nif (200 == a.status && a.response) {\nvar e = new Uint8Array(a.response);\njsb.fileUtils.writeDataToFile(e, i) ? t && t(r.eExCallBackMsg.success) : t && t(r.eExCallBackMsg.fail);\n} else t && t(r.eExCallBackMsg.fail);\n}\n};\na.onerror = function() {\nt && t(r.eExCallBackMsg.fail);\n};\na.ontimeout = function() {\nt && t(r.eExCallBackMsg.fail);\n};\na.open("GET", o, !0);\na.send();\n};',
-]);
-
 const run = (cmd, args, cwd) => execFileSync(cmd, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] }).toString();
 const tool = (name) => {
   const dir = path.join(SDK, 'build-tools');
@@ -133,42 +128,159 @@ const tool = (name) => {
   return path.join(dir, ver, name);
 };
 
-/** 清单里的原厂 GVoice 凭证换成自己的。密钥不打日志。 */
-const patchVoiceMeta = (apkPath, appid, appkey) => {
+const writeStub = (root, rel, body) => {
+  const p = path.join(root, rel);
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, body);
+};
+
+const ensureGmeSdk = () => {
+  const jar = path.join(GME_DIR, 'libs', 'gmesdk.jar');
+  if (fs.existsSync(jar)) return jar;
+  fs.mkdirSync(GME_DIR, { recursive: true });
+  const zip = path.join(GME_DIR, 'sdk.zip');
+  console.log('      下载 GME Android SDK');
+  run('curl', ['-fsSL', '-A', 'Mozilla/5.0', '-o', zip, GME_URL]);
+  run('unzip', ['-qo', zip, '-d', GME_DIR]);
+  if (!fs.existsSync(jar)) throw new Error('GME SDK 里没有 gmesdk.jar');
+  return jar;
+};
+
+/** 编 Voice.java + gmesdk.jar，解成 smali，供塞进 APK。 */
+const compileGmeVoiceSmali = () => {
+  const jar = ensureGmeSdk();
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), 'qjqp-gme-'));
+  const stubs = path.join(work, 'stubs');
+  const classes = path.join(work, 'classes');
+  const dexDir = path.join(work, 'dex');
+  fs.mkdirSync(classes);
+  fs.mkdirSync(dexDir);
+  writeStub(stubs, 'org/cocos2dx/javascript/AppActivity.java', [
+    'package org.cocos2dx.javascript;',
+    'import android.app.Activity;',
+    'import android.content.Context;',
+    'public class AppActivity extends Activity {',
+    '  public static Context getContext() { return null; }',
+    '}',
+    '',
+  ].join('\n'));
+  writeStub(stubs, 'com/yuanlai/Constants.java', [
+    'package com.yuanlai;',
+    'public class Constants {',
+    '  public static String sdkConfig(String key) { return ""; }',
+    '}',
+    '',
+  ].join('\n'));
+  writeStub(stubs, 'com/yuanlai/external/Bridge.java', [
+    'package com.yuanlai.external;',
+    'public class Bridge {',
+    '  public static void onAction(String a, String b, String c) {}',
+    '  public static void onAction(String a, String b, String c, String d) {}',
+    '}',
+    '',
+  ].join('\n'));
+  const voiceSrc = path.join(__dirname, 'gme', 'Voice.java');
+  run('javac', [
+    '-source', '1.8', '-target', '1.8', '-Xlint:-options',
+    '-cp', [ANDROID_JAR, jar, stubs].join(path.delimiter),
+    '-d', classes,
+    path.join(stubs, 'org/cocos2dx/javascript/AppActivity.java'),
+    path.join(stubs, 'com/yuanlai/Constants.java'),
+    path.join(stubs, 'com/yuanlai/external/Bridge.java'),
+    voiceSrc,
+  ]);
+  const voiceJar = path.join(work, 'voice.jar');
+  run('jar', ['cf', voiceJar, '-C', classes, 'com/yuanlai/external/Voice.class']);
+  for (const name of fs.readdirSync(path.join(classes, 'com/yuanlai/external'))) {
+    if (name.startsWith('Voice$')) {
+      run('jar', ['uf', voiceJar, '-C', classes, `com/yuanlai/external/${name}`]);
+    }
+  }
+  run(tool('d8'), [
+    '--lib', ANDROID_JAR, '--min-api', '16', '--output', dexDir,
+    jar, voiceJar,
+  ]);
+  const miniApk = path.join(work, 'mini.apk');
+  run('zip', ['-q', '-0', '-X', miniApk, 'classes.dex'], dexDir);
+  const smaliOut = path.join(work, 'smali');
+  run('java', ['-jar', APKTOOL, 'd', '-f', '-o', smaliOut, miniApk]);
+  return { work, smali: path.join(smaliOut, 'smali') };
+};
+
+const copyDir = (from, to) => {
+  fs.mkdirSync(to, { recursive: true });
+  for (const name of fs.readdirSync(from)) {
+    const a = path.join(from, name);
+    const b = path.join(to, name);
+    if (fs.statSync(a).isDirectory()) copyDir(a, b);
+    else fs.copyFileSync(a, b);
+  }
+};
+
+const rmIf = (p) => {
+  fs.rmSync(p, { recursive: true, force: true });
+};
+
+const writeVoiceMeta = (xml, appid, appkey) => {
+  let out = xml.replace(
+    /(<meta-data android:name="SDK_VOICE_APPID" android:value=")[^"]*("\/>)/,
+    `$1${appid}$2`
+  );
+  out = out.replace(
+    /(<meta-data android:name="SDK_VOICE_APPKEY" android:value=")[^"]*("\/>)/,
+    `$1${appkey}$2`
+  );
+  if (!out.includes(`android:name="SDK_VOICE_APPID" android:value="${appid}"`)) {
+    throw new Error('没改到 SDK_VOICE_APPID');
+  }
+  if (!out.includes(`android:name="SDK_VOICE_APPKEY" android:value="${appkey}"`)) {
+    throw new Error('没改到 SDK_VOICE_APPKEY');
+  }
+  return out;
+};
+
+/** 凭证写入清单，Java 桥和 .so 换成 GME。密钥不打日志。 */
+const injectGme = (apkPath, appid, appkey) => {
   if (!appid || !appkey) return;
   if (!fs.existsSync(APKTOOL)) {
-    console.warn('      没有 apktool.jar，跳过 GVoice 凭证（APKTOOL=/tmp/apktool.jar）');
-    return;
+    throw new Error('没有 apktool.jar，无法换 GME（APKTOOL=/tmp/apktool.jar）');
   }
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qjqp-am-'));
-  const built = `${apkPath}.am.apk`;
-  const manDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qjqp-mf-'));
+  if (!fs.existsSync(ANDROID_JAR)) {
+    throw new Error(`没有 android.jar：${ANDROID_JAR}`);
+  }
+  const compiled = compileGmeVoiceSmali();
+  const decoded = fs.mkdtempSync(path.join(os.tmpdir(), 'qjqp-gmeapk-'));
+  const built = `${apkPath}.gme.apk`;
   try {
-    run('java', ['-jar', APKTOOL, 'd', '-f', '-s', apkPath, '-o', dir]);
-    const mf = path.join(dir, 'AndroidManifest.xml');
-    let xml = fs.readFileSync(mf, 'utf8');
-    xml = xml.replace(
-      /(<meta-data android:name="SDK_VOICE_APPID" android:value=")[^"]*("\/>)/,
-      `$1${appid}$2`
-    );
-    xml = xml.replace(
-      /(<meta-data android:name="SDK_VOICE_APPKEY" android:value=")[^"]*("\/>)/,
-      `$1${appkey}$2`
-    );
-    if (!xml.includes(`android:name="SDK_VOICE_APPID" android:value="${appid}"`)) {
-      throw new Error('没改到 SDK_VOICE_APPID');
+    run('java', ['-jar', APKTOOL, 'd', '-f', apkPath, '-o', decoded]);
+    const mf = path.join(decoded, 'AndroidManifest.xml');
+    fs.writeFileSync(mf, writeVoiceMeta(fs.readFileSync(mf, 'utf8'), appid, appkey));
+    console.log('      已写入自己的 GME AppID');
+
+    for (const name of fs.readdirSync(path.join(decoded, 'smali/com/yuanlai/external'))) {
+      if (name.startsWith('Voice')) rmIf(path.join(decoded, 'smali/com/yuanlai/external', name));
     }
-    if (!xml.includes(`android:name="SDK_VOICE_APPKEY" android:value="${appkey}"`)) {
-      throw new Error('没改到 SDK_VOICE_APPKEY');
+    copyDir(compiled.smali, path.join(decoded, 'smali_classes2'));
+    console.log('      已换上 GME Java 桥');
+
+    for (const abi of ['arm64-v8a', 'armeabi-v7a']) {
+      const lib = path.join(decoded, 'lib', abi);
+      if (!fs.existsSync(lib)) continue;
+      rmIf(path.join(lib, 'libGCloudVoice.so'));
+      rmIf(path.join(lib, 'libGvoiceNN.so'));
+      for (const so of ['libgmesdk.so', 'libgmefdkaac.so']) {
+        const src = path.join(GME_DIR, 'libs', abi, so);
+        if (fs.existsSync(src)) fs.copyFileSync(src, path.join(lib, so));
+      }
     }
-    fs.writeFileSync(mf, xml);
-    run('java', ['-jar', APKTOOL, 'b', dir, '-o', built]);
-    run('unzip', ['-q', '-o', built, 'AndroidManifest.xml', '-d', manDir]);
-    run('zip', ['-q', '-0', '-X', apkPath, 'AndroidManifest.xml'], manDir);
-    console.log('      已写入自己的 GVoice AppID');
+    rmIf(path.join(decoded, 'assets/GCloudVoice'));
+    console.log('      已换上 GME .so，去掉旧 GCloudVoice');
+
+    run('java', ['-jar', APKTOOL, 'b', decoded, '-o', built]);
+    fs.copyFileSync(built, apkPath);
   } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-    fs.rmSync(manDir, { recursive: true, force: true });
+    fs.rmSync(compiled.work, { recursive: true, force: true });
+    fs.rmSync(decoded, { recursive: true, force: true });
     try { fs.unlinkSync(built); } catch { /* */ }
   }
 };
@@ -194,10 +306,10 @@ fs.copyFileSync(APK, out);
 run('zip', ['-q', '-0', '-X', out, rel], stage);
 
 if (VOICE_APPID && VOICE_APPKEY) {
-  console.log('3b/6 写入自己的 GVoice AppID');
-  patchVoiceMeta(out, VOICE_APPID, VOICE_APPKEY);
+  console.log('3b/6 换成 GME 并写入自己的 AppID');
+  injectGme(out, VOICE_APPID, VOICE_APPKEY);
 } else {
-  console.log('3b/6 未提供 GVoice 凭证，语音房仍用原厂 AppID');
+  console.log('3b/6 未提供 GME 凭证，语音仍用原厂 GCloudVoice');
 }
 
 console.log('4/6 删掉旧签名');

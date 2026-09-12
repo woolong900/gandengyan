@@ -1,6 +1,5 @@
 /**
- * 按住说话的录音。原版走腾讯 GCloud 上传，自建服改成落到 data/voice/。
- * 客户端仍用 GCloud 本地录、播，只是文件进出换成这里。
+ * 自建 /voice 存盘。当前客户端已改回 GME 上传，这条接口留着备用。
  */
 const fs = require('fs');
 const path = require('path');
