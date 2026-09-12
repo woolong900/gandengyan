@@ -5,6 +5,7 @@ const http = require('http');
 const { URL } = require('url');
 const { WebSocketServer } = require('ws');
 const store = require('./store');
+const voice = require('./voice');
 const { GameApp } = require('./app');
 
 const PORT = Number(process.env.PORT) || 8080;
@@ -35,18 +36,53 @@ const app = new GameApp({
   now: Date.now,
 });
 
-const json = (res, body) => {
+const json = (res, body, status = 200) => {
   const s = JSON.stringify(body);
-  res.writeHead(200, {
+  res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': Buffer.byteLength(s),
   });
   res.end(s);
 };
 
+const readBody = (req, limit) => new Promise((resolve, reject) => {
+  const chunks = [];
+  let n = 0;
+  req.on('data', (c) => {
+    n += c.length;
+    if (n > limit) {
+      req.destroy();
+      reject(new Error('too large'));
+      return;
+    }
+    chunks.push(c);
+  });
+  req.on('end', () => resolve(Buffer.concat(chunks)));
+  req.on('error', reject);
+});
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   console.log(`HTTP ${req.method} ${url.pathname}${url.search}`);
+
+  if (req.method === 'POST' && url.pathname === '/voice') {
+    return readBody(req, voice.MAX).then((buf) => {
+      const id = voice.put(buf);
+      if (!id) return json(res, { err: 'empty' }, 400);
+      console.log(`  语音上传 ${id} ${buf.length}B`);
+      return json(res, { id });
+    }).catch(() => res.writeHead(413).end());
+  }
+  if (req.method === 'GET' && url.pathname.startsWith('/voice/')) {
+    const buf = voice.get(url.pathname.slice('/voice/'.length));
+    if (!buf) return res.writeHead(404).end();
+    res.writeHead(200, {
+      'Content-Type': 'application/octet-stream',
+      'Content-Length': buf.length,
+    });
+    return res.end(buf);
+  }
+
   const out = app.http(url.pathname, url.searchParams);
   if (out.status === 404) return res.writeHead(404).end();
   return json(res, out.body);

@@ -98,6 +98,17 @@ RULES.push([
   't.prototype._lockCreateRoomScroll = function(e, t) {\nif (!t) return;\nvar o = t.getComponent(cc.Layout);\nif (o) {\no._layoutDirty = !0;\no.updateLayout();\n}\nif (!(t.height > 0)) {\nvar n = o && void 0 !== o.spacingY ? o.spacingY : 0, r = (o && o.paddingTop || 0) + (o && o.paddingBottom || 0), i = t.children, a = 0;\nfor (var s = 0; s < i.length; s++) if (i[s].activeInHierarchy) {\na++;\nr += i[s].height;\n}\nr += Math.max(0, a - 1) * n;\nt.height = Math.max(r, 1);\n}\nif (e) {\ne.elastic = !1;\ne._calculateBoundary && e._calculateBoundary();\n}\n};\nt.prototype._updateIp = function() {',
 ]);
 
+// 按住说话：别再走腾讯 GCloud 上传。本地仍用 GCloud 录音/播放，
+// 文件进出改成我们的 /voice。录音在 files/__gv_recording_data__。
+RULES.push([
+  'e.prototype.uploadRecordedFile = function(e) {\nvar t = n.default.platform;\nr.ePlatformType.android === t || r.ePlatformType.iOS === t ? i.default.voice.invoke("uploadRecordedFile", null, function(t, o) {\ne && e(t, o);\n}) : e && e(r.eExCallBackMsg.fail);\n};',
+  'e.prototype.uploadRecordedFile = function(e) {\nvar t = n.default.gameBaseUrl() + "/voice", o = (jsb.fileUtils.getWritablePath() || "") + "__gv_recording_data__";\nif (!jsb.fileUtils.isFileExist(o)) {\ne && e(r.eExCallBackMsg.fail);\nreturn;\n}\nvar a = jsb.fileUtils.getDataFromFile(o);\nif (!a || !a.length) {\ne && e(r.eExCallBackMsg.fail);\nreturn;\n}\nvar s = new XMLHttpRequest();\ns.timeout = 1e4;\ns.onreadystatechange = function() {\nif (4 == s.readyState) {\nif (200 == s.status) try {\nvar t = JSON.parse(s.responseText);\nt && t.id ? e && e(r.eExCallBackMsg.success, t.id) : e && e(r.eExCallBackMsg.fail);\n} catch (o) {\ne && e(r.eExCallBackMsg.fail);\n} else e && e(r.eExCallBackMsg.fail);\n}\n};\ns.onerror = function() {\ne && e(r.eExCallBackMsg.fail);\n};\ns.ontimeout = function() {\ne && e(r.eExCallBackMsg.fail);\n};\ns.open("POST", t, !0);\ns.setRequestHeader("Content-Type", "application/octet-stream");\ns.send(a.buffer ? a.buffer : a);\n};',
+]);
+RULES.push([
+  'e.prototype.downloadRecordedFile = function(e, t) {\nvar o = n.default.platform;\nif (r.ePlatformType.android === o || r.ePlatformType.iOS === o) i.default.voice.invoke("downloadRecordedFile", e, function(e, o) {\nt && t(e, o);\n}); else t && t(r.eExCallBackMsg.fail);\n};',
+  'e.prototype.downloadRecordedFile = function(e, t) {\nvar o = n.default.gameBaseUrl() + "/voice/" + encodeURIComponent(e), i = (jsb.fileUtils.getWritablePath() || "") + "__gv_download_dat__", a = new XMLHttpRequest();\na.timeout = 1e4;\na.responseType = "arraybuffer";\na.onreadystatechange = function() {\nif (4 == a.readyState) {\nif (200 == a.status && a.response) {\nvar e = new Uint8Array(a.response);\njsb.fileUtils.writeDataToFile(e, i) ? t && t(r.eExCallBackMsg.success) : t && t(r.eExCallBackMsg.fail);\n} else t && t(r.eExCallBackMsg.fail);\n}\n};\na.onerror = function() {\nt && t(r.eExCallBackMsg.fail);\n};\na.ontimeout = function() {\nt && t(r.eExCallBackMsg.fail);\n};\na.open("GET", o, !0);\na.send();\n};',
+]);
+
 const run = (cmd, args, cwd) => execFileSync(cmd, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] }).toString();
 const tool = (name) => {
   const dir = path.join(SDK, 'build-tools');

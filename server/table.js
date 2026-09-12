@@ -362,7 +362,15 @@ class Table {
       return { error: 0 };
     }
     if (msghead === 'chatroom') {
-      this.broadcast('chatroom', body);
+      let chat = {};
+      try {
+        chat = typeof body.chat === 'string' ? JSON.parse(body.chat) : (body.chat || {});
+      } catch {
+        chat = {};
+      }
+      if (!chat || typeof chat !== 'object') chat = {};
+      chat.fromUid = uid;
+      this.broadcast('chatroom', { chat: JSON.stringify(chat) });
       return { error: 0 };
     }
     if (msghead === 'trustee') {
