@@ -158,6 +158,12 @@ RULES.push([
   't.prototype.load = function(e) {\nvar t = this, o = this.node.getComponent(cc.ScrollView), n = this.node.getChildByName("scrollBar"), r = cc.find("view/content", this.node);\no.elastic = !1;',
 ]);
 
+// 潜江晃晃的抢杠胡使用专用 qj_qgh 时播报错词，改用包内正确的抢杠胡语音。
+RULES.push([
+  u2b('r[16] = {\ndesc: "抢杠胡",\nweight: 90,\nanimation: "qiangganghu",\nsound: "qj_qgh",\nbHideGuo: !0\n}'),
+  u2b('r[16] = {\ndesc: "抢杠胡",\nweight: 90,\nanimation: "qiangganghu",\nsound: "qiangganghu",\nbHideGuo: !0\n}'),
+]);
+
 const run = (cmd, args, cwd) => execFileSync(cmd, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] }).toString();
 const tool = (name) => {
   const dir = path.join(SDK, 'build-tools');
