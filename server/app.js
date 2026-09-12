@@ -280,7 +280,6 @@ class GameApp {
         config,
       };
       const table = new Table(meta, this.tableHost(roomId));
-      if (cost.host > 0) table.charge(c.player.uid, cost.host, '房主支付');
       this.tables.set(roomId, table);
       c.roomId = roomId;
       this.uidRoom.set(c.player.uid, roomId);
@@ -297,20 +296,8 @@ class GameApp {
         console.log(`  202 进房 ${roomId} 不存在`);
         return c.send(pack(202, { res: { error: 1, what: '房间不存在' } }));
       }
-      const seated = table.members.find((m) => m.player.uid === c.player.uid);
-      const cost = rules.roomCardCost({
-        num: table.num,
-        人数: table.config.人数,
-        房费: table.config.房费,
-      });
-      if (!seated && cost.each > 0 && (c.player.cardNum || 0) < cost.each) {
-        return c.send(pack(202, { res: { error: 1, what: '房卡不足' } }));
-      }
       const joined = table.join(c.player, connId);
       if (joined.error) return c.send(pack(202, { res: { error: 1, what: joined.error } }));
-      if (!joined.rejoining && cost.each > 0 && !c.player.bot) {
-        table.charge(c.player.uid, cost.each, 'AA支付');
-      }
       this.maybeFillBots(table);
       c.roomId = roomId;
       const payload = JSON.stringify({ room: roomInfo(table), game: joined.game || {} });

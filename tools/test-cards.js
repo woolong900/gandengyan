@@ -116,12 +116,16 @@ const boot = () => {
   app.onMessage('a', packCs(201, {
     gameType: 2, clubId: 0, num: 1, param1: param.param1, param2: param.param2,
   }));
-  t('房主 2 人 8 局扣 2', a.player.cardNum, 8);
+  t('建房不扣房卡', a.player.cardNum, 10);
   t('建房成功', num(last(a.box, 201).res.error), 0);
   const roomId = num(last(a.box, 201).roomId);
+  app.onMessage('a', packCs(202, { roomId }));
+  t('进房不扣房卡', a.player.cardNum, 10);
   const table = app.tables.get(roomId);
+  t('开局才扣房主', table.startGame(), null);
+  t('房主 2 人 8 局扣 2', a.player.cardNum, 8);
   table.dissolve();
-  t('没开局退还', a.player.cardNum, 10);
+  t('已开局不退', a.player.cardNum, 8);
 }
 
 {
@@ -134,15 +138,32 @@ const boot = () => {
   app.onMessage('a', packCs(201, {
     gameType: 2, clubId: 0, num: 2, param1: param.param1, param2: param.param2,
   }));
-  t('AA 建房不扣房主整桌', a.player.cardNum, 5);
+  t('AA 建房不扣', a.player.cardNum, 5);
   const roomId = num(last(a.box, 201).roomId);
   app.onMessage('a', packCs(202, { roomId }));
   app.onMessage('b', packCs(202, { roomId }));
-  t('AA 16 局每人扣 2', [a.player.cardNum, b.player.cardNum], [3, 3]);
+  t('AA 进房不扣', [a.player.cardNum, b.player.cardNum], [5, 5]);
   const table = app.tables.get(roomId);
-  table.step = 1;
   table.dissolve();
-  t('已开局不退', [a.player.cardNum, b.player.cardNum], [3, 3]);
+  t('没开局也不扣', [a.player.cardNum, b.player.cardNum], [5, 5]);
+}
+
+{
+  const { app, login } = boot();
+  const a = login('a', 't_aa3');
+  const b = login('b', 't_aa4');
+  a.player.cardNum = 5;
+  b.player.cardNum = 5;
+  const param = rules.buildParam({ 人数: 2, 房费: 'AA' });
+  app.onMessage('a', packCs(201, {
+    gameType: 2, clubId: 0, num: 2, param1: param.param1, param2: param.param2,
+  }));
+  const roomId = num(last(a.box, 201).roomId);
+  app.onMessage('a', packCs(202, { roomId }));
+  app.onMessage('b', packCs(202, { roomId }));
+  const table = app.tables.get(roomId);
+  t('开局才扣 AA', table.startGame(), null);
+  t('AA 16 局每人扣 2', [a.player.cardNum, b.player.cardNum], [3, 3]);
 }
 
 {

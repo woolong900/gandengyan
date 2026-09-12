@@ -139,6 +139,7 @@ function gangScore(type, config) {
 /**
  * 房卡：官方 QJHH `gameCountMul=8`，8 局每人 1 张、16 局每人 2 张。
  * `num` 就是档位（1=8局，2=16局）。房主支付 = 人数 × 档位；AA 每人付档位。
+ * 只在第一局开打时扣，建房/进房不扣。
  */
 function roomCardCost({ num, 人数, 房费 }) {
   const per = Math.max(1, Number(num) || 1);

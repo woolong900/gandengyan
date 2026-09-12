@@ -134,7 +134,6 @@ class Table {
     this.closed = true;
     this.clearAllTimers();
     if (this.step > 0 || this.round) this.sendTotalEnd(false);
-    else this.refundCards('未开局退还');
     this.broadcast('exitroom', { reason });
     for (const m of this.members) {
       m.player.roomId = 0;
@@ -144,24 +143,6 @@ class Table {
     this.host.log(`  房 ${this.roomId} 已解散`);
     this.host.onDissolved(reason);
     this.host.persist();
-  }
-
-  refundCards(reason) {
-    if (!this.cardCharges.length || !this.host.changeCards) return;
-    for (const { uid, amount } of this.cardCharges) {
-      this.host.changeCards(uid, amount, reason);
-    }
-    this.cardCharges = [];
-  }
-
-  refundUid(uid, reason) {
-    if (!this.host.changeCards) return;
-    const kept = [];
-    for (const charge of this.cardCharges) {
-      if (charge.uid === uid) this.host.changeCards(uid, charge.amount, reason);
-      else kept.push(charge);
-    }
-    this.cardCharges = kept;
   }
 
   charge(uid, amount, reason) {
@@ -195,7 +176,35 @@ class Table {
     }
   }
 
+  takeRoomCards() {
+    if (this.cardCharges.length) return null;
+    const cost = rules.roomCardCost({
+      num: this.num,
+      人数: this.config.人数,
+      房费: this.config.房费,
+    });
+    if (cost.host > 0) {
+      const host = this.members.find((m) => m.player.uid === this.hostUid);
+      if (!host || (host.player.cardNum || 0) < cost.host) return '房卡不足';
+      this.charge(host.player.uid, cost.host, '房主支付');
+      return null;
+    }
+    if (cost.each > 0) {
+      const humans = this.members.filter((m) => !m.view && !m.bot);
+      if (humans.some((m) => (m.player.cardNum || 0) < cost.each)) return '房卡不足';
+      for (const m of humans) this.charge(m.player.uid, cost.each, 'AA支付');
+    }
+    return null;
+  }
+
   startGame() {
+    if (this.step < 1) {
+      const fail = this.takeRoomCards();
+      if (fail) {
+        this.host.log(`  [房${this.roomId}] 开局失败：${fail}`);
+        return fail;
+      }
+    }
     const seats = this.seats();
     const dealerSeat = this.dealerUid
       ? Math.max(0, seats.findIndex((m) => m.player.uid === this.dealerUid))
@@ -205,15 +214,16 @@ class Table {
     this.round.start();
     this.armTurns();
     this.host.persist();
+    return null;
   }
 
   tryStartNext() {
-    if (this.round) return;
-    if (this.step >= maxStep(this)) return;
+    if (this.round) return null;
+    if (this.step >= maxStep(this)) return null;
     const seated = this.members.filter((m) => !m.view);
-    if (seated.length !== this.config.人数) return;
-    if (!seated.every((m) => m.ready)) return;
-    this.startGame();
+    if (seated.length !== this.config.人数) return null;
+    if (!seated.every((m) => m.ready)) return null;
+    return this.startGame();
   }
 
   handleDismiss(uid, agree) {
@@ -357,7 +367,6 @@ class Table {
       this.members = this.members.filter((m) => m.player.uid !== uid);
       still.player.roomId = 0;
       this.host.onUidRoom(uid, 0);
-      if (this.step < 1) this.refundUid(uid, '未开局退还');
       this.host.log(`  [房${this.roomId}] ${uid} 离线超时，请出`);
       if (this.members.length === 0) this.dissolve();
       else {
@@ -426,7 +435,8 @@ class Table {
         mine.ready = true;
         this.broadcast('game_ready', { uid, site: mine.site });
         this.host.persist();
-        this.tryStartNext();
+        const fail = this.tryStartNext();
+        if (fail) return { error: 1, what: fail };
       }
       return { error: 0 };
     }
