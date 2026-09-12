@@ -2,6 +2,7 @@
  * 协议层共用：房间快照和牌桌操作。
  */
 const { pack } = require('./net');
+const crypto = require('crypto');
 const rules = require('./rules');
 
 const GAME_COUNT_MUL = {
@@ -81,7 +82,7 @@ const INVITE_AMBIGUOUS = /[IOZL]/;
 const mintInviteCode = (used = new Set()) => {
   for (let n = 0; n < 64; n++) {
     let code = '';
-    for (let i = 0; i < 5; i++) code += INVITE_LETTERS[Math.floor(Math.random() * INVITE_LETTERS.length)];
+    for (let i = 0; i < 5; i++) code += INVITE_LETTERS[crypto.randomInt(INVITE_LETTERS.length)];
     if (!used.has(code)) return code;
   }
   throw new Error('邀请码发完了');
