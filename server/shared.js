@@ -1,5 +1,5 @@
 /**
- * 协议层共用：房间快照、番桌操作、和 Node / Cloudflare 无关。
+ * 协议层共用：房间快照和牌桌操作。
  */
 const { pack } = require('./net');
 const rules = require('./rules');

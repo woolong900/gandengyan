@@ -1,5 +1,5 @@
 /**
- * 一张桌子。Node 和 Cloudflare Room DO 共用。
+ * 一张桌子。
  *
  * host:
  *   send(connId, bytes)
