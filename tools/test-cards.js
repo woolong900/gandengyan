@@ -102,6 +102,18 @@ const boot = () => {
 
 {
   const { app, login } = boot();
+  const a = login('a', 't_no_voice_room');
+  const voice = rules.buildParam({ 语音房: true });
+  app.onMessage('a', packCs(201, {
+    gameType: 2, clubId: 0, num: 1,
+    param1: voice.param1, param2: voice.param2,
+  }));
+  t('拒绝创建语音房', last(a.box, 201).res.what, '暂不支持语音房');
+  t('语音房不占房号', app.tables.size, 0);
+}
+
+{
+  const { app, login } = boot();
   const a = login('a', 't_bad_message');
   app.onMessage('a', packCs(200, { json: '{' }));
   t('损坏的房内消息被拒绝', last(a.box, 200).res.what, '房内消息格式无效');

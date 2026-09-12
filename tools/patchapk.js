@@ -140,6 +140,15 @@ RULES.push([
   u2b('desc: "堆癞子",\nreject: [ 1, 2, 26 ]'),
   u2b('desc: "堆癞子",\nreject: [ 1, 2, 26 ],\nisHide: !0'),
 ]);
+// 暂时关掉语音房：实时麦走腾讯 GME，先只留按住说话。
+RULES.push([
+  u2b('desc: "语音房",\nnote: "开启之后，玩家将可实时听到语音，无法关闭。"'),
+  u2b('desc: "语音房",\nisHide: !0,\nnote: "开启之后，玩家将可实时听到语音，无法关闭。"'),
+]);
+RULES.push([
+  u2b('desc: "语音房",\nnote: "开启之后，其他玩家可实时听到\\n自己说话声音，无法关闭"'),
+  u2b('desc: "语音房",\nisHide: !0,\nnote: "开启之后，其他玩家可实时听到\\n自己说话声音，无法关闭"'),
+]);
 RULES.push([
   u2b('desc: "玩法",\nweight: 1,\nlineCount: 3,\ndefCheck: [ 1 ],\ndetailIds: [ 1, 2, 26 ]'),
   u2b('desc: "玩法",\nweight: 1,\nlineCount: 3,\ndefCheck: [ 2 ],\ndetailIds: [ 1, 2, 26 ]'),

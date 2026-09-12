@@ -53,6 +53,7 @@ function buildParam(opts = {}) {
     + (opts.少三张 ? 1 : 0) * 1e6
     + (opts.只许自摸 ? 1 : 0) * 1e7
     + (opts.热铳 === false ? 0 : 1) * 1e8
+    + (opts.语音房 ? 1 : 0) * 1e10
     + (opts.双大胡 === false ? 0 : 1) * 1e11
     + (opts.观战 ? 1 : 0) * 1e12;
   return { param1, param2 };
@@ -73,6 +74,7 @@ function parseConfig(param1, param2) {
     少三张: digit(param2, 6) === 1, // (19)
     只许自摸: digit(param2, 7) === 1, // (20)
     热铳: digit(param2, 8) === 1, // (21)
+    语音房: digit(param2, 10) === 1, // (22)
     双大胡: digit(param2, 11) === 1, // (23)
     观战: digit(param2, 12) === 1, // (24)
     底分: BASE_SCORE[digit(param1, 3)] || 1,
@@ -93,6 +95,7 @@ function validateRoomConfig({ gameType, num, param1, param2 } = {}) {
   }
   const config = parseConfig(Number(param1), Number(param2));
   if (config.人数 < 2 || config.人数 > 4) return '人数只支持 2 至 4 人';
+  if (config.语音房) return '暂不支持语音房';
   return null;
 }
 
