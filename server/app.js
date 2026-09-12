@@ -371,7 +371,7 @@ class GameApp {
 
     if (proto === 127) {
       const id = String((msg && msg.id) || '');
-      const pb = findPlayback(this.records, id);
+      const pb = findPlayback(this.records, id, c.player.uid);
       if (!pb) {
         return c.send(pack(127, { res: { error: 1, what: '回放不存在' } }));
       }

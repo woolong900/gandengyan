@@ -151,10 +151,11 @@ class Tape {
   }
 }
 
-const findPlayback = (records, id) => {
+const findPlaybackRecord = (records, id, uid = null) => {
   const key = String(id || '');
   if (!key) return null;
   for (const rec of records || []) {
+    if (uid != null && !(rec.uids || []).some((id) => Number(id) === Number(uid))) continue;
     if (rec.playbacks && rec.playbacks[key]) return rec.playbacks[key];
     for (const d of rec.details || []) {
       if (d.id === key && d.playback) return d.playback;
@@ -163,11 +164,13 @@ const findPlayback = (records, id) => {
   return null;
 };
 
+const findPlayback = (records, id, uid = null) => findPlaybackRecord(records, id, uid);
+
 const mintPlaybackId = (roomId, step, seq) => (
   `${roomId}${String(step).padStart(2, '0')}${String(100 + (seq % 900)).padStart(3, '0')}`
 );
 
 module.exports = {
-  Tape, IDX, GANG, findPlayback, mintPlaybackId,
+  Tape, IDX, GANG, findPlayback, findPlaybackRecord, mintPlaybackId,
   canCardsFromSelf, canCardsFromDiscard,
 };

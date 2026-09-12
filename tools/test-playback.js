@@ -112,6 +112,13 @@ t('回放码带房号和局数', mintPlaybackId(100000, 3, 1), '10000003101');
   t('玩法是干瞪眼', Number(pb.roomInfo.type), 2);
   t('有摸牌步骤', pb.steps.some((s) => s.operates.some((o) => o.index === IDX.GET)), true);
 
+  const other = { sent: [] };
+  app.attach('b', (bytes) => other.sent.push(Buffer.from(bytes)));
+  app.onMessage('b', packCs(100, { token: 't_pb_b' }));
+  other.sent.length = 0;
+  app.onMessage('b', packCs(127, { id }));
+  t('非参与者不能看回放', Number(last(other, 127).res.error), 1);
+
   box.sent.length = 0;
   app.onMessage('a', packCs(127, { id: 'nope' }));
   t('没有的码', last(box, 127).res.what, '回放不存在');
