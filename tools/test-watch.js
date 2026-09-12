@@ -237,5 +237,21 @@ const openRoom = (app, host, opts = {}) => {
   t('观战摸牌是牌背', lastPush(c.box, 'game_draw').card, 0);
 }
 
+{
+  const { app, login } = boot();
+  const a = { ...login('a', 't_chat_a'), id: 'a' };
+  const b = { ...login('b', 't_chat_b'), id: 'b' };
+  const roomId = openRoom(app, a);
+  app.onMessage('a', packCs(202, { roomId }));
+  app.onMessage('b', packCs(202, { roomId }));
+
+  app.onMessage('a', gameJson('chatroom', { chat: { text: 'x'.repeat(5000) } }));
+  t('超长聊天被拒', last(a.box, 200).res.what, '聊天内容过长');
+
+  for (let i = 0; i < 10; i++) app.onMessage('a', gameJson('chatroom', { chat: { text: `m${i}` } }));
+  app.onMessage('a', gameJson('chatroom', { chat: { text: 'too-many' } }));
+  t('聊天频率受限', last(a.box, 200).res.what, '聊天太频繁');
+}
+
 console.log(`\n${pass} 过 / ${fail} 挂`);
 process.exit(fail ? 1 : 0);

@@ -490,7 +490,7 @@ class GameApp {
         || !body || typeof body !== 'object' || Array.isArray(body)) {
         return c.send(pack(200, { res: { error: 1, what: '房内消息格式无效' } }));
       }
-      console.log(`  200 房内消息 ${msghead} ${msgdata || ''}`);
+      console.log(`  200 房内消息 ${msghead}${msghead === 'chatroom' ? ' [chat]' : ` ${msgdata || ''}`}`);
       if (!table || table.closed) {
         return c.send(pack(200, { res: { error: 1, what: '不在房间里' } }));
       }

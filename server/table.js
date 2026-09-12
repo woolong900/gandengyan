@@ -20,6 +20,9 @@ const {
 const DISMISS_SEC = 60;
 /** 旁观位上限。客户端 LookOnLayer 按 person.view 列人，没有再限一次。 */
 const MAX_WATCH = 20;
+const MAX_CHAT_BYTES = 4096;
+const CHAT_WINDOW_MS = 5000;
+const CHAT_MAX_IN_WINDOW = 10;
 
 class Table {
   constructor(meta, host) {
@@ -408,6 +411,32 @@ class Table {
     this.host.persist();
   }
 
+  chatFor(member, uid, body) {
+    let chat = {};
+    try {
+      chat = typeof body.chat === 'string' ? JSON.parse(body.chat) : (body.chat || {});
+    } catch {
+      return { error: 1, what: '聊天内容格式无效' };
+    }
+    if (!chat || typeof chat !== 'object' || Array.isArray(chat)) {
+      return { error: 1, what: '聊天内容格式无效' };
+    }
+    chat.fromUid = uid;
+    const encoded = JSON.stringify(chat);
+    if (Buffer.byteLength(encoded, 'utf8') > MAX_CHAT_BYTES) {
+      return { error: 1, what: '聊天内容过长' };
+    }
+    const now = this.host.now();
+    const times = (member.chatTimes || []).filter((at) => now - at < CHAT_WINDOW_MS);
+    if (times.length >= CHAT_MAX_IN_WINDOW) {
+      member.chatTimes = times;
+      return { error: 1, what: '聊天太频繁' };
+    }
+    times.push(now);
+    member.chatTimes = times;
+    return { error: 0, chat: encoded };
+  }
+
   leave(uid, connId) {
     const mine = this.members.find((m) => m.player.uid === uid);
     if (!mine || mine.connId !== connId) return;
@@ -486,15 +515,9 @@ class Table {
         return { error: 0 };
       }
       if (msghead === 'chatroom') {
-        let chat = {};
-        try {
-          chat = typeof body.chat === 'string' ? JSON.parse(body.chat) : (body.chat || {});
-        } catch {
-          chat = {};
-        }
-        if (!chat || typeof chat !== 'object') chat = {};
-        chat.fromUid = uid;
-        this.broadcast('chatroom', { chat: JSON.stringify(chat) });
+        const chat = this.chatFor(mine, uid, body);
+        if (chat.error) return chat;
+        this.broadcast('chatroom', { chat: chat.chat });
         return { error: 0 };
       }
       return { error: 0 };
@@ -505,15 +528,9 @@ class Table {
       return { error: 0 };
     }
     if (msghead === 'chatroom') {
-      let chat = {};
-      try {
-        chat = typeof body.chat === 'string' ? JSON.parse(body.chat) : (body.chat || {});
-      } catch {
-        chat = {};
-      }
-      if (!chat || typeof chat !== 'object') chat = {};
-      chat.fromUid = uid;
-      this.broadcast('chatroom', { chat: JSON.stringify(chat) });
+      const chat = this.chatFor(mine, uid, body);
+      if (chat.error) return chat;
+      this.broadcast('chatroom', { chat: chat.chat });
       return { error: 0 };
     }
     if (msghead === 'trustee') {
