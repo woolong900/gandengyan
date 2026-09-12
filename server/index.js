@@ -94,7 +94,11 @@ const server = http.createServer((req, res) => {
   return json(res, out.body);
 });
 
-const wss = new WebSocketServer({ server, path: '/ws' });
+const wss = new WebSocketServer({
+  server,
+  path: '/ws',
+  maxPayload: 4 * 1024 * 1024,
+});
 let nextConn = 1;
 
 wss.on('connection', (ws) => {
