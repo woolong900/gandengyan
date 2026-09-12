@@ -90,6 +90,18 @@ const boot = () => {
 
 {
   const { app, login } = boot();
+  const a = login('a', 't_bad_config');
+  const badPeople = rules.buildParam({ 人数: 5 });
+  app.onMessage('a', packCs(201, {
+    gameType: 2, clubId: 0, num: 1,
+    param1: badPeople.param1, param2: badPeople.param2,
+  }));
+  t('拒绝不支持的人数', last(a.box, 201).res.what, '人数只支持 2 至 4 人');
+  t('非法建房不占房号', app.tables.size, 0);
+}
+
+{
+  const { app, login } = boot();
   const a = login('a', 't_inviter');
   const b = login('b', 't_new');
   t('新用户 0 张房卡', a.login.cardNum, 0);

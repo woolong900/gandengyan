@@ -12,10 +12,14 @@
 const { protocol } = require('./proto/protocol');
 
 const HEAD = 12;
+const MAX_FRAME = 4 * 1024 * 1024;
 
 function unpack(buf) {
+  if (!buf || buf.length < HEAD) throw new Error('协议帧头不完整');
+  if (buf.length > MAX_FRAME) throw new Error('协议帧过大');
   const proto = buf.readUInt32BE(0);
   const len = buf.readUInt32BE(8);
+  if (len && (len < HEAD || len > buf.length)) throw new Error('协议帧长度无效');
   const payload = buf.subarray(HEAD, len || buf.length);
   const def = protocol[proto];
   // cs 为 null 表示这个 id 只有服务端往下推（比如 99 心跳）

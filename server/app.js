@@ -389,10 +389,16 @@ class GameApp {
       if (existingRoomId) {
         return c.send(pack(201, { res: { error: 1, what: '已经在房间里' } }));
       }
-      const param1 = num(msg.param1);
-      const param2 = num(msg.param2);
+      const gameType = num(msg && msg.gameType);
+      const roomNum = num(msg && msg.num);
+      const param1 = num(msg && msg.param1);
+      const param2 = num(msg && msg.param2);
+      const invalid = rules.validateRoomConfig({
+        gameType, num: roomNum, param1, param2,
+      });
+      if (invalid) return c.send(pack(201, { res: { error: 1, what: invalid } }));
       const config = rules.parseConfig(param1, param2);
-      const cost = rules.roomCardCost({ num: msg.num, 人数: config.人数, 房费: config.房费 });
+      const cost = rules.roomCardCost({ num: roomNum, 人数: config.人数, 房费: config.房费 });
       if (cost.host > 0 && (c.player.cardNum || 0) < cost.host) {
         return c.send(pack(201, { res: { error: 1, what: '房卡不足' } }));
       }
@@ -402,9 +408,9 @@ class GameApp {
       const roomId = this.nextRoomId++;
       const meta = {
         roomId,
-        gameType: msg.gameType,
+        gameType,
         clubId: msg.clubId,
-        num: msg.num,
+        num: roomNum,
         param1,
         param2,
         host: c.player.uid,

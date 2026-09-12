@@ -82,6 +82,20 @@ function parseConfig(param1, param2) {
   };
 }
 
+/** 建房只接受当前服务端真正实现的玩法和人数范围。 */
+function validateRoomConfig({ gameType, num, param1, param2 } = {}) {
+  if (Number(gameType) !== 2) return '暂不支持该玩法';
+  if (!Number.isInteger(Number(num)) || Number(num) < 1 || Number(num) > 2) {
+    return '局数参数无效';
+  }
+  if (!Number.isInteger(Number(param1)) || !Number.isInteger(Number(param2))) {
+    return '玩法参数无效';
+  }
+  const config = parseConfig(Number(param1), Number(param2));
+  if (config.人数 < 2 || config.人数 > 4) return '人数只支持 2 至 4 人';
+  return null;
+}
+
 /**
  * 番数表。对照客户端规则图 `Hall/Res/Texture/Rules/desc_2_1`
  * （结算分数 = 杠牌×癞杠 + 胡牌×癞杠）。
@@ -151,6 +165,6 @@ function roomCardCost({ num, 人数, 房费 }) {
 }
 
 module.exports = {
-  parseConfig, buildParam, roomCardCost,
+  parseConfig, validateRoomConfig, buildParam, roomCardCost,
   huMultiplier, gangScore, unit, HU, FAN, RATIO, hasBit,
 };
