@@ -301,6 +301,30 @@ class GameApp {
     };
   }
 
+  clubRecords(clubId) {
+    return this.records.filter((record) => Number(record.clubId) === Number(clubId));
+  }
+
+  clubRecordStats(club, records) {
+    return club.members.map((member) => {
+      const player = this.playerByUid(member.uid) || {};
+      let score = 0;
+      let number = 0;
+      let winner = 0;
+      for (const record of records) {
+        const item = (record.players || []).find((p) => Number(p.uid) === Number(member.uid));
+        if (!item) continue;
+        number++;
+        score += Number(item.score || 0);
+        if (item.winner) winner++;
+      }
+      return {
+        avatarUrl: '', nickname: player.nickname || `玩家${member.uid}`, code: String(member.uid),
+        winner, score, number, scoreRatio: 10, remark: member.remark || '',
+      };
+    }).filter((item) => item.number > 0);
+  }
+
   schedule(key, dueAt) {
     this.cancel(key);
     const wait = Math.max(0, dueAt - this.now());
@@ -546,7 +570,25 @@ class GameApp {
         const body = proto === 163 ? { members: [] } : { data: [] };
         return c.send(pack(proto, { res: { error: 1, what: '无权查看俱乐部数据' }, ...body }));
       }
-      if (proto === 163) return c.send(pack(proto, { res: { error: 0, what: '' }, members: [], count: 0, total: 0, fatigueNum: 0 }));
+      const records = this.clubRecords(club.id);
+      if (proto === 163) {
+        const stats = this.clubRecordStats(club, records).map((item) => ({
+          ...this.clubMemberInfo(club, club.members.find((m) => String(m.uid) === item.code)),
+          fatigueNum: 0, number: item.number, winner: item.winner,
+        }));
+        return c.send(pack(proto, { res: { error: 0, what: '' }, members: stats, count: stats.length, total: stats.length, fatigueNum: 0 }));
+      }
+      if (proto === 146) {
+        const start = num(msg && msg.startDate) * 1000;
+        const end = num(msg && msg.endDate) * 1000 || (start + 86400000);
+        const filtered = records.filter((record) => record.time >= start && record.time < end);
+        const data = this.clubRecordStats(club, filtered);
+        return c.send(pack(proto, { res: { error: 0, what: '' }, data, count: data.length, total: data.length }));
+      }
+      if (proto === 166) {
+        const data = this.clubRecordStats(club, records).map((item) => ({ ...item, keyS: '1' }));
+        return c.send(pack(proto, { res: { error: 0, what: '' }, data, count: data.length, total: data.length }));
+      }
       return c.send(pack(proto, { res: { error: 0, what: '' }, data: [], count: 0, total: 0 }));
     }
 

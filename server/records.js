@@ -50,6 +50,7 @@ const buildRecord = (table, now) => {
     id: `R${table.roomId}${now}`,
     gameId: table.gameType,
     roomId: table.roomId,
+    clubId: table.clubId || 0,
     gameCount: details.length,
     totalCount: maxStep(table),
     param1: table.param1,
