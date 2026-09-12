@@ -17,6 +17,7 @@ class GameApp {
     this.nowFn = now || Date.now;
     this.allowUnregisteredTokens = !!allowUnregisteredTokens;
     this.players = new Map();
+    this.playersByUid = new Map();
     this.tables = new Map();
     this.nextUid = 100001;
     this.nextRoomId = 100000;
@@ -36,11 +37,7 @@ class GameApp {
   }
 
   playerByUid(uid) {
-    const id = Number(uid);
-    for (const p of this.players.values()) {
-      if (p.uid === id) return p;
-    }
-    return null;
+    return this.playersByUid.get(Number(uid)) || null;
   }
 
   notifyCard(player) {
@@ -136,6 +133,7 @@ class GameApp {
     const token = `t_bot_${uid}`;
     const player = emptyPlayer(uid, { nickname: `陪玩${site}`, roomId, bot: true, cardNum: 0 });
     this.players.set(token, player);
+    this.playersByUid.set(player.uid, player);
     return player;
   }
 
@@ -171,6 +169,8 @@ class GameApp {
 
   restore(data) {
     if (!data) return;
+    this.players.clear();
+    this.playersByUid.clear();
     this.nextUid = data.nextUid || 100001;
     this.nextRoomId = data.nextRoomId || 100000;
     this.records = Array.isArray(data.records) ? data.records : [];
@@ -179,6 +179,7 @@ class GameApp {
     for (const p of data.players || []) {
       const player = emptyPlayer(p.uid, p);
       this.players.set(p.token, player);
+      this.playersByUid.set(player.uid, player);
       byUid.set(player.uid, player);
     }
     for (const raw of data.rooms || []) {
@@ -260,6 +261,7 @@ class GameApp {
       const token = `t_${crypto.randomBytes(24).toString('hex')}`;
       const player = emptyPlayer(uid);
       this.players.set(token, player);
+      this.playersByUid.set(player.uid, player);
       this.ensureInviteCode(player);
       this.persist();
       return { status: 200, body: { err_code: 0, data: { token } } };
@@ -295,6 +297,7 @@ class GameApp {
         const uid = this.nextUid++;
         const newbie = emptyPlayer(uid);
         this.players.set(msg.token, newbie);
+        this.playersByUid.set(newbie.uid, newbie);
         this.ensureInviteCode(newbie);
       }
       c.player = this.players.get(msg.token);
