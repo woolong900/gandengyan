@@ -125,6 +125,7 @@ const boot = (n, extra = {}) => {
 
 {
   const { round } = boot(2);
+  round.laizi = 19;
   round.hands[0] = [1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13];
   round.drawn[0] = round.laizi;
   round.turn = 0;
@@ -251,6 +252,7 @@ const boot = (n, extra = {}) => {
 {
   const { round, io } = boot(2);
   round.hands[0] = [1, 2, 3, 4, 5, 6, 11, 11, 11, 12, 12, 13, 13];
+  round.laizi = 19;
   round.drawn[0] = 14;
   round.turn = 0;
   round.pending = null;

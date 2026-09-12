@@ -836,9 +836,9 @@ console.log('过手胡');
 
 console.log('玩法配置');
 check('两人局参数', rules.parseConfig(1000, 1100100011000), {
-  玩法: '潜江癞晃', 人数: 2, 暗杠倍数: 4, 喜钱: 10, 清一色: false,
-  少三张: false, 只许自摸: false, 热铳: true, 双大胡: true, 底分: 1,
-  托管: 0, 踢人: 0,
+  玩法: '潜江癞晃', 人数: 2, 暗杠倍数: 4, 房费: 'AA', 喜钱: 10, 清一色: false,
+  少三张: false, 只许自摸: false, 热铳: true, 双大胡: true, 观战: true,
+  底分: 1, 托管: 0, 踢人: 0,
 });
 check('暗杠 2 倍那一位', rules.parseConfig(1000, 100).暗杠倍数, 2);
 check('底分档次', [4, 5, 6, 7].map((d) => rules.parseConfig(d * 1000, 0).底分), [5, 10, 20, 25]);

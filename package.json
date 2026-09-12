@@ -3,7 +3,8 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
-    "start": "node tools/serve.js"
+    "start": "node tools/serve.js",
+    "test": "node tools/test-cards.js && node tools/test-playback.js && node tools/test-records.js && node tools/test-watch.js && node tools/test-net.js && node tools/test-round.js && node tools/rulestest.js"
   },
   "devDependencies": {
     "rollup": "^4.0.0"
