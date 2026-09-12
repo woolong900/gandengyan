@@ -74,7 +74,7 @@ const fakeTable = (extra = {}) => ({
 });
 
 {
-  const app = new GameApp({ persist: () => {}, now: () => NOON });
+  const app = new GameApp({ persist: () => {}, now: () => NOON, allowUnregisteredTokens: true });
   const rec = app.saveRecord(fakeTable());
   t('记下战绩', !!rec.id, true);
   t('玩法是潜江晃晃', rec.gameId, 2);
@@ -86,7 +86,7 @@ const fakeTable = (extra = {}) => ({
 }
 
 {
-  const app = new GameApp({ persist: () => {}, now: () => NOON });
+  const app = new GameApp({ persist: () => {}, now: () => NOON, allowUnregisteredTokens: true });
   app.saveRecord(fakeTable());
   const box = { sent: [] };
   app.attach('a', (bytes) => box.sent.push(Buffer.from(bytes)));
@@ -123,7 +123,7 @@ const fakeTable = (extra = {}) => ({
 }
 
 {
-  const app = new GameApp({ persist: () => {}, now: () => NOON });
+  const app = new GameApp({ persist: () => {}, now: () => NOON, allowUnregisteredTokens: true });
   app.saveRecord(fakeTable());
   const box = { sent: [] };
   app.attach('b', (bytes) => box.sent.push(Buffer.from(bytes)));
@@ -148,13 +148,13 @@ const fakeTable = (extra = {}) => ({
       uids: [7],
     }],
   };
-  const app = new GameApp({ persist: () => {}, now: () => NOON });
+  const app = new GameApp({ persist: () => {}, now: () => NOON, allowUnregisteredTokens: true });
   app.restore(dumped);
   t('存档战绩还在', listFor(app.records, 7, DAY).length, 1);
 }
 
 {
-  const app = new GameApp({ persist: () => {}, now: () => NOON });
+  const app = new GameApp({ persist: () => {}, now: () => NOON, allowUnregisteredTokens: true });
   const first = app.http('/login', new URLSearchParams({ accountType: 'guest' }));
   const token = first.body.data.token;
   const again = app.http('/login', new URLSearchParams({ accountType: 'token', token }));

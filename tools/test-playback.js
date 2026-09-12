@@ -81,7 +81,7 @@ t('回放码带房号和局数', mintPlaybackId(100000, 3, 1), '10000003101');
 }
 
 {
-  const app = new GameApp({ persist: () => {}, now: () => 1 });
+  const app = new GameApp({ persist: () => {}, now: () => 1, allowUnregisteredTokens: true });
   const box = { sent: [] };
   app.attach('a', (bytes) => box.sent.push(Buffer.from(bytes)));
   app.onMessage('a', packCs(100, { token: 't_pb_a' }));

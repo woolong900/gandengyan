@@ -71,7 +71,7 @@ const gameJson = (msghead, data = {}) => packCs(200, {
 });
 
 const boot = () => {
-  const app = new GameApp({ persist: () => {}, now: () => 1 });
+  const app = new GameApp({ persist: () => {}, now: () => 1, allowUnregisteredTokens: true });
   const boxes = new Map();
   const attach = (id) => {
     const box = { sent: [] };

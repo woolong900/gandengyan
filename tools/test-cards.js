@@ -63,7 +63,7 @@ const last = (box, proto) => {
 };
 
 const boot = () => {
-  const app = new GameApp({ persist: () => {}, now: () => 1 });
+  const app = new GameApp({ persist: () => {}, now: () => 1, allowUnregisteredTokens: true });
   const boxes = new Map();
   const attach = (id) => {
     const box = { sent: [] };
@@ -78,6 +78,15 @@ const boot = () => {
   };
   return { app, boxes, attach, login };
 };
+
+{
+  const app = new GameApp({ persist: () => {}, now: () => 1 });
+  const box = { sent: [] };
+  app.attach('unknown', (bytes) => box.sent.push(Buffer.from(bytes)));
+  app.onMessage('unknown', packCs(100, { token: 'never-issued' }));
+  t('未知 token 拒绝登录', Number(last(box, 100).res.error), 65);
+  t('未知 token 不自动建号', app.players.size, 0);
+}
 
 {
   const { app, login } = boot();
@@ -233,6 +242,23 @@ const boot = () => {
 }
 
 {
+  const { app, login } = boot();
+  const a = login('a', 't_one_room');
+  a.player.cardNum = 20;
+  const param = rules.buildParam({ 人数: 2, 房费: '房主' });
+  app.onMessage('a', packCs(201, {
+    gameType: 2, clubId: 0, num: 1, param1: param.param1, param2: param.param2,
+  }));
+  const roomId = num(last(a.box, 201).roomId);
+  app.onMessage('a', packCs(202, { roomId }));
+  app.onMessage('a', packCs(201, {
+    gameType: 2, clubId: 0, num: 1, param1: param.param1, param2: param.param2,
+  }));
+  t('已在房间不能重复建房', last(a.box, 201).res.what, '已经在房间里');
+  t('重复建房不增加房间', app.tables.size, 1);
+}
+
+{
   const dumped = {
     nextUid: 100003,
     nextRoomId: 100000,
@@ -241,7 +267,7 @@ const boot = () => {
       cardNum: 100, roomId: 0, inviteCode: 'ABCDE', invitedBy: 'VWXYZ',
     }],
   };
-  const app = new GameApp({ persist: () => {}, now: () => 1 });
+  const app = new GameApp({ persist: () => {}, now: () => 1, allowUnregisteredTokens: true });
   app.restore(dumped);
   const old = app.players.get('t_old');
   t('旧存档房卡保留', old.cardNum, 100);

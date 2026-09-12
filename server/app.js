@@ -2,6 +2,7 @@
  * 单进程大厅：玩家、房间号、桌子。
  */
 const { pack, unpack, hasRes, protocol } = require('./net');
+const crypto = require('crypto');
 const { Table } = require('./table');
 const rules = require('./rules');
 const {
@@ -11,9 +12,10 @@ const { buildRecord, listFor, keepLatest } = require('./records');
 const { findPlayback, mintPlaybackId } = require('./playback');
 
 class GameApp {
-  constructor({ persist, now } = {}) {
+  constructor({ persist, now, allowUnregisteredTokens = false } = {}) {
     this.persistFn = persist || (() => {});
     this.nowFn = now || Date.now;
+    this.allowUnregisteredTokens = !!allowUnregisteredTokens;
     this.players = new Map();
     this.tables = new Map();
     this.nextUid = 100001;
@@ -255,7 +257,7 @@ class GameApp {
         return { status: 200, body: { err_code: 65, err_msg: '登录时效已过期,请重新登录' } };
       }
       const uid = this.nextUid++;
-      const token = `t_${accountType}_${uid}`;
+      const token = `t_${crypto.randomBytes(24).toString('hex')}`;
       const player = emptyPlayer(uid);
       this.players.set(token, player);
       this.ensureInviteCode(player);
@@ -285,6 +287,11 @@ class GameApp {
 
     if (proto === 100) {
       if (!this.players.has(msg.token)) {
+        if (!this.allowUnregisteredTokens) {
+          return c.send(pack(100, {
+            res: { error: 65, what: '登录凭证无效，请重新登录' },
+          }));
+        }
         const uid = this.nextUid++;
         const newbie = emptyPlayer(uid);
         this.players.set(msg.token, newbie);
@@ -378,6 +385,10 @@ class GameApp {
     }
 
     if (proto === 201) {
+      const existingRoomId = this.uidRoom.get(c.player.uid) || c.player.roomId || 0;
+      if (existingRoomId) {
+        return c.send(pack(201, { res: { error: 1, what: '已经在房间里' } }));
+      }
       const param1 = num(msg.param1);
       const param2 = num(msg.param2);
       const config = rules.parseConfig(param1, param2);
@@ -411,6 +422,10 @@ class GameApp {
 
     if (proto === 202) {
       const roomId = num(msg.roomId);
+      const existingRoomId = this.uidRoom.get(c.player.uid) || c.player.roomId || 0;
+      if (existingRoomId && existingRoomId !== roomId) {
+        return c.send(pack(202, { res: { error: 1, what: '已经在其他房间里' } }));
+      }
       const table = this.tables.get(roomId);
       if (!table || table.closed) {
         console.log(`  202 进房 ${roomId} 不存在`);
