@@ -170,10 +170,11 @@ RULES.push([
   u2b('a.default.eventUtils.emit(s.default.data_club_get_scheme_list);\nh.default.getClubTableInfo(e._clubId, function() { a.default.eventUtils.emit(s.default.data_club_table_scheme_update); }, !0);\n} else a.default.uiHelper.showTip(e.res.what);'),
 ]);
 
-// 俱乐部桌子数据统一刷新后通知桌子组件，避免空列表时旧空桌残留在界面。
+// 俱乐部桌子数据统一刷新后通知桌子组件，避免空列表时旧空桌残留在界面；
+// 回调变量全部改名，避免遮蔽模块级 gContext/EventKeys。
 RULES.push([
-  u2b('for (var s = 0, c = o.rooms.length; s < c; s++) {\nvar u = new l.default(o.rooms[s]);\ni.update(u);\n}\n}\nt(o, null);'),
-  u2b('for (var s = 0, c = o.rooms.length; s < c; s++) {\nvar u = new l.default(o.rooms[s]);\ni.update(u);\n}\nr.default.eventUtils.emit(u.default.data_club_table_scheme_update);\n}\nt(o, null);'),
+  u2b('e.prototype.getClubTableInfo = function(e, t, o) {\nvoid 0 === o && (o = !1);\nvar r = {\nclubId: e\n};\nn.default.sendMsg(122, r, function(o, n, r) {\nif (r) t(o, r); else {\nif (0 === o.res.error) {\nvar i = a.default.get(e).tableList();\ni.destroy();\nfor (var s = 0, c = o.rooms.length; s < c; s++) {\nvar u = new l.default(o.rooms[s]);\ni.update(u);\n}\n}\nt(o, null);\n}\n}, o);\n};'),
+  u2b('e.prototype.getClubTableInfo = function(e, t, o) {\nvoid 0 === o && (o = !1);\nvar request = {\nclubId: e\n};\nn.default.sendMsg(122, request, function(response, unused, networkError) {\nif (networkError) t(response, networkError); else {\nif (0 === response.res.error) {\nvar tableList = a.default.get(e).tableList();\ntableList.destroy();\nfor (var roomIndex = 0, roomCount = response.rooms.length; roomIndex < roomCount; roomIndex++) {\nvar roomData = new l.default(response.rooms[roomIndex]);\ntableList.update(roomData);\n}\nr.default.eventUtils.emit(u.default.data_club_table_scheme_update);\n}\nt(response, null);\n}\n}, o);\n};'),
 ]);
 
 const run = (cmd, args, cwd) => execFileSync(cmd, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] }).toString();
