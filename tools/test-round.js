@@ -603,18 +603,5 @@ const boot = (n, extra = {}) => {
   t('恢复后牌墙还能摸', restored.wall.remain() < round.wall.remain() || restored.drawn[1] != null, true);
 }
 
-{
-  const voice = require('../server/voice');
-  const fs = require('fs');
-  const dir = voice.DIR;
-  const raw = Buffer.from([1, 2, 3, 4, 9]);
-  const id = voice.put(raw);
-  t('语音能存', !!id && id.length, 24);
-  t('语音能取回', voice.get(id) && [...voice.get(id)], [...raw]);
-  t('坏 id 取不到', voice.get('../x'), null);
-  t('空包不存', voice.put(Buffer.alloc(0)), null);
-  if (id) try { fs.unlinkSync(require('path').join(dir, id)); } catch { /* */ }
-}
-
 console.log(`\n${pass} 过 / ${fail} 挂`);
 process.exit(fail ? 1 : 0);

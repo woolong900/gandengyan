@@ -5,7 +5,6 @@ const http = require('http');
 const { URL } = require('url');
 const { WebSocketServer } = require('ws');
 const store = require('./store');
-const voice = require('./voice');
 const { GameApp } = require('./app');
 
 const PORT = Number(process.env.PORT) || 8080;
@@ -79,24 +78,6 @@ const readBody = (req, limit) => new Promise((resolve, reject) => {
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   console.log(`HTTP ${req.method} ${logUrl(url)}`);
-
-  if (req.method === 'POST' && url.pathname === '/voice') {
-    return readBody(req, voice.MAX).then((buf) => {
-      const id = voice.put(buf);
-      if (!id) return json(res, { err: 'empty' }, 400);
-      console.log(`  语音上传 ${id} ${buf.length}B`);
-      return json(res, { id });
-    }).catch(() => res.writeHead(413).end());
-  }
-  if (req.method === 'GET' && url.pathname.startsWith('/voice/')) {
-    const buf = voice.get(url.pathname.slice('/voice/'.length));
-    if (!buf) return res.writeHead(404).end();
-    res.writeHead(200, {
-      'Content-Type': 'application/octet-stream',
-      'Content-Length': buf.length,
-    });
-    return res.end(buf);
-  }
 
   const out = app.http(url.pathname, url.searchParams);
   if (out.status === 404) return res.writeHead(404).end();
