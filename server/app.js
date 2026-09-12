@@ -314,7 +314,7 @@ class GameApp {
       this.ensureInviteCode(c.player);
       const roomId = this.uidRoom.get(c.player.uid) || 0;
       c.roomId = roomId;
-      console.log(`  100 登录 token=${msg.token} -> uid=${c.player.uid}`);
+      console.log(`  100 登录 uid=${c.player.uid}`);
       return c.send(pack(100, {
         res: { error: 0, what: '' },
         uid: c.player.uid,
