@@ -3,6 +3,8 @@ package com.yuanlai.external;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import com.gme.TMG.ITMGAudioCtrl;
 import com.gme.TMG.ITMGContext;
@@ -15,49 +17,86 @@ import org.json.JSONObject;
 
 /**
  * 原版桥的方法名和返回值保持不变，底层从 GCloudVoice 换成 GME 2.9。
+ * 上传/下载完成事件要靠 Poll 在游戏线程里捞出来，只靠 AppActivity 的 Timer 线程不够。
  */
 public class Voice {
   public static final String TAG = "Voice";
   private static final String BRIDGE = "Voice";
 
   private static boolean _isInit;
+  private static boolean _polling;
   private static String download_msg_path = "";
   private static String write_msg_path = "";
   private static String appId = "";
   private static String appKey = "";
   private static String openId = "";
   private static ITMGContext ctx;
+  private static final Notify notify = new Notify();
+  private static final Handler poller = new Handler(Looper.getMainLooper());
 
   private static class Notify extends ITMGContext.ITMGDelegate {
     @Override
     public void OnEvent(ITMGContext.ITMG_MAIN_EVENT_TYPE type, Intent data) {
-      int result = extraInt(data, "result", -1);
-      switch (type) {
-        case ITMG_MAIN_EVENT_TYPE_ENTER_ROOM:
-          Bridge.onAction(BRIDGE, "joinRoom", result == 0 ? "success" : "fail");
-          Log.i("gvoice", "OnJoinRoom result=" + result);
-          break;
-        case ITMG_MAIN_EVENT_TYPE_EXIT_ROOM:
-          Bridge.onAction(BRIDGE, "quitRoom", result == 0 ? "success" : "fail");
-          Log.i("gvoice", "OnQuitRoom result=" + result);
-          break;
-        case ITMG_MAIN_EVNET_TYPE_PTT_UPLOAD_COMPLETE:
-          String upId = extraStr(data, "file_id", extraStr(data, "fileid", ""));
-          Log.d(TAG, "OnUploadFile ret:" + result + " fileId:" + upId);
-          Bridge.onAction(BRIDGE, "uploadRecordedFile", result == 0 ? "success" : "fail", upId);
-          break;
-        case ITMG_MAIN_EVNET_TYPE_PTT_DOWNLOAD_COMPLETE:
-          String downId = extraStr(data, "file_id", extraStr(data, "fileid", ""));
-          Log.d(TAG, "OnDownloadFile ret:" + result);
-          Bridge.onAction(BRIDGE, "downloadRecordedFile", result == 0 ? "success" : "fail", downId);
-          break;
-        case ITMG_MAIN_EVNET_TYPE_PTT_PLAY_COMPLETE:
-          Log.d(TAG, "playRecordedFile ret:" + result);
-          Bridge.onAction(BRIDGE, "playRecordedFile", result == 0 ? "success" : "fail");
-          break;
-        default:
-          break;
+      try {
+        int result = extraInt(data, "result", -1);
+        Log.e(TAG, "OnEvent " + type + " result=" + result);
+        switch (type) {
+          case ITMG_MAIN_EVENT_TYPE_ENTER_ROOM:
+            tell(BRIDGE, "joinRoom", result == 0 ? "success" : "fail", null);
+            Log.i("gvoice", "OnJoinRoom result=" + result);
+            break;
+          case ITMG_MAIN_EVENT_TYPE_EXIT_ROOM:
+            tell(BRIDGE, "quitRoom", result == 0 ? "success" : "fail", null);
+            Log.i("gvoice", "OnQuitRoom result=" + result);
+            break;
+          case ITMG_MAIN_EVNET_TYPE_PTT_UPLOAD_COMPLETE:
+            String upId = fileId(data);
+            Log.e(TAG, "OnUploadFile ret:" + result + " fileId:" + upId);
+            tell(BRIDGE, "uploadRecordedFile", okResult(result) ? "success" : "fail", upId);
+            break;
+          case ITMG_MAIN_EVNET_TYPE_PTT_DOWNLOAD_COMPLETE:
+            String downId = fileId(data);
+            Log.e(TAG, "OnDownloadFile ret:" + result + " fileId:" + downId);
+            tell(BRIDGE, "downloadRecordedFile", okResult(result) ? "success" : "fail", downId);
+            break;
+          case ITMG_MAIN_EVNET_TYPE_PTT_PLAY_COMPLETE:
+            Log.e(TAG, "playRecordedFile ret:" + result);
+            tell(BRIDGE, "playRecordedFile", okResult(result) ? "success" : "fail", null);
+            break;
+          default:
+            break;
+        }
+      } catch (Throwable t) {
+        Log.e(TAG, "OnEvent", t);
       }
+    }
+  }
+
+  private static boolean okResult(int result) {
+    return result == 0 || result == 0x3005;
+  }
+
+  private static String fileId(Intent data) {
+    String id = extraStr(data, "file_id", extraStr(data, "fileid", extraStr(data, "fileID", "")));
+    if (id == null) id = "";
+    return id;
+  }
+
+  /** Bridge$2 用 String.format，extra 里的 % 会把 JS 串打坏。 */
+  private static String jsSafe(String s) {
+    if (s == null) return "";
+    return s.replace("\\", "\\\\").replace("'", "\\'").replace("%", "%%");
+  }
+
+  private static void tell(String module, String action, String code, String extra) {
+    try {
+      if (extra == null || extra.length() == 0) {
+        Bridge.onAction(module, action, code);
+      } else {
+        Bridge.onAction(module, action, code, jsSafe(extra));
+      }
+    } catch (Throwable t) {
+      Log.e(TAG, "Bridge.onAction " + action, t);
     }
   }
 
@@ -99,13 +138,43 @@ public class Voice {
     ITMGPTT ptt = ctx.GetPTT();
     int r = ptt.ApplyPTTAuthbuffer(buf);
     ptt.SetMaxMessageLength(15000);
-    Log.d(TAG, "ApplyPTTAuthbuffer ret:" + r);
+    Log.e(TAG, "ApplyPTTAuthbuffer ret:" + r);
   }
 
   private static void ensurePaths() {
     Activity act = activity();
     write_msg_path = new File(act.getFilesDir(), "__gv_recording_data__").getAbsolutePath();
     download_msg_path = new File(act.getFilesDir(), "__gv_download_dat__").getAbsolutePath();
+  }
+
+  private static void queuePoll() {
+    try {
+      Class<?> c = Class.forName("org.cocos2dx.lib.Cocos2dxGLSurfaceView");
+      Object gl = c.getMethod("getInstance").invoke(null);
+      if (gl != null) {
+        c.getMethod("queueEvent", Runnable.class).invoke(gl, (Runnable) new Runnable() {
+          public void run() {
+            poll();
+          }
+        });
+        return;
+      }
+    } catch (Throwable ignored) {
+    }
+    poll();
+  }
+
+  private static void startGlPoller() {
+    if (_polling) return;
+    _polling = true;
+    poller.post(new Runnable() {
+      public void run() {
+        if (!_isInit) return;
+        queuePoll();
+        poller.postDelayed(this, 50);
+      }
+    });
+    Log.e(TAG, "GME GL poller started");
   }
 
   public static String init(String json) {
@@ -117,14 +186,15 @@ public class Voice {
       appKey = Constants.sdkConfig("SDK_VOICE_APPKEY");
       openId = o.getString("identify");
       int mode = o.getInt("mode");
-      Log.d(TAG, "appid:" + appId);
-      Log.d(TAG, "identify:" + openId);
-      Log.d(TAG, "mode:" + mode);
+      Log.e(TAG, "appid:" + appId);
+      Log.e(TAG, "identify:" + openId);
+      Log.e(TAG, "mode:" + mode);
       int ir = ctx.Init(appId, openId);
-      Log.d(TAG, "GME Init ret:" + ir + " ver:" + ctx.GetSDKVersion());
-      ctx.SetTMGDelegate(new Notify());
+      Log.e(TAG, "GME Init ret:" + ir + " ver:" + ctx.GetSDKVersion());
+      ctx.SetTMGDelegate(notify);
       setMode(mode);
       _isInit = true;
+      startGlPoller();
       return "ok";
     } catch (Exception e) {
       e.printStackTrace();
@@ -133,15 +203,16 @@ public class Voice {
   }
 
   public static String setMode(int mode) {
-    Log.d(TAG, "+++++++++++++++++++++++++setMode:" + mode);
+    Log.e(TAG, "+++++++++++++++++++++++++setMode:" + mode);
     ensurePaths();
     applyPtt();
+    if (ctx != null) ctx.SetTMGDelegate(notify);
     return "ok";
   }
 
   public static String joinRoom(String json) {
     try {
-      Log.d(TAG, "+++++++++++++++++++++++joinRoom:" + json);
+      Log.e(TAG, "+++++++++++++++++++++++joinRoom:" + json);
       JSONObject o = new JSONObject(json);
       String room = o.getString("roomName");
       byte[] buf = auth(room);
@@ -149,18 +220,18 @@ public class Voice {
       return ok(ctx.EnterRoom(room, ITMGContext.ITMG_ROOM_TYPE_FLUENCY, buf));
     } catch (Exception e) {
       e.printStackTrace();
-      Bridge.onAction(BRIDGE, "joinRoom", "fail");
+      tell(BRIDGE, "joinRoom", "fail", null);
       return "fail";
     }
   }
 
   public static String quitRoom(String json) {
     try {
-      Log.d(TAG, "+++++++++++++++++++++++quitRoom:" + json);
+      Log.e(TAG, "+++++++++++++++++++++++quitRoom:" + json);
       return ok(ctx.ExitRoom());
     } catch (Exception e) {
       e.printStackTrace();
-      Bridge.onAction(BRIDGE, "quitRoom", "fail");
+      tell(BRIDGE, "quitRoom", "fail", null);
       return "fail";
     }
   }
@@ -171,14 +242,14 @@ public class Voice {
     audio.EnableAudioCaptureDevice(true);
     audio.EnableAudioSend(true);
     int r = audio.EnableMic(true);
-    Log.d(TAG, r == 0 ? "+++++++++++++++++++++++openMic ok" : "+++++++++++++++++++++++openMic fail");
+    Log.e(TAG, r == 0 ? "+++++++++++++++++++++++openMic ok" : "+++++++++++++++++++++++openMic fail");
     return ok(r);
   }
 
   public static String closeMic() {
     if (ctx == null) return "fail";
     int r = ctx.GetAudioCtrl().EnableMic(false);
-    Log.d(TAG, r == 0 ? "+++++++++++++++++++++++closeMic ok" : "+++++++++++++++++++++++closeMic fail");
+    Log.e(TAG, r == 0 ? "+++++++++++++++++++++++closeMic ok" : "+++++++++++++++++++++++closeMic fail");
     return ok(r);
   }
 
@@ -188,14 +259,14 @@ public class Voice {
     audio.EnableAudioPlayDevice(true);
     audio.EnableAudioRecv(true);
     int r = audio.EnableSpeaker(true);
-    Log.d(TAG, r == 0 ? "+++++++++++++++++++++++openSpeaker ok" : "+++++++++++++++++++++++openSpeaker fail");
+    Log.e(TAG, r == 0 ? "+++++++++++++++++++++++openSpeaker ok" : "+++++++++++++++++++++++openSpeaker fail");
     return ok(r);
   }
 
   public static String closeSpeaker() {
     if (ctx == null) return "fail";
     int r = ctx.GetAudioCtrl().EnableSpeaker(false);
-    Log.d(TAG, r == 0 ? "+++++++++++++++++++++++closeSpeaker ok" : "+++++++++++++++++++++++closeSpeaker fail");
+    Log.e(TAG, r == 0 ? "+++++++++++++++++++++++closeSpeaker ok" : "+++++++++++++++++++++++closeSpeaker fail");
     return ok(r);
   }
 
@@ -210,6 +281,7 @@ public class Voice {
     if (ctx == null) return "fail";
     int r = ctx.GetPTT().StopRecording();
     Log.e(TAG, "stopRecording ret:" + r);
+    queuePoll();
     return ok(r);
   }
 
@@ -217,13 +289,15 @@ public class Voice {
     if (ctx == null) return "fail";
     int r = ctx.GetPTT().UploadRecordedFile(write_msg_path);
     Log.e(TAG, "uploadRecordedFile ret:" + r);
+    queuePoll();
     return ok(r);
   }
 
   public static String downloadRecordedFile(String fileId) {
     if (ctx == null) return "fail";
     int r = ctx.GetPTT().DownloadRecordedFile(fileId, download_msg_path);
-    Log.e(TAG, "downloadRecordedFile ret:" + r);
+    Log.e(TAG, "downloadRecordedFile ret:" + r + " id:" + fileId);
+    queuePoll();
     return ok(r);
   }
 
@@ -231,6 +305,7 @@ public class Voice {
     if (ctx == null) return "fail";
     int r = ctx.GetPTT().PlayRecordedFile(download_msg_path);
     Log.e(TAG, "playRecordedFile ret:" + r);
+    queuePoll();
     return ok(r);
   }
 
@@ -241,18 +316,23 @@ public class Voice {
 
   public static String poll() {
     if (!_isInit || ctx == null) return "";
-    return "" + ctx.Poll();
+    try {
+      return "" + ctx.Poll();
+    } catch (Throwable t) {
+      Log.e(TAG, "poll", t);
+      return "";
+    }
   }
 
   public static void pause() {
     if (ctx == null) return;
     int r = ctx.Pause();
-    Log.d(TAG, r == 0 ? "voice pause success." : "voice pause error:" + r);
+    Log.e(TAG, r == 0 ? "voice pause success." : "voice pause error:" + r);
   }
 
   public static void resume() {
     if (ctx == null) return;
     int r = ctx.Resume();
-    Log.d(TAG, r == 0 ? "voice resume success." : "voice resume error:" + r);
+    Log.e(TAG, r == 0 ? "voice resume success." : "voice resume error:" + r);
   }
 }
