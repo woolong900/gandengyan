@@ -51,6 +51,15 @@ const json = (res, body, status = 200) => {
   res.end(s);
 };
 
+const logUrl = (url) => {
+  const query = new URLSearchParams(url.searchParams);
+  for (const key of ['token', 'access_token', 'authorization']) {
+    if (query.has(key)) query.set(key, '[redacted]');
+  }
+  const suffix = query.toString();
+  return `${url.pathname}${suffix ? `?${suffix}` : ''}`;
+};
+
 const readBody = (req, limit) => new Promise((resolve, reject) => {
   const chunks = [];
   let n = 0;
@@ -69,7 +78,7 @@ const readBody = (req, limit) => new Promise((resolve, reject) => {
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
-  console.log(`HTTP ${req.method} ${url.pathname}${url.search}`);
+  console.log(`HTTP ${req.method} ${logUrl(url)}`);
 
   if (req.method === 'POST' && url.pathname === '/voice') {
     return readBody(req, voice.MAX).then((buf) => {
