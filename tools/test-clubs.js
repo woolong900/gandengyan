@@ -62,6 +62,10 @@ const b = login('b', 'club_b');
 a.cardNum = 20;
 b.cardNum = 20;
 
+app.onMessage('a', packCs(153, null));
+t('创建俱乐部代理信息可用', last(boxes.a, 153).code, 'QJQP');
+t('创建俱乐部代理房卡充足', Number(last(boxes.a, 153).balanceCard) > 0, true);
+
 app.onMessage('a', packCs(147, { name: '测试俱乐部' }));
 const created = last(boxes.a, 147);
 const clubId = Number(created.id);

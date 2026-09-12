@@ -623,6 +623,15 @@ class GameApp {
       return c.send(pack(112, { res: { error: 1, what: '暂未开放充值' }, goods: [] }));
     }
 
+    if (proto === 153) {
+      return c.send(pack(153, {
+        res: { error: 0, what: '' },
+        username: '测试代理',
+        code: 'QJQP',
+        balanceCard: 999999,
+      }));
+    }
+
     if (proto === 125) {
       const type = num(msg && msg.type);
       if (type === 1) {
