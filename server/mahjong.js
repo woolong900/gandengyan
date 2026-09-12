@@ -12,6 +12,7 @@
 const TIAO = 0;
 const TONG = 1;
 const WAN = 2;
+const crypto = require('crypto');
 
 /** 客户端 `_parseWallData` 写死了 wall 数组要 4 个元素，两人局也一样 */
 const DUN_COUNT = 4;
@@ -49,9 +50,9 @@ const buildDeck = (peopleCount) => {
   return deck;
 };
 
-const shuffle = (cards) => {
+const shuffle = (cards, randomInt = crypto.randomInt) => {
   for (let i = cards.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = randomInt(i + 1);
     [cards[i], cards[j]] = [cards[j], cards[i]];
   }
   return cards;
@@ -118,7 +119,7 @@ const makeWall = ({ dun, taken, starts, sizes, total }) => {
 function deal(peopleCount, seatCount, dealerSeat, opts = {}) {
   // 少三张每家只发 10 张，庄家再摸一张凑 11。客户端 `handMaxLen` 就是这么改的
   const handCount = opts.handCount || 13;
-  const deck = shuffle(buildDeck(peopleCount));
+  const deck = shuffle(buildDeck(peopleCount), opts.randomInt || crypto.randomInt);
   const pizi = deck.pop();
   const total = deck.length;
   const base = Math.floor(total / DUN_COUNT);
