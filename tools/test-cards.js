@@ -7,7 +7,7 @@ process.env.QJQP_FILLBOTS = '0';
 const { GameApp } = require('../server/app');
 const { protocol } = require('../server/proto/protocol');
 const rules = require('../server/rules');
-const { INVITE_GIVE, num } = require('../server/shared');
+const { INVITE_GIVE, INVITE_AMBIGUOUS, mintInviteCode, num } = require('../server/shared');
 
 let pass = 0;
 let fail = 0;
@@ -19,6 +19,18 @@ const t = (name, got, want) => {
     console.log(`  ✗ ${name}: 得到 ${JSON.stringify(got)} 期望 ${JSON.stringify(want)}`);
   }
 };
+
+{
+  const used = new Set();
+  let dirty = false;
+  for (let i = 0; i < 200; i++) {
+    const code = mintInviteCode(used);
+    used.add(code);
+    if (INVITE_AMBIGUOUS.test(code) || code.length !== 5) dirty = true;
+  }
+  t('连发 200 个邀请码都不含 I/O/Z/L', dirty, false);
+  t('连发邀请码不重复', used.size, 200);
+}
 
 const packCs = (proto, msg) => {
   const def = protocol[proto];
@@ -72,29 +84,35 @@ const boot = () => {
   const a = login('a', 't_inviter');
   const b = login('b', 't_new');
   t('新用户 0 张房卡', a.login.cardNum, 0);
+  t('登录就有 5 位大写邀请码', /^[A-Z]{5}$/.test(a.player.inviteCode), true);
+  t('邀请码不含 I/O/Z/L', INVITE_AMBIGUOUS.test(a.player.inviteCode), false);
+  t('两人邀请码不同', a.player.inviteCode !== b.player.inviteCode, true);
   a.box.sent.length = 0;
   app.onMessage('a', packCs(103, null));
   const mine = last(a.box, 103);
+  t('103 带回自己的码', mine.username, a.player.inviteCode);
   t('未绑定 103 邀请码空', mine.inviteCode, '');
   t('未绑定 103 奖励 1000', mine.giveCard, INVITE_GIVE);
 
-  app.onMessage('b', packCs(104, { inviteCode: String(a.player.uid) }));
+  app.onMessage('b', packCs(104, { inviteCode: a.player.inviteCode.toLowerCase() }));
   t('绑定成功', num(last(b.box, 104).res.error), 0);
   t('邀请人 +1000', a.player.cardNum, INVITE_GIVE);
   t('新用户 +1000', b.player.cardNum, INVITE_GIVE);
   t('推了邀请人房卡', last(a.box, 1001) && last(a.box, 1001).card, INVITE_GIVE);
   t('推了新用户房卡', last(b.box, 1001) && last(b.box, 1001).card, INVITE_GIVE);
 
-  app.onMessage('b', packCs(104, { inviteCode: String(a.player.uid) }));
+  app.onMessage('b', packCs(104, { inviteCode: a.player.inviteCode }));
   t('不能重复绑定', num(last(b.box, 104).res.error), 1);
-  app.onMessage('a', packCs(104, { inviteCode: String(a.player.uid) }));
-  t('不能绑自己', num(last(a.box, 104).res.error), 1);
-  app.onMessage('a', packCs(104, { inviteCode: '999999' }));
+  app.onMessage('a', packCs(104, { inviteCode: a.player.inviteCode }));
+  t('不能绑自己', last(a.box, 104).res.what, '不能绑定自己的邀请码');
+  app.onMessage('a', packCs(104, { inviteCode: 'ZZZZZ' }));
   t('不存在的码', last(a.box, 104).res.what, '邀请码不存在');
+  app.onMessage('a', packCs(104, { inviteCode: String(b.player.uid) }));
+  t('不能再用 uid 当码', last(a.box, 104).res.what, '邀请码无效');
 
-  a.box.sent.length = 0;
   app.onMessage('b', packCs(103, null));
-  t('已绑定带回码', last(b.box, 103).inviteCode, String(a.player.uid));
+  t('已绑定带回对方码', last(b.box, 103).inviteCode, a.player.inviteCode);
+  t('已绑定仍带回自己的码', last(b.box, 103).username, b.player.inviteCode);
 }
 
 {
@@ -220,14 +238,15 @@ const boot = () => {
     nextRoomId: 100000,
     players: [{
       token: 't_old', uid: 100001, nickname: '老用户', sex: 1,
-      cardNum: 100, roomId: 0, invitedBy: '100002',
+      cardNum: 100, roomId: 0, inviteCode: 'ABCDE', invitedBy: 'VWXYZ',
     }],
   };
   const app = new GameApp({ persist: () => {}, now: () => 1 });
   app.restore(dumped);
   const old = app.players.get('t_old');
   t('旧存档房卡保留', old.cardNum, 100);
-  t('旧存档邀请码保留', old.invitedBy, '100002');
+  t('旧存档邀请码保留', old.inviteCode, 'ABCDE');
+  t('旧存档绑定码保留', old.invitedBy, 'VWXYZ');
 }
 
 console.log(`\n${pass} 过 / ${fail} 挂`);

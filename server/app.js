@@ -5,7 +5,7 @@ const { pack, unpack, hasRes, protocol } = require('./net');
 const { Table } = require('./table');
 const rules = require('./rules');
 const {
-  num, roomInfo, versionBody, configBody, emptyPlayer, INVITE_GIVE,
+  num, roomInfo, versionBody, configBody, emptyPlayer, INVITE_GIVE, INVITE_AMBIGUOUS, mintInviteCode,
 } = require('./shared');
 
 class GameApp {
@@ -54,15 +54,52 @@ class GameApp {
     return player.cardNum;
   }
 
+  usedInviteCodes() {
+    const used = new Set();
+    for (const p of this.players.values()) {
+      if (p.inviteCode) used.add(p.inviteCode);
+    }
+    return used;
+  }
+
+  inviteCodeInUse(code) {
+    if (!code) return false;
+    for (const p of this.players.values()) {
+      if (p.invitedBy === code) return true;
+    }
+    return false;
+  }
+
+  ensureInviteCode(player) {
+    if (!player || player.bot) return '';
+    if (player.inviteCode && !INVITE_AMBIGUOUS.test(player.inviteCode)) return player.inviteCode;
+    if (player.inviteCode && this.inviteCodeInUse(player.inviteCode)) return player.inviteCode;
+    const used = this.usedInviteCodes();
+    if (player.inviteCode) used.delete(player.inviteCode);
+    player.inviteCode = mintInviteCode(used);
+    this.persist();
+    return player.inviteCode;
+  }
+
+  playerByInviteCode(code) {
+    const key = String(code || '').trim().toUpperCase();
+    if (!key) return null;
+    for (const p of this.players.values()) {
+      if (p.inviteCode === key) return p;
+    }
+    return null;
+  }
+
   bindInvite(player, code) {
     if (player.invitedBy) return { error: 1, what: '已经绑定过邀请码' };
-    const raw = String(code || '').trim();
+    this.ensureInviteCode(player);
+    const raw = String(code || '').trim().toUpperCase();
     if (!raw) return { error: 1, what: '请输入邀请码' };
-    const uid = Number(raw);
-    if (!uid || uid === player.uid) return { error: 1, what: '邀请码无效' };
-    const inviter = this.playerByUid(uid);
+    if (!/^[A-Z]{5}$/.test(raw)) return { error: 1, what: '邀请码无效' };
+    if (raw === player.inviteCode) return { error: 1, what: '不能绑定自己的邀请码' };
+    const inviter = this.playerByInviteCode(raw);
     if (!inviter || inviter.bot) return { error: 1, what: '邀请码不存在' };
-    player.invitedBy = String(uid);
+    player.invitedBy = raw;
     this.changeCards(inviter.uid, INVITE_GIVE, '邀请新用户');
     this.changeCards(player.uid, INVITE_GIVE, '绑定邀请码');
     this.persist();
@@ -101,6 +138,7 @@ class GameApp {
         sex: p.sex,
         cardNum: p.cardNum,
         roomId: p.roomId || 0,
+        inviteCode: p.inviteCode || '',
         invitedBy: p.invitedBy || '',
         bot: !!p.bot,
       })),
@@ -180,8 +218,9 @@ class GameApp {
     if (pathname === '/login') {
       const uid = this.nextUid++;
       const token = `t_${query.get('accountType') || 'guest'}_${uid}`;
-      this.players.set(token, emptyPlayer(uid));
-      this.persist();
+      const player = emptyPlayer(uid);
+      this.players.set(token, player);
+      this.ensureInviteCode(player);
       return { status: 200, body: { err_code: 0, data: { token } } };
     }
     return { status: 404, body: null };
@@ -208,10 +247,12 @@ class GameApp {
     if (proto === 100) {
       if (!this.players.has(msg.token)) {
         const uid = this.nextUid++;
-        this.players.set(msg.token, emptyPlayer(uid));
-        this.persist();
+        const newbie = emptyPlayer(uid);
+        this.players.set(msg.token, newbie);
+        this.ensureInviteCode(newbie);
       }
       c.player = this.players.get(msg.token);
+      this.ensureInviteCode(c.player);
       const roomId = this.uidRoom.get(c.player.uid) || 0;
       c.roomId = roomId;
       console.log(`  100 登录 token=${msg.token} -> uid=${c.player.uid}`);
@@ -242,10 +283,10 @@ class GameApp {
     if (!c.player) return;
 
     if (proto === 103) {
-      const inviter = c.player.invitedBy ? this.playerByUid(c.player.invitedBy) : null;
+      const mine = this.ensureInviteCode(c.player);
       return c.send(pack(103, {
         res: { error: 0, what: '' },
-        username: inviter ? inviter.nickname : '',
+        username: mine,
         inviteCode: c.player.invitedBy || '',
         mobile: '',
         giveCard: INVITE_GIVE,

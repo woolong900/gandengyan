@@ -74,6 +74,18 @@ const playerAction = (room, uid, msghead, body) => {
 
 /** 绑定邀请码：邀请人、被邀请人都加这么多。充值先关。 */
 const INVITE_GIVE = 1000;
+/** 去掉 I/O/Z/L，免得和 1/0/2 看混。 */
+const INVITE_LETTERS = 'ABCDEFGHJKMNPQRSTUVWXY';
+const INVITE_AMBIGUOUS = /[IOZL]/;
+
+const mintInviteCode = (used = new Set()) => {
+  for (let n = 0; n < 64; n++) {
+    let code = '';
+    for (let i = 0; i < 5; i++) code += INVITE_LETTERS[Math.floor(Math.random() * INVITE_LETTERS.length)];
+    if (!used.has(code)) return code;
+  }
+  throw new Error('邀请码发完了');
+};
 
 const emptyPlayer = (uid, extra = {}) => ({
   uid,
@@ -81,6 +93,7 @@ const emptyPlayer = (uid, extra = {}) => ({
   sex: extra.sex || 1,
   cardNum: extra.cardNum == null ? 0 : extra.cardNum,
   roomId: extra.roomId || 0,
+  inviteCode: extra.inviteCode || '',
   invitedBy: extra.invitedBy || '',
   bot: !!extra.bot,
 });
@@ -105,6 +118,9 @@ const configBody = () => ({ err_code: '0', data: null });
 module.exports = {
   GAME_COUNT_MUL,
   INVITE_GIVE,
+  INVITE_LETTERS,
+  INVITE_AMBIGUOUS,
+  mintInviteCode,
   num,
   maxStep,
   roomInfo,
