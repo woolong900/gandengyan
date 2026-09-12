@@ -164,6 +164,12 @@ RULES.push([
   u2b('e.prototype._huSound = function(e, t) {\nvar o = null, r = a.HuTypeBitConfig[e];\nif (e === i.eGameIds.QJHH && r[16] && n.default.checkBit(t, 16)) return r[16].sound || "hu";\nfor (var h = this._sortIds(r), l = 0; l < h.length; l++) {\nvar c = parseInt(h[l]);\nif (n.default.checkBit(t, c)) {\no = r[c].sound;\nbreak;\n}\n}\no || (o = s.default.gameLogic().isZiMo(t) ? "zimo" : "hu");\nreturn o;\n};'),
 ]);
 
+// 右侧开启/关闭玩法后，主动刷新桌子列表，清掉服务端已回收的空桌。
+RULES.push([
+  u2b('a.default.eventUtils.emit(s.default.data_club_get_scheme_list);\n} else a.default.uiHelper.showTip(e.res.what);'),
+  u2b('a.default.eventUtils.emit(s.default.data_club_get_scheme_list);\nh.default.getClubTableInfo(e._clubId, function() {}, !0);\n} else a.default.uiHelper.showTip(e.res.what);'),
+]);
+
 const run = (cmd, args, cwd) => execFileSync(cmd, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] }).toString();
 const tool = (name) => {
   const dir = path.join(SDK, 'build-tools');
