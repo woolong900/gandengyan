@@ -40,6 +40,9 @@ if (!APK || !HOST) {
   process.exit(1);
 }
 
+/** 中文规则要按 UTF-8 字节进 binary 串，否则 split 对不上 */
+const u2b = (s) => Buffer.from(s, 'utf8').toString('binary');
+
 const http = `${TLS ? 'https' : 'http'}://${HOST}`;
 const ws = `${TLS ? 'wss' : 'ws'}://${HOST}`;
 /** 长的先替换，否则裸域名会把带路径的那几条先吃掉 */
@@ -56,6 +59,44 @@ const RULES = [
 if (argv.includes('--guest')) {
   RULES.push(['this.guestNode.active = v.default.isDebug();', 'this.guestNode.active = true;']);
 }
+// 临时：创房/大厅只露出潜江晃晃。要恢复就把这一段删掉。
+RULES.push([
+  'gameList: [ c.eGameIds.QJHH, c.eGameIds.QJHZ, c.eGameIds.PDKAA, c.eGameIds.DDZ, c.eGameIds.TMHH, c.eGameIds.QJSHZ, c.eGameIds.QJWSKBD ]',
+  'gameList: [ c.eGameIds.QJHH ]',
+]);
+// 临时：潜江晃晃改名干瞪眼；玩法只留土豪必杠。
+RULES.push([u2b('name: "潜江晃晃"'), u2b('name: "干瞪眼"')]);
+RULES.push([
+  u2b('desc: "潜江癞晃",\nreject: [ 1, 2, 26 ]'),
+  u2b('desc: "潜江癞晃",\nreject: [ 1, 2, 26 ],\nisHide: !0'),
+]);
+RULES.push([
+  u2b('desc: "堆癞子",\nreject: [ 1, 2, 26 ]'),
+  u2b('desc: "堆癞子",\nreject: [ 1, 2, 26 ],\nisHide: !0'),
+]);
+RULES.push([
+  u2b('desc: "玩法",\nweight: 1,\nlineCount: 3,\ndefCheck: [ 1 ],\ndetailIds: [ 1, 2, 26 ]'),
+  u2b('desc: "玩法",\nweight: 1,\nlineCount: 3,\ndefCheck: [ 2 ],\ndetailIds: [ 1, 2, 26 ]'),
+]);
+RULES.push([
+  'e.prototype.replaceDYJPay = function() {\nvar e = this._storageData.ids;\nif (e.length > 0) {\nvar t = 14, o = 12;',
+  'e.prototype.replaceDYJPay = function() {\nvar e = this._storageData.ids;\nif (2 === this.index && e) {\nfor (var q = e.length - 1; q >= 0; q--) (1 === e[q] || 26 === e[q]) && (e[q] = 2);\nthis._storageData.ids = this._unique(e);\ne = this._storageData.ids;\n}\nif (e.length > 0) {\nvar t = 14, o = 12;',
+]);
+
+// 创房页：高度仍交给 Layout CONTAINER（和原包一样），只关掉 ScrollView 回弹，
+// 否则 content 尺寸未就绪时会按住一直拖出空白。
+RULES.push([
+  'f.setData(h, h === n);\nthis.listNode.addChild(p);\n}',
+  'f.setData(h, h === n);\nthis.listNode.addChild(p);\n}\nthis._lockCreateRoomScroll(this.allGameList, this.listNode);',
+]);
+RULES.push([
+  's.setData(this._chooseGameId, n, l);\n}\nthis._updateIp();\n}',
+  's.setData(this._chooseGameId, n, l);\n}\nthis._lockCreateRoomScroll(this.contentNdoe && this.contentNdoe.parent && this.contentNdoe.parent.parent && this.contentNdoe.parent.parent.getComponent(cc.ScrollView), this.contentNdoe);\nthis._updateIp();\n}',
+]);
+RULES.push([
+  't.prototype._updateIp = function() {',
+  't.prototype._lockCreateRoomScroll = function(e, t) {\nif (!t) return;\nvar o = t.getComponent(cc.Layout);\nif (o) {\no._layoutDirty = !0;\no.updateLayout();\n}\nif (!(t.height > 0)) {\nvar n = o && void 0 !== o.spacingY ? o.spacingY : 0, r = (o && o.paddingTop || 0) + (o && o.paddingBottom || 0), i = t.children, a = 0;\nfor (var s = 0; s < i.length; s++) if (i[s].activeInHierarchy) {\na++;\nr += i[s].height;\n}\nr += Math.max(0, a - 1) * n;\nt.height = Math.max(r, 1);\n}\nif (e) {\ne.elastic = !1;\ne._calculateBoundary && e._calculateBoundary();\n}\n};\nt.prototype._updateIp = function() {',
+]);
 
 const run = (cmd, args, cwd) => execFileSync(cmd, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] }).toString();
 const tool = (name) => {

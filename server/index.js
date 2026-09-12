@@ -1,117 +1,103 @@
 /**
- * 自建服务端。目标是让原版客户端（改过地址的 APK）能一路走到大厅。
- *
- * 客户端启动的固定顺序（见客户端 LoadingLayer / LoginLayer / LoginMsg）：
- *   1. GET  /version   回 err_code=0 且 data.action 不是 1/2/3 就不更新，直接进登录
- *   2. GET  /login     回 data.token
- *   3. WS   连上后发 proto 100 CSLogin{token}
- *   4.      syncData 里 **阻塞**等 proto 113 getClubList，它不成功就卡在登录页
- *   5.      SCLogin.roomId 为 0 才进大厅，大于 0 会直接去重连那个房间
- *
- * 除了 100 和 113，其余请求先统一兜一个 `res.error = 0` 的空回包：
- * 客户端对这些只打日志不阻塞，等实现到哪一块再换成真逻辑。
+ * Node 入口。牌局在 GameApp / Table，这里只接 HTTP 和 ws。
  */
 const http = require('http');
 const { URL } = require('url');
 const { WebSocketServer } = require('ws');
-const { pack, unpack, hasRes, protocol } = require('./net');
+const store = require('./store');
+const { GameApp } = require('./app');
 
 const PORT = Number(process.env.PORT) || 8080;
 
-/** token -> 玩家。先放内存，够跑通登录 */
-const players = new Map();
-let nextUid = 100001;
+let saveTimer = null;
+const persistSoon = (data) => {
+  if (saveTimer) return;
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    flush(data);
+  }, 150);
+};
+
+const flush = (data) => {
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+  }
+  try {
+    store.save(data || app.dump());
+  } catch (err) {
+    console.error('写存档失败', err);
+  }
+};
+
+const app = new GameApp({
+  persist: (data) => persistSoon(data),
+  now: Date.now,
+});
 
 const json = (res, body) => {
   const s = JSON.stringify(body);
-  res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(s) });
+  res.writeHead(200, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Length': Buffer.byteLength(s),
+  });
   res.end(s);
 };
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
-  const q = url.searchParams;
   console.log(`HTTP ${req.method} ${url.pathname}${url.search}`);
-
-  if (url.pathname === '/version') {
-    // action 空着 = 不更新。填 "1" 会让客户端去热更，"2" 是强制下载整包
-    return json(res, { err_code: '0', data: {} });
-  }
-
-  if (url.pathname === '/v1/config' || url.pathname === '/n') {
-    // 活动横幅等杂项配置。LoadingLayer 每 2 秒轮一次，data 为空就是「没有活动」
-    return json(res, { err_code: '0', data: null });
-  }
-
-  if (url.pathname === '/login') {
-    const uid = nextUid++;
-    const token = `t_${q.get('accountType') || 'guest'}_${uid}`;
-    players.set(token, { uid, nickname: `玩家${uid}`, sex: 1, cardNum: 100 });
-    return json(res, { err_code: 0, data: { token } });
-  }
-
-  res.writeHead(404).end();
+  const out = app.http(url.pathname, url.searchParams);
+  if (out.status === 404) return res.writeHead(404).end();
+  return json(res, out.body);
 });
 
 const wss = new WebSocketServer({ server, path: '/ws' });
+let nextConn = 1;
 
 wss.on('connection', (ws) => {
+  const connId = `n${nextConn++}`;
   console.log('WS 连上');
-  let me = null;
-
-  ws.on('message', (data) => {
-    const { proto, msg } = unpack(Buffer.from(data));
-
-    if (proto === 100) {
-      me = players.get(msg.token) || { uid: nextUid++, nickname: '游客', sex: 1, cardNum: 0 };
-      console.log(`  100 登录 token=${msg.token} -> uid=${me.uid}`);
-      return ws.send(pack(100, {
-        res: { error: 0, what: '' },
-        uid: me.uid,
-        nickname: me.nickname,
-        avatarUrl: '',
-        sex: me.sex,
-        roomId: 0, // 大于 0 客户端会直接去重连房间，别乱填
-        cardNum: me.cardNum,
-        ip: '127.0.0.1',
-      }));
-    }
-
-    if (proto === 99) {
-      // 心跳。客户端每 3 秒发一次，**20 秒收不到回包就重连**（见客户端 Heartbeat.js），
-      // 不回的话大厅会一直盖着「重连中」。time 是服务器时间，客户端拿它对时。
-      return ws.send(pack(99, { time: Date.now() }));
-    }
-
-    if (proto === 113) {
-      console.log('  113 俱乐部列表（空）');
-      return ws.send(pack(113, { res: { error: 0, what: '' }, clubs: [], count: 0, total: 0 }));
-    }
-
-    if (proto === 101) {
-      // 实名信息。realName 空着客户端就会弹「实名认证」挡住大厅，自建服务端不需要这一关
-      console.log('  101 实名（已认证）');
-      return ws.send(pack(101, { res: { error: 0, what: '' }, realName: '测试', idCard: '', giveCard: 0 }));
-    }
-
-    if (proto === 105) {
-      // 同理：手机号空着会催绑定
-      console.log('  105 手机号（已绑定）');
-      return ws.send(pack(105, { res: { error: 0, what: '' }, mobile: '13800000000', giveCard: 0 }));
-    }
-
-    if (protocol[proto]) {
-      // 还没实现的请求：能带 res 的就回一个成功，客户端不会卡住
-      console.log(`  ${proto} 未实现${hasRes(proto) ? '，兜一个成功' : '，无 res 字段，忽略'}`);
-      if (hasRes(proto)) ws.send(pack(proto, { res: { error: 0, what: '' } }));
-      return;
-    }
-
-    console.log(`  ${proto} 未知 proto id`);
+  app.attach(connId, (buf) => {
+    if (ws.readyState === 1) ws.send(buf);
   });
-
-  ws.on('close', () => console.log('WS 断开'));
+  ws.on('error', (err) => console.error('WS 错误', err));
+  ws.on('message', (data) => {
+    try {
+      app.onMessage(connId, data);
+    } catch (err) {
+      console.error('处理 WS 消息出错', err);
+    }
+  });
+  ws.on('close', () => {
+    console.log('WS 断开');
+    app.detach(connId);
+  });
 });
+
+const shutdown = (why) => {
+  console.log(`收到 ${why}，落盘后退出`);
+  try { flush(); } catch (err) { console.error(err); }
+  process.exit(0);
+};
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('uncaughtException', (err) => {
+  console.error('uncaughtException', err);
+  try { flush(); } catch (flushErr) { console.error(flushErr); }
+  process.exit(1);
+});
+process.on('unhandledRejection', (err) => console.error('unhandledRejection', err));
+server.on('error', (err) => console.error('HTTP 监听出错', err));
+
+try {
+  app.restore(store.load());
+  flush();
+  console.log(`从存档恢复 ${app.players.size} 个玩家、${app.tables.size} 个房间  ${store.FILE}`);
+} catch (err) {
+  console.error('读存档失败，空着启动', err);
+}
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`服务端起在 :${PORT}  （/version /login /ws）`);

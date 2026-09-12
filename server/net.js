@@ -8,7 +8,18 @@
  *
  * 客户端收到后会拿第三个字段和实际长度对账，对不上只打 error 不断开，
  * 但别赌这个——长度写错了后面全乱。
+ *
+ * workerd 的 Buffer.utf8Write 在没传 length 时会写成整个 buffer 长度，
+ * protobufjs 编码 ≥40 字节的字符串就会炸（建房 202 回包正好踩中）。
  */
+if (typeof globalThis.WebSocketPair === 'function' && Buffer.prototype.utf8Write) {
+  Buffer.prototype.utf8Write = function utf8Write(string, offset, length) {
+    if (offset == null) offset = 0;
+    if (length == null) return this.write(String(string), offset, 'utf8');
+    return this.write(String(string), offset, length, 'utf8');
+  };
+}
+
 const { protocol } = require('./proto/protocol');
 
 const HEAD = 12;

@@ -12,9 +12,8 @@ module.exports = (function () {
   const t = { exports: {} };
   const o = t.exports;
   const e = (id) => {
-    const target = DEPS[id];
-    if (!target) throw new Error('未映射的依赖: ' + id);
-    return require(target);
+    if (id === 'protobufjs/minimal') return require('protobufjs/minimal');
+    throw new Error('未映射的依赖: ' + id);
   };
 "use strict";
 cc._RF.push(t, "7066dw3bW9IqJq6IR3uC8Lp", "pb");

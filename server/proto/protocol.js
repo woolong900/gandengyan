@@ -12,9 +12,8 @@ module.exports = (function () {
   const t = { exports: {} };
   const o = t.exports;
   const e = (id) => {
-    const target = DEPS[id];
-    if (!target) throw new Error('未映射的依赖: ' + id);
-    return require(target);
+    if (id === './pb') return require('./pb');
+    throw new Error('未映射的依赖: ' + id);
   };
 "use strict";
 cc._RF.push(t, "04f59yF5xpPpqHMrsWX4VH+", "protocol");

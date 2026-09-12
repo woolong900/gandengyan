@@ -2,8 +2,14 @@
   "name": "gandengyan-online",
   "private": true,
   "type": "commonjs",
+  "scripts": {
+    "start": "node tools/serve.js",
+    "cf:dev": "wrangler dev --port 8899",
+    "cf:deploy": "wrangler deploy"
+  },
   "devDependencies": {
-    "rollup": "^4.0.0"
+    "rollup": "^4.0.0",
+    "wrangler": "^4.0.0"
   },
   "dependencies": {
     "protobufjs": "^8.8.0",

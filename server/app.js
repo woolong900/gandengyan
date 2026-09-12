@@ -1,0 +1,266 @@
+/**
+ * 单进程大厅：玩家、房间号、桌子。
+ */
+const { pack, unpack, hasRes, protocol } = require('./net');
+const { Table } = require('./table');
+const {
+  num, roomInfo, versionBody, configBody, emptyPlayer,
+} = require('./shared');
+
+class GameApp {
+  constructor({ persist, now } = {}) {
+    this.persistFn = persist || (() => {});
+    this.nowFn = now || Date.now;
+    this.players = new Map();
+    this.tables = new Map();
+    this.nextUid = 100001;
+    this.nextRoomId = 100000;
+    this.conns = new Map();
+    this.timeouts = new Map();
+    this.uidRoom = new Map();
+  }
+
+  now() {
+    return this.nowFn();
+  }
+
+  persist() {
+    this.persistFn(this.dump());
+  }
+
+  fillBotsOn() {
+    return process.env.QJQP_FILLBOTS !== '0';
+  }
+
+  mintBot(site, roomId) {
+    const uid = this.nextUid++;
+    const token = `t_bot_${uid}`;
+    const player = emptyPlayer(uid, { nickname: `陪玩${site}`, roomId });
+    this.players.set(token, player);
+    return player;
+  }
+
+  maybeFillBots(table) {
+    if (!this.fillBotsOn() || !table.needsBots()) return;
+    const bots = [];
+    for (let site = 2; site <= table.config.人数; site++) {
+      bots.push({ player: this.mintBot(site, table.roomId), site });
+    }
+    table.addBots(bots);
+  }
+
+  dump() {
+    return {
+      nextUid: this.nextUid,
+      nextRoomId: this.nextRoomId,
+      players: [...this.players.entries()].map(([token, p]) => ({
+        token,
+        uid: p.uid,
+        nickname: p.nickname,
+        sex: p.sex,
+        cardNum: p.cardNum,
+        roomId: p.roomId || 0,
+      })),
+      rooms: [...this.tables.values()].filter((t) => !t.closed).map((t) => t.dump()),
+    };
+  }
+
+  restore(data) {
+    if (!data) return;
+    this.nextUid = data.nextUid || 100001;
+    this.nextRoomId = data.nextRoomId || 100000;
+    const byUid = new Map();
+    for (const p of data.players || []) {
+      const player = emptyPlayer(p.uid, p);
+      this.players.set(p.token, player);
+      byUid.set(player.uid, player);
+    }
+    for (const raw of data.rooms || []) {
+      if (!raw.members || !raw.members.length) continue;
+      const table = Table.fromDump(raw, this.tableHost(raw.roomId), byUid);
+      if (!table.members.length || table.closed) continue;
+      this.tables.set(table.roomId, table);
+      for (const m of table.members) this.uidRoom.set(m.player.uid, table.roomId);
+      table.rearmTimers();
+    }
+  }
+
+  tableHost(roomId) {
+    const app = this;
+    return {
+      send: (connId, bytes) => {
+        const c = app.conns.get(connId);
+        if (c && c.send) c.send(bytes);
+      },
+      persist: () => app.persist(),
+      schedule: (name, dueAt) => app.schedule(`${roomId}:${name}`, dueAt),
+      cancel: (name) => app.cancel(`${roomId}:${name}`),
+      now: () => app.now(),
+      log: (line) => console.log(line),
+      onDissolved: () => {
+        app.tables.delete(roomId);
+        app.persist();
+      },
+      onUidRoom: (uid, rid) => {
+        if (rid) app.uidRoom.set(uid, rid);
+        else app.uidRoom.delete(uid);
+      },
+    };
+  }
+
+  schedule(key, dueAt) {
+    this.cancel(key);
+    const wait = Math.max(0, dueAt - this.now());
+    const id = setTimeout(() => {
+      this.timeouts.delete(key);
+      const i = key.indexOf(':');
+      const roomId = Number(key.slice(0, i));
+      const name = key.slice(i + 1);
+      const table = this.tables.get(roomId);
+      if (table) table.onTimer(name);
+    }, wait);
+    this.timeouts.set(key, id);
+  }
+
+  cancel(key) {
+    const id = this.timeouts.get(key);
+    if (id) {
+      clearTimeout(id);
+      this.timeouts.delete(key);
+    }
+  }
+
+  http(pathname, query) {
+    if (pathname === '/version') return { status: 200, body: versionBody() };
+    if (pathname === '/v1/config' || pathname === '/n') return { status: 200, body: configBody() };
+    if (pathname === '/login') {
+      const uid = this.nextUid++;
+      const token = `t_${query.get('accountType') || 'guest'}_${uid}`;
+      this.players.set(token, emptyPlayer(uid));
+      this.persist();
+      return { status: 200, body: { err_code: 0, data: { token } } };
+    }
+    return { status: 404, body: null };
+  }
+
+  attach(connId, send) {
+    this.conns.set(connId, { send, player: null, roomId: 0 });
+  }
+
+  detach(connId) {
+    const c = this.conns.get(connId);
+    if (c && c.player && c.roomId) {
+      const table = this.tables.get(c.roomId);
+      if (table) table.leave(c.player.uid, connId);
+    }
+    this.conns.delete(connId);
+  }
+
+  onMessage(connId, bytes) {
+    const c = this.conns.get(connId);
+    if (!c) return;
+    const { proto, msg } = unpack(Buffer.from(bytes));
+
+    if (proto === 100) {
+      if (!this.players.has(msg.token)) {
+        const uid = this.nextUid++;
+        this.players.set(msg.token, emptyPlayer(uid));
+        this.persist();
+      }
+      c.player = this.players.get(msg.token);
+      const roomId = this.uidRoom.get(c.player.uid) || 0;
+      c.roomId = roomId;
+      console.log(`  100 登录 token=${msg.token} -> uid=${c.player.uid}`);
+      return c.send(pack(100, {
+        res: { error: 0, what: '' },
+        uid: c.player.uid,
+        nickname: c.player.nickname,
+        avatarUrl: '',
+        sex: c.player.sex,
+        roomId,
+        cardNum: c.player.cardNum,
+        ip: '127.0.0.1',
+      }));
+    }
+
+    if (proto === 99) return c.send(pack(99, { time: this.now() }));
+
+    if (proto === 113) {
+      return c.send(pack(113, { res: { error: 0, what: '' }, clubs: [], count: 0, total: 0 }));
+    }
+    if (proto === 101) {
+      return c.send(pack(101, { res: { error: 0, what: '' }, realName: '测试', idCard: '', giveCard: 0 }));
+    }
+    if (proto === 105) {
+      return c.send(pack(105, { res: { error: 0, what: '' }, mobile: '13800000000', giveCard: 0 }));
+    }
+
+    if (!c.player) return;
+
+    if (proto === 201) {
+      const roomId = this.nextRoomId++;
+      const meta = {
+        roomId,
+        gameType: msg.gameType,
+        clubId: msg.clubId,
+        num: msg.num,
+        param1: num(msg.param1),
+        param2: num(msg.param2),
+        host: c.player.uid,
+      };
+      const table = new Table(meta, this.tableHost(roomId));
+      this.tables.set(roomId, table);
+      c.roomId = roomId;
+      this.uidRoom.set(c.player.uid, roomId);
+      this.persist();
+      console.log(`  201 建房 玩法=${table.gameType} 房卡=${table.num} -> roomId=${roomId}`);
+      console.log(`      ${Object.entries(table.config).map(([k, v]) => `${k}=${v}`).join(' ')}`);
+      return c.send(pack(201, { res: { error: 0, what: '' }, roomId }));
+    }
+
+    if (proto === 202) {
+      const roomId = num(msg.roomId);
+      const table = this.tables.get(roomId);
+      if (!table || table.closed) {
+        console.log(`  202 进房 ${roomId} 不存在`);
+        return c.send(pack(202, { res: { error: 1, what: '房间不存在' } }));
+      }
+      const joined = table.join(c.player, connId);
+      if (joined.error) return c.send(pack(202, { res: { error: 1, what: joined.error } }));
+      this.maybeFillBots(table);
+      c.roomId = roomId;
+      const payload = JSON.stringify({ room: roomInfo(table), game: joined.game || {} });
+      c.send(pack(202, {
+        res: { error: 0, what: '' },
+        json: JSON.stringify({ msgdata: payload }),
+      }));
+      table.afterJoin(c.player.uid);
+      return;
+    }
+
+    if (proto === 200) {
+      const table = this.tables.get(c.roomId);
+      const { msghead, msgdata } = JSON.parse(msg.json);
+      const body = msgdata ? JSON.parse(msgdata) : {};
+      console.log(`  200 房内消息 ${msghead} ${msgdata || ''}`);
+      if (!table || table.closed) {
+        return c.send(pack(200, { res: { error: 1, what: '不在房间里' } }));
+      }
+      const ret = table.handle200(c.player.uid, msghead, body);
+      if (ret.error) {
+        console.log(`    ! ${msghead} 被拒：${ret.what}`);
+        return c.send(pack(200, { res: { error: 1, what: ret.what } }));
+      }
+      return c.send(pack(200, { res: { error: 0, what: '' } }));
+    }
+
+    if (protocol[proto]) {
+      console.log(`  ${proto} 未实现${hasRes(proto) ? '，兜一个成功' : '，无 res 字段，忽略'}`);
+      if (hasRes(proto)) c.send(pack(proto, { res: { error: 0, what: '' } }));
+      return;
+    }
+    console.log(`  ${proto} 未知 proto id`);
+  }
+}
+
+module.exports = { GameApp };
