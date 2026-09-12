@@ -501,6 +501,67 @@ class GameApp {
       return c.send(pack(124, { res: { error: 0, what: '' }, data: club.schemes || [], count: (club.schemes || []).length, total: (club.schemes || []).length }));
     }
 
+    if (proto === 133 || proto === 162) {
+      const ret = this.clubStore.freeze(c.player.uid, num(msg && msg.clubId), num(msg && msg.userId), num(msg && msg.status));
+      if (ret.error) return c.send(pack(proto, { res: { error: 1, what: ret.error } }));
+      this.persist();
+      return c.send(pack(proto, { res: { error: 0, what: '' } }));
+    }
+
+    if (proto === 134) {
+      const ret = this.clubStore.remark(c.player.uid, num(msg && msg.clubId), num(msg && msg.userId), msg && msg.remark);
+      if (ret.error) return c.send(pack(134, { res: { error: 1, what: ret.error } }));
+      this.persist();
+      return c.send(pack(134, { res: { error: 0, what: '' } }));
+    }
+
+    if (proto === 135) {
+      const ret = this.clubStore.setRole(c.player.uid, num(msg && msg.clubId), num(msg && msg.userId), num(msg && msg.role));
+      if (ret.error) return c.send(pack(135, { res: { error: 1, what: ret.error } }));
+      this.persist();
+      return c.send(pack(135, { res: { error: 0, what: '' } }));
+    }
+
+    if (proto === 161) {
+      const club = this.clubStore.get(num(msg && msg.clubId));
+      if (!club || !this.clubStore.member(club, c.player.uid)) {
+        return c.send(pack(161, { res: { error: 1, what: '无权查看成员信息' }, members: [] }));
+      }
+      const members = club.members.map((member) => ({ ...this.clubMemberInfo(club, member), fatigueNum: 0 }));
+      return c.send(pack(161, { res: { error: 0, what: '' }, members, count: members.length, total: members.length, fatigueNum: 0 }));
+    }
+
+    if (proto === 160) {
+      const club = this.clubStore.get(num(msg && msg.id));
+      if (!club || !this.clubStore.isAdmin(club, c.player.uid)) {
+        return c.send(pack(160, { res: { error: 1, what: '没有管理权限' } }));
+      }
+      return c.send(pack(160, { res: { error: 0, what: '' } }));
+    }
+
+    if ([142, 143, 146, 163, 164, 166].includes(proto)) {
+      const clubId = num(msg && msg.clubId);
+      const club = this.clubStore.get(clubId);
+      if (!club || !this.clubStore.member(club, c.player.uid)) {
+        const body = proto === 163 ? { members: [] } : { data: [] };
+        return c.send(pack(proto, { res: { error: 1, what: '无权查看俱乐部数据' }, ...body }));
+      }
+      if (proto === 163) return c.send(pack(proto, { res: { error: 0, what: '' }, members: [], count: 0, total: 0, fatigueNum: 0 }));
+      return c.send(pack(proto, { res: { error: 0, what: '' }, data: [], count: 0, total: 0 }));
+    }
+
+    if (proto === 154) {
+      return c.send(pack(154, { res: { error: 0, what: '' }, data: [], count: 0, total: 0 }));
+    }
+
+    if (proto === 155) {
+      return c.send(pack(155, { res: { error: 0, what: '' } }));
+    }
+
+    if (proto === 156 || proto === 157) {
+      return c.send(pack(proto, { res: { error: 0, what: '' } }));
+    }
+
     if (proto === 103) {
       const mine = this.ensureInviteCode(c.player);
       return c.send(pack(103, {
@@ -640,8 +701,10 @@ class GameApp {
     }
 
     if (proto === 149 || proto === 150 || proto === 151 || proto === 152) {
-      const clubId = num(msg && msg.clubId);
-      const club = this.clubStore.get(clubId);
+      const found = proto === 149
+        ? { club: this.clubStore.get(num(msg && msg.clubId)) }
+        : this.clubStore.findScheme(num(msg && msg.id));
+      const club = found && found.club;
       if (!club || !this.clubStore.isAdmin(club, c.player.uid)) {
         return c.send(pack(proto, { res: { error: 1, what: '没有管理权限' } }));
       }

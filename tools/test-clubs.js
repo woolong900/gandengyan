@@ -92,6 +92,27 @@ app.onMessage('a', packCs(121, { clubId }));
 const members = last(boxes.a, 121);
 t('成员列表两人', members.members.length, 2);
 
+app.onMessage('a', packCs(135, { clubId, userId: b.uid, role: 2 }));
+t('设置管理员', Number(last(boxes.a, 135).res.error), 0);
+app.onMessage('a', packCs(133, { clubId, userId: b.uid, status: 1 }));
+t('冻结成员', Number(last(boxes.a, 133).res.error), 0);
+app.onMessage('a', packCs(134, { clubId, userId: b.uid, remark: '测试备注' }));
+t('修改成员备注', Number(last(boxes.a, 134).res.error), 0);
+app.onMessage('a', packCs(121, { clubId }));
+const managed = last(boxes.a, 121).members.find((member) => Number(member.userId) === b.uid);
+t('成员管理数据生效', [Number(managed.memberType), Number(managed.freeze), managed.remark], [2, 1, '测试备注']);
+
+app.onMessage('a', packCs(149, { clubId, gameType: 2, num: 1, param1: gameParam.param1, param2: gameParam.param2 }));
+t('添加俱乐部方案', Number(last(boxes.a, 149).res.error), 0);
+app.onMessage('a', packCs(124, { clubId }));
+const schemes = last(boxes.a, 124);
+t('方案列表有一条', schemes.data.length, 1);
+const schemeId = Number(schemes.data[0].id);
+app.onMessage('a', packCs(151, { id: schemeId, status: true }));
+t('方案自动开关', Number(last(boxes.a, 151).res.error), 0);
+app.onMessage('a', packCs(152, { id: schemeId }));
+t('删除俱乐部方案', Number(last(boxes.a, 152).res.error), 0);
+
 boxes.a.sent.length = 0;
 app.onMessage('a', packCs(145, { id: clubId, name: '新俱乐部名', announcement: '欢迎加入' }));
 t('修改俱乐部资料', Number(last(boxes.a, 145).res.error), 0);

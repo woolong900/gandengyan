@@ -201,6 +201,15 @@ class ClubStore {
     return { club };
   }
 
+  findScheme(id) {
+    const n = Number(id);
+    for (const club of this.clubs.values()) {
+      const scheme = club.schemes.find((item) => Number(item.id) === n);
+      if (scheme) return { club, scheme };
+    }
+    return null;
+  }
+
   inviteList(uid) {
     const out = [];
     for (const club of this.clubs.values()) {
