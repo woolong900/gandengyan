@@ -235,6 +235,8 @@ class GameApp {
   }
 
   clubInfo(club, uid) {
+    const schemeTablesChanged = this.ensureClubSchemeTables(club);
+    if (schemeTablesChanged) this.persist();
     const role = this.clubStore.role(club, uid);
     const rooms = [...this.tables.values()].filter((table) => table.clubId === club.id && !table.closed);
     return {
@@ -297,8 +299,35 @@ class GameApp {
       maxPlayers: table.config.人数,
       curStep: table.step || 0,
       maxStep: maxStep(table),
-      schemeId: 0,
+      schemeId: table.schemeId || 0,
     };
+  }
+
+  ensureClubSchemeTables(club) {
+    if (!club) return false;
+    let changed = false;
+    for (const scheme of club.schemes || []) {
+      if (!scheme.auto) continue;
+      const exists = [...this.tables.values()].some((table) => (
+        !table.closed && table.clubId === club.id && Number(table.schemeId) === Number(scheme.id)
+      ));
+      if (exists) continue;
+      const roomId = this.nextRoomId++;
+      const table = new Table({
+        roomId,
+        gameType: scheme.gameType,
+        clubId: club.id,
+        schemeId: scheme.id,
+        num: scheme.num,
+        param1: scheme.param1,
+        param2: scheme.param2,
+        host: 0,
+        config: rules.parseConfig(scheme.param1, scheme.param2),
+      }, this.tableHost(roomId));
+      this.tables.set(roomId, table);
+      changed = true;
+    }
+    return changed;
   }
 
   clubRecords(clubId) {
@@ -500,6 +529,7 @@ class GameApp {
       if (!club || !this.clubStore.member(club, c.player.uid)) {
         return c.send(pack(122, { res: { error: 1, what: '无权查看俱乐部房间' }, rooms: [] }));
       }
+      if (this.ensureClubSchemeTables(club)) this.persist();
       const rooms = [...this.tables.values()]
         .filter((table) => table.clubId === club.id && !table.closed)
         .map((table) => this.clubRoomInfo(table));
@@ -769,8 +799,26 @@ class GameApp {
         if (scheme) Object.assign(scheme, { name: String(msg.name || ''), gameType: num(msg.gameType), num: num(msg.num), param1: num(msg.param1), param2: num(msg.param2), color: String(msg.color || '') });
       } else if (proto === 151) {
         const scheme = club.schemes.find((item) => item.id === num(msg.id));
-        if (scheme) scheme.auto = !!msg.status;
+        if (scheme) {
+          const enabled = !!msg.status;
+          const active = [...this.tables.values()].find((table) => (
+            !table.closed && table.clubId === club.id && Number(table.schemeId) === Number(scheme.id)
+          ));
+          if (!enabled && active && (active.round || active.members.length)) {
+            return c.send(pack(proto, { res: { error: 1, what: '该玩法已有进行中的桌子' } }));
+          }
+          scheme.auto = enabled;
+          if (enabled) this.ensureClubSchemeTables(club);
+          else if (active) active.dissolve();
+        }
       } else {
+        const active = [...this.tables.values()].find((table) => (
+          !table.closed && table.clubId === club.id && Number(table.schemeId) === num(msg.id)
+        ));
+        if (active && (active.round || active.members.length)) {
+          return c.send(pack(proto, { res: { error: 1, what: '该玩法已有进行中的桌子' } }));
+        }
+        if (active) active.dissolve();
         club.schemes = club.schemes.filter((item) => item.id !== num(msg.id));
       }
       this.persist();

@@ -30,6 +30,7 @@ class Table {
     this.roomId = meta.roomId;
     this.gameType = meta.gameType;
     this.clubId = meta.clubId;
+    this.schemeId = meta.schemeId || 0;
     this.num = meta.num;
     this.param1 = meta.param1;
     this.param2 = meta.param2;
@@ -371,6 +372,7 @@ class Table {
     } else {
       return { error: this.watchers().length >= MAX_WATCH ? '观战人数已满' : '房间已满' };
     }
+    if (!this.hostUid && mine && !mine.view) this.hostUid = player.uid;
     player.roomId = this.roomId;
     this.host.onUidRoom(player.uid, this.roomId);
     const how = rejoining ? '重连' : mine.view ? '观战' : '进房';
@@ -592,6 +594,7 @@ class Table {
       roomId: this.roomId,
       gameType: this.gameType,
       clubId: this.clubId,
+      schemeId: this.schemeId || 0,
       num: this.num,
       param1: this.param1,
       param2: this.param2,
@@ -627,6 +630,7 @@ class Table {
       roomId: raw.roomId,
       gameType: raw.gameType,
       clubId: raw.clubId,
+      schemeId: raw.schemeId || 0,
       num: raw.num,
       param1: raw.param1,
       param2: raw.param2,

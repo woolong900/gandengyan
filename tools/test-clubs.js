@@ -114,6 +114,8 @@ t('方案列表有一条', schemes.data.length, 1);
 const schemeId = Number(schemes.data[0].id);
 app.onMessage('a', packCs(151, { id: schemeId, status: true }));
 t('方案自动开关', Number(last(boxes.a, 151).res.error), 0);
+app.onMessage('a', packCs(122, { clubId }));
+t('开启方案生成空桌', last(boxes.a, 122).rooms.length, 1);
 app.onMessage('a', packCs(152, { id: schemeId }));
 t('删除俱乐部方案', Number(last(boxes.a, 152).res.error), 0);
 
