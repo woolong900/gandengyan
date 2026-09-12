@@ -42,6 +42,7 @@ class Table {
     this.hands = meta.hands ? meta.hands.map((h) => ({
       id: h.id,
       scores: (h.scores || []).map((s) => ({ uid: s.uid, score: s.score })),
+      playback: h.playback || null,
     })) : [];
     this.recordSaved = !!meta.recordSaved;
   }
@@ -66,6 +67,7 @@ class Table {
     const table = this;
     return {
       log: (line) => table.host.log(`  [房${table.roomId}] ${line}`),
+      table,
       all: (msghead, data) => {
         const frame = push(msghead, data);
         for (const m of table.seats()) table.sendTo(m, frame);
@@ -88,6 +90,7 @@ class Table {
       },
       over: (result) => {
         const seats = table.seats();
+        const tape = table.round && table.round.tape;
         table.round = null;
         const winners = result.winners || (result.winner >= 0 ? [result.winner] : []);
         if (winners.length) {
@@ -97,11 +100,14 @@ class Table {
           table.drawCount += 1;
         }
         table.hands.push({
-          id: `${table.roomId}${String(table.step).padStart(2, '0')}${String(table.host.now()).slice(-4)}`,
+          id: table.host.mintPlaybackId
+            ? table.host.mintPlaybackId(table.roomId, table.step)
+            : `${table.roomId}${String(table.step).padStart(2, '0')}${String(table.host.now() % 1000).padStart(3, '0')}`,
           scores: seats.map((m, s) => ({
             uid: m.player.uid,
             score: (result.scores && result.scores[s]) || 0,
           })),
+          playback: tape ? tape.finish() : null,
         });
         seats.forEach((m, s) => {
           for (const k of Object.keys(result.stat[s])) m.stat[k] += result.stat[s][k];
@@ -118,6 +124,19 @@ class Table {
   }
 
   sendTotalEnd(normal = true) {
+    if (this.round && this.round.tape && !this.round.tape.flushed) {
+      const seats = this.seats();
+      this.hands.push({
+        id: this.host.mintPlaybackId
+          ? this.host.mintPlaybackId(this.roomId, this.step)
+          : `${this.roomId}${String(this.step).padStart(2, '0')}000`,
+        scores: seats.map((m, s) => ({
+          uid: m.player.uid,
+          score: (this.round.roundScore && this.round.roundScore[s]) || 0,
+        })),
+        playback: this.round.tape.finish(),
+      });
+    }
     const top = Math.max(0, ...this.members.map((m) => m.score || 0));
     this.broadcast('game_bye', {
       time: Math.floor(this.host.now() / 1000),

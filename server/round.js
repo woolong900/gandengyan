@@ -15,6 +15,7 @@
  */
 const mahjong = require('./mahjong');
 const rules = require('./rules');
+const { Tape, IDX, GANG, canCardsFromSelf, canCardsFromDiscard } = require('./playback');
 
 /** 客户端 `AnalysisMsgMJ._operate` 用 view 区分杠型 */
 const GANG_VIEW = { ming: 1, an: 2, bu: 3 };
@@ -318,6 +319,24 @@ class Round {
     }
 
     this.io.each('game_begin', (seat) => this.snapshot(seat, { begin: true }));
+    this.tape = new Tape();
+    this.tape.begin({
+      table: this.io.table || {
+        gameType: 2,
+        roomId: 0,
+        hostUid: this.uid(this.dealerSeat),
+        num: 1,
+        param1: 0,
+        param2: 0,
+        step: 1,
+      },
+      seats: this.seats,
+      hands: this.hands,
+      dealerSeat: this.dealerSeat,
+      pizi: this.pizi,
+      laizi: this.laizi,
+    });
+    this.tape.get(this.uid(this.dealerSeat), d.drawCard);
     // 庄家开局就有 14 张，先看看能不能自摸或暗杠
     this.offerSelfOps(this.dealerSeat);
   }
@@ -408,6 +427,7 @@ class Round {
       wall,
       pz_pos: this.pzPos,
     }));
+    if (this.tape) this.tape.get(this.uid(seat), card);
     this.offerSelfOps(seat);
   }
 
@@ -520,14 +540,16 @@ class Round {
     if (!hu && gang.length === 0 && !razz && !qys) return; // 没得选，直接等他出牌
 
     this.pending = { kind: 'self', seat, hu, gang, razz, qys };
-    this.io.one(seat, 'game_operator', {
+    const payload = {
       hu: hu ? this.drawn[seat] : 0,
       gang,
       touch: 0,
       chow: [],
       show_razz: razz,
       bright_qys: qys,
-    });
+    };
+    this.io.one(seat, 'game_operator', payload);
+    if (this.tape) this.tape.can([{ uid: this.uid(seat), cards: canCardsFromSelf(payload) }]);
   }
 
   // ---------------------------------------------------------------- 出牌
@@ -573,6 +595,10 @@ class Round {
       this.shuai[seat].push(card);
       this.io.all('game_step', { uid: this.uid(seat), card });
       this.io.all('game_lzg', { uid: this.uid(seat), card });
+      if (this.tape) {
+        this.tape.put(this.uid(seat), card);
+        this.tape.append([{ uid: this.uid(seat), index: IDX.LAIZI, cards: [card] }]);
+      }
       // 四张癞子都杠出来，开了喜钱就当场结
       this.paySiLaiXi(seat);
       // 杠癞子是杠，自己补牌，不是出牌让下家摸
@@ -582,6 +608,7 @@ class Round {
 
     this.discards[seat].push(card);
     this.io.all('game_step', { uid: this.uid(seat), card });
+    if (this.tape) this.tape.put(this.uid(seat), card);
     this.afterDiscard(seat, card);
     return null;
   }
@@ -608,6 +635,7 @@ class Round {
     }
 
     this.pending = { kind: 'discard', from, card, candidates, replies: new Map() };
+    const cans = [];
     for (const c of candidates) {
       this.io.one(c.seat, 'game_operator', {
         hu: c.ops.hu,
@@ -615,7 +643,10 @@ class Round {
         touch: c.ops.peng ? card : 0,
         chow: [],
       });
+      const cards = canCardsFromDiscard(c.ops);
+      if (cards.length) cans.push({ uid: this.uid(c.seat), cards });
     }
+    if (this.tape) this.tape.can(cans);
   }
 
   // ---------------------------------------------------------------- 应答
@@ -831,6 +862,7 @@ class Round {
     this.melds[seat].push({ type: 'peng', card, from });
     this.turn = seat;
     this.io.all('game_touch', { uid: this.uid(seat), card, view: 0, from: this.uid(from) });
+    if (this.tape) this.tape.op(this.uid(seat), IDX.PENG, [card]);
     // 碰完张数刚好能骗过胡牌判定，只问亮癞和报清一色，不能让他直接胡
     this.offerSelfOps(seat, { allowHu: false });
     return null;
@@ -842,6 +874,7 @@ class Round {
     this.popRiver(from, card);
     this.melds[seat].push({ type: 'ming', card, from });
     this.io.all('game_gang', { uid: this.uid(seat), card, view: GANG_VIEW.ming, from: this.uid(from) });
+    if (this.tape) this.tape.op(this.uid(seat), IDX.GANG, [card, GANG.ming]);
     this.io.each('game_info', (viewer) => this.snapshot(viewer, { begin: true }));
     this.settleGang(seat, 'ming', from);
     this.afterGang(seat);
@@ -863,9 +896,12 @@ class Round {
     }
     if (candidates.length > 0) {
       this.pending = { kind: 'qianggang', seat, card, candidates, replies: new Map() };
+      const cans = [];
       for (const c of candidates) {
         this.io.one(c.seat, 'game_operator', { hu: card, gang: [], touch: 0, chow: [] });
+        cans.push({ uid: this.uid(c.seat), cards: [IDX.HU] });
       }
+      if (this.tape) this.tape.can(cans);
       return null;
     }
     this.pending = null;
@@ -897,6 +933,10 @@ class Round {
       card,
       view: isBu ? GANG_VIEW.bu : GANG_VIEW.an,
     });
+    if (this.tape) {
+      if (isPizi) this.tape.op(this.uid(seat), IDX.PIZI, [card]);
+      else this.tape.op(this.uid(seat), IDX.GANG, [card, isBu ? GANG.bu : GANG.an]);
+    }
     this.settleGang(seat, isBu ? 'bu' : isPizi ? 'pizi' : 'an', null);
     return null;
   }
@@ -935,6 +975,7 @@ class Round {
     this.pending = null;
     this.io.log(`${this.uid(seat)} 亮癞 ${count} 张`);
     this.io.all('game_showrazz', { uid: this.uid(seat), card: new Array(count).fill(this.laizi) });
+    if (this.tape) this.tape.op(this.uid(seat), IDX.WARN_LL, new Array(count).fill(this.laizi));
     // 亮完癞子不当万能了，胡和杠的选项可能变，再问一遍
     this.offerSelfOps(seat);
     return null;
@@ -946,6 +987,7 @@ class Round {
     this.pending = null;
     this.io.log(`${this.uid(seat)} 报清一色`);
     this.io.all('game_noticeqys', { uid: this.uid(seat), card: [] });
+    if (this.tape) this.tape.op(this.uid(seat), IDX.WARN_QYS, []);
     this.offerSelfOps(seat);
     return null;
   }
@@ -981,6 +1023,7 @@ class Round {
     const how = zimo ? '自摸' : opts.qiangGang ? `抢 ${this.uid(from)} 的杠` : `胡 ${this.uid(from)} 打的`;
     for (const seat of seats) {
       this.io.log(`${this.uid(seat)} ${how} ${card}（胡型 ${huTypes[seat]}）`);
+      if (this.tape) this.tape.op(this.uid(seat), IDX.HU, [card, 0]);
     }
     this.end({
       winners: seats,
@@ -1133,6 +1176,7 @@ class Round {
       passPeng: (this.passPeng || []).map((s) => [...(s || [])]),
       passHu: this.passHu,
       stat: this.stat,
+      tape: this.tape ? this.tape.dump() : null,
     };
   }
 
@@ -1164,6 +1208,7 @@ class Round {
     r.passPeng = (data.passPeng || []).map((arr) => new Set(arr));
     r.passHu = data.passHu || new Array(r.n).fill(false);
     r.stat = data.stat;
+    r.tape = data.tape ? new Tape(data.tape) : null;
     return r;
   }
 }

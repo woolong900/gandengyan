@@ -1,5 +1,5 @@
 /**
- * 大厅战绩：一局房一场，明细按手。回放另说。
+ * 大厅战绩：一局房一场，明细按手。回放挂在 playbacks[回放码]。
  */
 const { maxStep } = require('./shared');
 const rules = require('./rules');
@@ -41,6 +41,10 @@ const buildRecord = (table, now) => {
       scores: players.map((p) => ({ uid: p.uid, score: p.score })),
     }];
   }
+  const playbacks = {};
+  for (const h of table.hands || []) {
+    if (h.id && h.playback) playbacks[h.id] = h.playback;
+  }
 
   return {
     id: `R${table.roomId}${now}`,
@@ -54,6 +58,7 @@ const buildRecord = (table, now) => {
     scoreRatio: rules.RATIO,
     players,
     details,
+    playbacks,
     uids: players.map((p) => p.uid),
   };
 };

@@ -119,7 +119,7 @@ const fakeTable = (extra = {}) => ({
 
   box.sent.length = 0;
   app.onMessage('a', packCs(127, { id: '100000010001' }));
-  t('回放先关', last(box, 127).res.what, '回放暂未开放');
+  t('没有回放数据', last(box, 127).res.what, '回放不存在');
 }
 
 {

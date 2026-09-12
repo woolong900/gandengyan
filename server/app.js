@@ -8,6 +8,7 @@ const {
   num, roomInfo, versionBody, configBody, emptyPlayer, INVITE_GIVE, INVITE_AMBIGUOUS, mintInviteCode,
 } = require('./shared');
 const { buildRecord, listFor, keepLatest } = require('./records');
+const { findPlayback, mintPlaybackId } = require('./playback');
 
 class GameApp {
   constructor({ persist, now } = {}) {
@@ -21,6 +22,7 @@ class GameApp {
     this.timeouts = new Map();
     this.uidRoom = new Map();
     this.records = [];
+    this.playbackSeq = 0;
   }
 
   now() {
@@ -54,6 +56,11 @@ class GameApp {
     this.notifyCard(player);
     console.log(`  房卡 uid=${player.uid} ${delta > 0 ? '+' : ''}${delta} -> ${player.cardNum}${reason ? ` ${reason}` : ''}`);
     return player.cardNum;
+  }
+
+  mintPlaybackId(roomId, step) {
+    this.playbackSeq = (this.playbackSeq || 0) + 1;
+    return mintPlaybackId(roomId, step, this.playbackSeq);
   }
 
   saveRecord(table) {
@@ -156,6 +163,7 @@ class GameApp {
       })),
       rooms: [...this.tables.values()].filter((t) => !t.closed).map((t) => t.dump()),
       records: this.records,
+      playbackSeq: this.playbackSeq || 0,
     };
   }
 
@@ -164,6 +172,7 @@ class GameApp {
     this.nextUid = data.nextUid || 100001;
     this.nextRoomId = data.nextRoomId || 100000;
     this.records = Array.isArray(data.records) ? data.records : [];
+    this.playbackSeq = data.playbackSeq || 0;
     const byUid = new Map();
     for (const p of data.players || []) {
       const player = emptyPlayer(p.uid, p);
@@ -189,6 +198,7 @@ class GameApp {
       },
       persist: () => app.persist(),
       saveRecord: (table) => app.saveRecord(table),
+      mintPlaybackId: (roomId, step) => app.mintPlaybackId(roomId, step),
       changeCards: (uid, delta, reason) => app.changeCards(uid, delta, reason),
       schedule: (name, dueAt) => app.schedule(`${roomId}:${name}`, dueAt),
       cancel: (name) => app.cancel(`${roomId}:${name}`),
@@ -348,7 +358,18 @@ class GameApp {
     }
 
     if (proto === 127) {
-      return c.send(pack(127, { res: { error: 1, what: '回放暂未开放' } }));
+      const id = String((msg && msg.id) || '');
+      const pb = findPlayback(this.records, id);
+      if (!pb) {
+        return c.send(pack(127, { res: { error: 1, what: '回放不存在' } }));
+      }
+      return c.send(pack(127, {
+        res: { error: 0, what: '' },
+        players: pb.players || [],
+        roomInfo: pb.roomInfo || {},
+        gameInfo: pb.gameInfo || {},
+        steps: pb.steps || [],
+      }));
     }
 
     if (proto === 201) {
