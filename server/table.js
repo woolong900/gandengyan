@@ -39,6 +39,11 @@ class Table {
     this.round = null;
     this.closed = !!meta.closed;
     this.cardCharges = meta.cardCharges ? meta.cardCharges.map((c) => ({ ...c })) : [];
+    this.hands = meta.hands ? meta.hands.map((h) => ({
+      id: h.id,
+      scores: (h.scores || []).map((s) => ({ uid: s.uid, score: s.score })),
+    })) : [];
+    this.recordSaved = !!meta.recordSaved;
   }
 
   get host() { return this._host; }
@@ -91,6 +96,13 @@ class Table {
         } else {
           table.drawCount += 1;
         }
+        table.hands.push({
+          id: `${table.roomId}${String(table.step).padStart(2, '0')}${String(table.host.now()).slice(-4)}`,
+          scores: seats.map((m, s) => ({
+            uid: m.player.uid,
+            score: (result.scores && result.scores[s]) || 0,
+          })),
+        });
         seats.forEach((m, s) => {
           for (const k of Object.keys(result.stat[s])) m.stat[k] += result.stat[s][k];
         });
@@ -120,6 +132,7 @@ class Table {
     });
     this.host.log(`  房 ${this.roomId} 总结算${normal ? '' : '（中途散了）'}：`
       + this.members.map((m) => `${m.player.uid}=${(m.score || 0) / rules.RATIO}`).join(' '));
+    if (this.host.saveRecord) this.host.saveRecord(this);
   }
 
   clearAllTimers() {
@@ -478,6 +491,8 @@ class Table {
       lastEnd: this.lastEnd || null,
       dismiss: this.dismiss ? { agree: this.dismiss.agree, time: this.dismiss.time } : null,
       cardCharges: this.cardCharges,
+      hands: this.hands,
+      recordSaved: this.recordSaved,
       members: this.members.map((m) => ({
         uid: m.player.uid,
         nickname: m.player.nickname,
@@ -511,6 +526,8 @@ class Table {
       lastEnd: raw.lastEnd || null,
       dismiss: raw.dismiss || null,
       cardCharges: raw.cardCharges || [],
+      hands: raw.hands || [],
+      recordSaved: !!raw.recordSaved,
     }, host);
     for (const m of raw.members || []) {
       const player = (playersByUid && playersByUid.get(m.uid)) || {

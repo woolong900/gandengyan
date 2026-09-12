@@ -7,6 +7,7 @@ const rules = require('./rules');
 const {
   num, roomInfo, versionBody, configBody, emptyPlayer, INVITE_GIVE, INVITE_AMBIGUOUS, mintInviteCode,
 } = require('./shared');
+const { buildRecord, listFor, keepLatest } = require('./records');
 
 class GameApp {
   constructor({ persist, now } = {}) {
@@ -19,6 +20,7 @@ class GameApp {
     this.conns = new Map();
     this.timeouts = new Map();
     this.uidRoom = new Map();
+    this.records = [];
   }
 
   now() {
@@ -52,6 +54,16 @@ class GameApp {
     this.notifyCard(player);
     console.log(`  房卡 uid=${player.uid} ${delta > 0 ? '+' : ''}${delta} -> ${player.cardNum}${reason ? ` ${reason}` : ''}`);
     return player.cardNum;
+  }
+
+  saveRecord(table) {
+    if (!table || table.recordSaved) return null;
+    if ((table.step || 0) < 1 && !(table.hands && table.hands.length)) return null;
+    table.recordSaved = true;
+    const rec = buildRecord(table, this.now());
+    this.records = keepLatest(this.records.concat(rec));
+    console.log(`  战绩 ${rec.id} 房${rec.roomId} ${rec.gameCount}/${rec.totalCount}局`);
+    return rec;
   }
 
   usedInviteCodes() {
@@ -143,6 +155,7 @@ class GameApp {
         bot: !!p.bot,
       })),
       rooms: [...this.tables.values()].filter((t) => !t.closed).map((t) => t.dump()),
+      records: this.records,
     };
   }
 
@@ -150,6 +163,7 @@ class GameApp {
     if (!data) return;
     this.nextUid = data.nextUid || 100001;
     this.nextRoomId = data.nextRoomId || 100000;
+    this.records = Array.isArray(data.records) ? data.records : [];
     const byUid = new Map();
     for (const p of data.players || []) {
       const player = emptyPlayer(p.uid, p);
@@ -174,6 +188,7 @@ class GameApp {
         if (c && c.send) c.send(bytes);
       },
       persist: () => app.persist(),
+      saveRecord: (table) => app.saveRecord(table),
       changeCards: (uid, delta, reason) => app.changeCards(uid, delta, reason),
       schedule: (name, dueAt) => app.schedule(`${roomId}:${name}`, dueAt),
       cancel: (name) => app.cancel(`${roomId}:${name}`),
@@ -299,6 +314,32 @@ class GameApp {
 
     if (proto === 112) {
       return c.send(pack(112, { res: { error: 1, what: '暂未开放充值' }, goods: [] }));
+    }
+
+    if (proto === 125) {
+      const type = num(msg && msg.type);
+      if (type === 1) {
+        return c.send(pack(125, { res: { error: 0, what: '' }, records: [] }));
+      }
+      const records = listFor(this.records, c.player.uid, num(msg && msg.time));
+      return c.send(pack(125, { res: { error: 0, what: '' }, records }));
+    }
+
+    if (proto === 126) {
+      const id = String((msg && msg.id) || '');
+      const rec = this.records.find((r) => r.id === id);
+      if (!rec || !(rec.uids || []).includes(c.player.uid)) {
+        return c.send(pack(126, { res: { error: 1, what: '战绩不存在' }, details: [] }));
+      }
+      return c.send(pack(126, {
+        res: { error: 0, what: '' },
+        details: rec.details || [],
+        scoreRatio: rec.scoreRatio || 0,
+      }));
+    }
+
+    if (proto === 127) {
+      return c.send(pack(127, { res: { error: 1, what: '回放暂未开放' } }));
     }
 
     if (proto === 201) {

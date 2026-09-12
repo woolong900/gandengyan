@@ -12,6 +12,7 @@ const empty = () => ({
   nextRoomId: 100000,
   players: [],
   rooms: [],
+  records: [],
 });
 
 const load = () => {
@@ -24,6 +25,7 @@ const load = () => {
       nextRoomId: Number(data.nextRoomId) || 100000,
       players: Array.isArray(data.players) ? data.players : [],
       rooms: Array.isArray(data.rooms) ? data.rooms : [],
+      records: Array.isArray(data.records) ? data.records : [],
     };
   } catch (err) {
     if (err.code !== 'ENOENT') console.error('读存档失败', err);
