@@ -62,6 +62,8 @@ const boot = (n, extra = {}) => {
   t('只许自摸开', c.只许自摸, true);
   t('暗杠默认 4 倍', c.暗杠倍数, 4);
   t('默认 AA', rules.parseConfig(...Object.values(rules.buildParam({}))).房费, 'AA');
+  t('默认不开观战', rules.parseConfig(...Object.values(rules.buildParam({}))).观战, false);
+  t('勾了观战', rules.parseConfig(...Object.values(rules.buildParam({ 观战: true }))).观战, true);
   t('房主支付', rules.parseConfig(...Object.values(rules.buildParam({ 房费: '房主' }))).房费, '房主');
   t('4人8局房主 4 张', rules.roomCardCost({ num: 1, 人数: 4, 房费: '房主' }), { host: 4, each: 0 });
   t('4人16局房主 8 张', rules.roomCardCost({ num: 2, 人数: 4, 房费: '房主' }), { host: 8, each: 0 });

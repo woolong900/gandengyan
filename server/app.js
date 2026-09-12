@@ -210,7 +210,12 @@ class GameApp {
       },
       onUidRoom: (uid, rid) => {
         if (rid) app.uidRoom.set(uid, rid);
-        else app.uidRoom.delete(uid);
+        else {
+          app.uidRoom.delete(uid);
+          for (const c of app.conns.values()) {
+            if (c.player && c.player.uid === uid) c.roomId = 0;
+          }
+        }
       },
     };
   }
@@ -417,8 +422,9 @@ class GameApp {
         人数: table.config.人数,
         房费: table.config.房费,
       });
-      // AA 等要自己付钱的，坐下前先看够不够；房主支付不查入座的人
-      if (!seated && cost.each > 0 && (c.player.cardNum || 0) < cost.each) {
+      // AA 等要自己付钱的，坐下前先看够不够；观战不扣、房主支付也不查入座的人
+      const willSit = seated ? !seated.view : table.canSit();
+      if (!seated && willSit && cost.each > 0 && (c.player.cardNum || 0) < cost.each) {
         return c.send(pack(202, { res: { error: 1, what: '房卡不足' } }));
       }
       const joined = table.join(c.player, connId);

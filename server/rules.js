@@ -53,7 +53,8 @@ function buildParam(opts = {}) {
     + (opts.少三张 ? 1 : 0) * 1e6
     + (opts.只许自摸 ? 1 : 0) * 1e7
     + (opts.热铳 === false ? 0 : 1) * 1e8
-    + (opts.双大胡 === false ? 0 : 1) * 1e11;
+    + (opts.双大胡 === false ? 0 : 1) * 1e11
+    + (opts.观战 ? 1 : 0) * 1e12;
   return { param1, param2 };
 }
 
@@ -73,6 +74,7 @@ function parseConfig(param1, param2) {
     只许自摸: digit(param2, 7) === 1, // (20)
     热铳: digit(param2, 8) === 1, // (21)
     双大胡: digit(param2, 11) === 1, // (23)
+    观战: digit(param2, 12) === 1, // (24)
     底分: BASE_SCORE[digit(param1, 3)] || 1,
     // 0 是不托管 / 不踢人。超时秒数抄自客户端选项 29-32、41-43
     托管: [0, 15, 30, 60, 120][digit(param2, 14)] || 0,

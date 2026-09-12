@@ -101,7 +101,7 @@ const emptyPlayer = (uid, extra = {}) => ({
 const emptyMember = (player, extra = {}) => ({
   player,
   connId: extra.connId || null,
-  site: extra.site || 1,
+  site: extra.site == null ? 1 : extra.site,
   ready: !!extra.ready,
   score: extra.score || 0,
   online: extra.online !== false,

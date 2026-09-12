@@ -18,6 +18,8 @@ const {
 } = require('./shared');
 
 const DISMISS_SEC = 60;
+/** 旁观位上限。客户端 LookOnLayer 按 person.view 列人，没有再限一次。 */
+const MAX_WATCH = 20;
 
 class Table {
   constructor(meta, host) {
@@ -51,7 +53,26 @@ class Table {
   set host(v) { this._host = v; }
 
   seats() {
-    return [...this.members].sort((a, b) => a.site - b.site);
+    return this.members.filter((m) => !m.view).sort((a, b) => a.site - b.site);
+  }
+
+  watchers() {
+    return this.members.filter((m) => m.view);
+  }
+
+  canSit() {
+    return !this.round && this.seats().length < this.config.人数;
+  }
+
+  canWatch() {
+    return !!this.config.观战 && this.watchers().length < MAX_WATCH;
+  }
+
+  nextSite() {
+    const used = new Set(this.seats().map((m) => m.site));
+    let site = 1;
+    while (used.has(site)) site += 1;
+    return site;
   }
 
   sendTo(m, buf) {
@@ -70,7 +91,7 @@ class Table {
       table,
       all: (msghead, data) => {
         const frame = push(msghead, data);
-        for (const m of table.seats()) table.sendTo(m, frame);
+        for (const m of table.members) table.sendTo(m, frame);
       },
       each: (msghead, build) => {
         table.seats().forEach((m, s) => {
@@ -81,6 +102,11 @@ class Table {
           }
           table.sendTo(m, push(msghead, data));
         });
+        const watchers = table.watchers();
+        if (!watchers.length) return;
+        const data = build(-1);
+        const frame = push(msghead, data);
+        for (const m of watchers) table.sendTo(m, frame);
       },
       one: (seat, msghead, data) => {
         const m = table.seats()[seat];
@@ -137,11 +163,12 @@ class Table {
         playback: this.round.tape.finish(),
       });
     }
-    const top = Math.max(0, ...this.members.map((m) => m.score || 0));
+    const seated = this.seats();
+    const top = Math.max(0, ...seated.map((m) => m.score || 0));
     this.broadcast('game_bye', {
       time: Math.floor(this.host.now() / 1000),
       normal_end: normal,
-      info: this.members.map((m) => ({
+      info: seated.map((m) => ({
         uid: m.player.uid,
         score: m.score || 0,
         winner: (m.score || 0) === top && top > 0,
@@ -150,7 +177,7 @@ class Table {
       })),
     });
     this.host.log(`  房 ${this.roomId} 总结算${normal ? '' : '（中途散了）'}：`
-      + this.members.map((m) => `${m.player.uid}=${(m.score || 0) / rules.RATIO}`).join(' '));
+      + seated.map((m) => `${m.player.uid}=${(m.score || 0) / rules.RATIO}`).join(' '));
     if (this.host.saveRecord) this.host.saveRecord(this);
   }
 
@@ -293,7 +320,7 @@ class Table {
     if (this.round) return false;
     if (this.members.some((m) => m.bot)) return false;
     const humans = this.members.filter((m) => !m.view && !m.bot);
-    return humans.length === 1 && this.members.length < this.config.人数;
+    return humans.length === 1 && this.seats().length < this.config.人数;
   }
 
   addBots(players) {
@@ -321,28 +348,39 @@ class Table {
       mine.connId = connId;
       mine.online = true;
       this.host.cancel(`kick-${player.uid}`);
-    } else {
-      if (this.round || this.members.length >= this.config.人数) {
-        return { error: '房间已满' };
-      }
+    } else if (this.canSit()) {
       mine = emptyMember(player, {
         connId,
-        site: this.members.length + 1,
+        site: this.nextSite(),
         online: true,
       });
       this.members.push(mine);
+    } else if (this.canWatch()) {
+      mine = emptyMember(player, {
+        connId,
+        site: 0,
+        online: true,
+        view: true,
+      });
+      this.members.push(mine);
+    } else if (!this.config.观战) {
+      return { error: '该房间不允许观战' };
+    } else {
+      return { error: this.watchers().length >= MAX_WATCH ? '观战人数已满' : '房间已满' };
     }
     player.roomId = this.roomId;
     this.host.onUidRoom(player.uid, this.roomId);
-    this.host.log(`  202 ${rejoining ? '重连' : '进房'} ${this.roomId}，${this.members.length} 人在座`);
+    const how = rejoining ? '重连' : mine.view ? '观战' : '进房';
+    this.host.log(`  202 ${how} ${this.roomId}，在座 ${this.seats().length} 观战 ${this.watchers().length}`);
 
     let game = {};
     if (this.round && !this.round.over) {
       const seat = this.round.seatOf(player.uid);
-      if (seat >= 0) game = this.round.snapshot(seat, { begin: true });
+      game = this.round.snapshot(seat >= 0 ? seat : -1, { begin: true });
     } else if (this.lastEnd) {
       const seat = this.seats().findIndex((m) => m.player.uid === player.uid);
       if (seat >= 0 && this.lastEnd[seat]) game = this.lastEnd[seat];
+      else if (mine.view && this.lastEnd[0]) game = this.lastEnd[0];
     }
     return { error: null, game, rejoining };
   }
@@ -357,9 +395,26 @@ class Table {
     this.host.persist();
   }
 
+  dropWatcher(uid, { notify } = {}) {
+    const mine = this.members.find((m) => m.player.uid === uid);
+    if (!mine || !mine.view) return;
+    this.members = this.members.filter((m) => m.player.uid !== uid);
+    mine.player.roomId = 0;
+    this.host.onUidRoom(uid, 0);
+    this.host.cancel(`kick-${uid}`);
+    this.host.log(`  [房${this.roomId}] ${uid} ${notify ? '离开观战' : '观战掉线'}`);
+    if (notify) this.sendTo(mine, push('exitroom', { reason: 0 }));
+    this.broadcast('roominfo', roomInfo(this));
+    this.host.persist();
+  }
+
   leave(uid, connId) {
     const mine = this.members.find((m) => m.player.uid === uid);
     if (!mine || mine.connId !== connId) return;
+    if (mine.view) {
+      this.dropWatcher(uid, { notify: false });
+      return;
+    }
     mine.connId = null;
     mine.online = false;
     this.host.log(`  [房${this.roomId}] ${uid} 离线`);
@@ -375,7 +430,7 @@ class Table {
     const kickSec = this.round ? 0 : (this.config.踢人 || 0);
     if (kickSec > 0) {
       this.host.schedule(`kick-${uid}`, this.host.now() + kickSec * 1000);
-    } else if (this.members.every((m) => !m.online) && !this.round && this.step === 0) {
+    } else if (this.seats().every((m) => !m.online) && !this.round && this.step === 0) {
       this.host.schedule('empty', this.host.now() + 60000);
     }
     this.host.persist();
@@ -389,7 +444,7 @@ class Table {
       return;
     }
     if (name === 'empty') {
-      if (this.members.every((m) => !m.online)) this.dissolve();
+      if (this.seats().every((m) => !m.online)) this.dissolve();
       return;
     }
     if (name.startsWith('kick-')) {
@@ -400,7 +455,7 @@ class Table {
       still.player.roomId = 0;
       this.host.onUidRoom(uid, 0);
       this.host.log(`  [房${this.roomId}] ${uid} 离线超时，请出`);
-      if (this.members.length === 0) this.dissolve();
+      if (this.seats().length === 0) this.dissolve();
       else {
         this.broadcast('roominfo', roomInfo(this));
         this.host.persist();
@@ -424,6 +479,26 @@ class Table {
   }
 
   handle200(uid, msghead, body) {
+    const mine = this.members.find((m) => m.player.uid === uid);
+    if (mine && mine.view) {
+      if (msghead === 'dissmissroom') {
+        this.dropWatcher(uid, { notify: true });
+        return { error: 0 };
+      }
+      if (msghead === 'chatroom') {
+        let chat = {};
+        try {
+          chat = typeof body.chat === 'string' ? JSON.parse(body.chat) : (body.chat || {});
+        } catch {
+          chat = {};
+        }
+        if (!chat || typeof chat !== 'object') chat = {};
+        chat.fromUid = uid;
+        this.broadcast('chatroom', { chat: JSON.stringify(chat) });
+        return { error: 0 };
+      }
+      return { error: 0 };
+    }
     if (msghead === 'dissmissroom' || msghead === 'nodissmissroom') {
       this.handleDismiss(uid, msghead === 'dissmissroom');
       this.host.persist();
@@ -575,4 +650,4 @@ class Table {
   }
 }
 
-module.exports = { Table, DISMISS_SEC };
+module.exports = { Table, DISMISS_SEC, MAX_WATCH };
