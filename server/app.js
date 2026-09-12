@@ -18,6 +18,7 @@ class GameApp {
     this.allowUnregisteredTokens = !!allowUnregisteredTokens;
     this.players = new Map();
     this.playersByUid = new Map();
+    this.playersByInviteCode = new Map();
     this.tables = new Map();
     this.nextUid = 100001;
     this.nextRoomId = 100000;
@@ -73,11 +74,7 @@ class GameApp {
   }
 
   usedInviteCodes() {
-    const used = new Set();
-    for (const p of this.players.values()) {
-      if (p.inviteCode) used.add(p.inviteCode);
-    }
-    return used;
+    return new Set(this.playersByInviteCode.keys());
   }
 
   inviteCodeInUse(code) {
@@ -90,11 +87,22 @@ class GameApp {
 
   ensureInviteCode(player) {
     if (!player || player.bot) return '';
-    if (player.inviteCode && !INVITE_AMBIGUOUS.test(player.inviteCode)) return player.inviteCode;
-    if (player.inviteCode && this.inviteCodeInUse(player.inviteCode)) return player.inviteCode;
+    if (player.inviteCode && !INVITE_AMBIGUOUS.test(player.inviteCode)) {
+      this.playersByInviteCode.set(player.inviteCode, player);
+      return player.inviteCode;
+    }
+    if (player.inviteCode && this.inviteCodeInUse(player.inviteCode)) {
+      this.playersByInviteCode.set(player.inviteCode, player);
+      return player.inviteCode;
+    }
     const used = this.usedInviteCodes();
-    if (player.inviteCode) used.delete(player.inviteCode);
+    const old = player.inviteCode;
+    if (old) {
+      used.delete(old);
+      this.playersByInviteCode.delete(old);
+    }
     player.inviteCode = mintInviteCode(used);
+    this.playersByInviteCode.set(player.inviteCode, player);
     this.persist();
     return player.inviteCode;
   }
@@ -102,10 +110,7 @@ class GameApp {
   playerByInviteCode(code) {
     const key = String(code || '').trim().toUpperCase();
     if (!key) return null;
-    for (const p of this.players.values()) {
-      if (p.inviteCode === key) return p;
-    }
-    return null;
+    return this.playersByInviteCode.get(key) || null;
   }
 
   bindInvite(player, code) {
@@ -171,6 +176,7 @@ class GameApp {
     if (!data) return;
     this.players.clear();
     this.playersByUid.clear();
+    this.playersByInviteCode.clear();
     this.nextUid = data.nextUid || 100001;
     this.nextRoomId = data.nextRoomId || 100000;
     this.records = Array.isArray(data.records) ? data.records : [];
@@ -180,6 +186,7 @@ class GameApp {
       const player = emptyPlayer(p.uid, p);
       this.players.set(p.token, player);
       this.playersByUid.set(player.uid, player);
+      if (player.inviteCode && !player.bot) this.playersByInviteCode.set(player.inviteCode, player);
       byUid.set(player.uid, player);
     }
     for (const raw of data.rooms || []) {
