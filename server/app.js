@@ -231,11 +231,20 @@ class GameApp {
     if (pathname === '/version') return { status: 200, body: versionBody() };
     if (pathname === '/v1/config' || pathname === '/n') return { status: 200, body: configBody() };
     if (pathname === '/login') {
+      const accountType = String(query.get('accountType') || 'guest');
+      const old = String(query.get('token') || '');
+      if (accountType === 'token') {
+        if (old && this.players.has(old)) {
+          return { status: 200, body: { err_code: 0, data: { token: old } } };
+        }
+        return { status: 200, body: { err_code: 65, err_msg: '登录时效已过期,请重新登录' } };
+      }
       const uid = this.nextUid++;
-      const token = `t_${query.get('accountType') || 'guest'}_${uid}`;
+      const token = `t_${accountType}_${uid}`;
       const player = emptyPlayer(uid);
       this.players.set(token, player);
       this.ensureInviteCode(player);
+      this.persist();
       return { status: 200, body: { err_code: 0, data: { token } } };
     }
     return { status: 404, body: null };
@@ -328,7 +337,7 @@ class GameApp {
     if (proto === 126) {
       const id = String((msg && msg.id) || '');
       const rec = this.records.find((r) => r.id === id);
-      if (!rec || !(rec.uids || []).includes(c.player.uid)) {
+      if (!rec || !(rec.uids || []).some((id) => Number(id) === Number(c.player.uid))) {
         return c.send(pack(126, { res: { error: 1, what: '战绩不存在' }, details: [] }));
       }
       return c.send(pack(126, {

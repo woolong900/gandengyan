@@ -11,11 +11,11 @@ const { GameApp } = require('./app');
 const PORT = Number(process.env.PORT) || 8080;
 
 let saveTimer = null;
-const persistSoon = (data) => {
+const persistSoon = () => {
   if (saveTimer) return;
   saveTimer = setTimeout(() => {
     saveTimer = null;
-    flush(data);
+    flush();
   }, 150);
 };
 
@@ -32,7 +32,7 @@ const flush = (data) => {
 };
 
 const app = new GameApp({
-  persist: (data) => persistSoon(data),
+  persist: () => persistSoon(),
   now: Date.now,
 });
 

@@ -153,5 +153,20 @@ const fakeTable = (extra = {}) => ({
   t('存档战绩还在', listFor(app.records, 7, DAY).length, 1);
 }
 
+{
+  const app = new GameApp({ persist: () => {}, now: () => NOON });
+  const first = app.http('/login', new URLSearchParams({ accountType: 'guest' }));
+  const token = first.body.data.token;
+  const again = app.http('/login', new URLSearchParams({ accountType: 'token', token }));
+  t('带 token 登录还用原来的号', again.body.data.token, token);
+  const before = app.nextUid;
+  app.http('/login', new URLSearchParams({ accountType: 'token', token }));
+  t('复用号不占新 uid', app.nextUid, before);
+  t('过期 token 要重新登', app.http('/login', new URLSearchParams({
+    accountType: 'token',
+    token: 't_nope',
+  })).body.err_code, 65);
+}
+
 console.log(`\n${pass} 过 / ${fail} 挂`);
 process.exit(fail ? 1 : 0);

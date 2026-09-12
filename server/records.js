@@ -62,8 +62,9 @@ const listFor = (records, uid, timeSec) => {
   const start = Number(timeSec) || 0;
   const from = start * 1000;
   const to = (start + DAY_SEC) * 1000;
+  const me = Number(uid);
   return (records || [])
-    .filter((r) => (r.uids || []).includes(uid) && r.time >= from && r.time < to)
+    .filter((r) => (r.uids || []).some((id) => Number(id) === me) && r.time >= from && r.time < to)
     .sort((a, b) => b.time - a.time)
     .map(toListItem);
 };
