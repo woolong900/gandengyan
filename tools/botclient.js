@@ -78,7 +78,7 @@ function startBot(opts) {
   const later = (fn) => setTimeout(fn, delay);
 
   return new Promise((resolve, reject) => {
-    login(base).then((token) => {
+    Promise.resolve(opts.token || login(base)).then((token) => {
       const ws = new WebSocket(`${base.replace('http', 'ws')}/ws`);
       const tag = () => `[${me.uid || '?'}]`;
 
