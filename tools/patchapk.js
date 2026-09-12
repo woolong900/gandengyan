@@ -151,6 +151,13 @@ RULES.push([
   't.prototype._lockCreateRoomScroll = function(e, t) {\nif (!t) return;\nvar o = t.getComponent(cc.Layout);\nif (o) {\no._layoutDirty = !0;\no.updateLayout();\n}\nif (!(t.height > 0)) {\nvar n = o && void 0 !== o.spacingY ? o.spacingY : 0, r = (o && o.paddingTop || 0) + (o && o.paddingBottom || 0), i = t.children, a = 0;\nfor (var s = 0; s < i.length; s++) if (i[s].activeInHierarchy) {\na++;\nr += i[s].height;\n}\nr += Math.max(0, a - 1) * n;\nt.height = Math.max(r, 1);\n}\nif (e) {\ne.elastic = !1;\ne._calculateBoundary && e._calculateBoundary();\n}\n};\nt.prototype._updateIp = function() {',
 ]);
 
+// 所有基于 ScrollContens 的列表统一关闭回弹，避免内容边界未及时刷新时可以被拖出无限空白。
+// 战绩、战绩详情、俱乐部成员/消息/房间列表都共用这个组件。
+RULES.push([
+  't.prototype.load = function(e) {\nvar t = this, o = this.node.getComponent(cc.ScrollView), n = this.node.getChildByName("scrollBar"), r = cc.find("view/content", this.node);',
+  't.prototype.load = function(e) {\nvar t = this, o = this.node.getComponent(cc.ScrollView), n = this.node.getChildByName("scrollBar"), r = cc.find("view/content", this.node);\no.elastic = !1;',
+]);
+
 const run = (cmd, args, cwd) => execFileSync(cmd, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] }).toString();
 const tool = (name) => {
   const dir = path.join(SDK, 'build-tools');
