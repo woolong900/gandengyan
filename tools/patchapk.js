@@ -111,11 +111,11 @@ RULES.push([
 ]);
 RULES.push([
   u2b('t.prototype.start = function() {\nthis.inviteTipLabel.string = "绑定推荐人邀请码，可获得" + l.default.inviteCodeAward + "张房卡哦！";\n};'),
-  u2b('t.prototype.start = function() {\nvar e = this.inviteTipLabel;\ne.fontSize = 36;\ne.lineHeight = 44;\ne.overflow = 3;\ne.string = "我的邀请码：" + (l.default.myInviteCode || "") + "\\n绑定后双方各得" + l.default.inviteCodeAward + "张房卡";\n};'),
+  u2b('t.prototype.start = function() {\nvar e = this, n = function() {\ne.inviteTipLabel.string = "绑定推荐人邀请码，双方各得" + l.default.inviteCodeAward + "张房卡哦！";\nvar o = e.inactiveNode && e.inactiveNode.getChildByName("LabelName"), a = o && o.getComponent(cc.Label);\nif (a) {\na.fontSize = 36;\na.lineHeight = 40;\na.string = "我的邀请码 " + (l.default.myInviteCode || "");\n}\n};\nl.default.myInviteCode ? n() : c.default.getInviteCode(function() { n(); }, !1);\n};'),
 ]);
 RULES.push([
   u2b('this.inviteCodeLabel.string = "邀请码：" + a.default.inviteCode;'),
-  u2b('var e = this.inviteCodeLabel;\ne.overflow = 3;\ne.lineHeight = 34;\ne.node.width = 640;\ne.string = "我的邀请码：" + (a.default.myInviteCode || "") + "\\n绑定后双方各得" + a.default.inviteCodeAward + "张房卡";'),
+  u2b('this.inviteCodeLabel.string = "我的邀请码：" + (a.default.myInviteCode || "");'),
 ]);
 RULES.push([
   'e.prototype.replaceDYJPay = function() {\nvar e = this._storageData.ids;\nif (e.length > 0) {\nvar t = 14, o = 12;',
