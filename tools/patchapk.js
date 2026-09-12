@@ -167,7 +167,7 @@ RULES.push([
 // 右侧开启/关闭玩法后，主动刷新桌子列表，清掉服务端已回收的空桌。
 RULES.push([
   u2b('a.default.eventUtils.emit(s.default.data_club_get_scheme_list);\n} else a.default.uiHelper.showTip(e.res.what);'),
-  u2b('a.default.eventUtils.emit(s.default.data_club_get_scheme_list);\nh.default.getClubTableInfo(e._clubId, function() {}, !0);\n} else a.default.uiHelper.showTip(e.res.what);'),
+  u2b('a.default.eventUtils.emit(s.default.data_club_get_scheme_list);\nh.default.getClubTableInfo(e._clubId, function() { a.default.eventUtils.emit(s.default.data_club_table_scheme_update); }, !0);\n} else a.default.uiHelper.showTip(e.res.what);'),
 ]);
 
 const run = (cmd, args, cwd) => execFileSync(cmd, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] }).toString();
