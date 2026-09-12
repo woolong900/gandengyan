@@ -102,6 +102,13 @@ const boot = () => {
 
 {
   const { app, login } = boot();
+  const a = login('a', 't_bad_message');
+  app.onMessage('a', packCs(200, { json: '{' }));
+  t('损坏的房内消息被拒绝', last(a.box, 200).res.what, '房内消息格式无效');
+}
+
+{
+  const { app, login } = boot();
   const a = login('a', 't_inviter');
   const b = login('b', 't_new');
   t('新用户 0 张房卡', a.login.cardNum, 0);

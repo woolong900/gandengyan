@@ -288,6 +288,9 @@ class GameApp {
     const { proto, msg } = unpack(Buffer.from(bytes));
 
     if (proto === 100) {
+      if (!msg || !msg.token) {
+        return c.send(pack(100, { res: { error: 1, what: '登录参数无效' } }));
+      }
       if (!this.players.has(msg.token)) {
         if (!this.allowUnregisteredTokens) {
           return c.send(pack(100, {
@@ -465,9 +468,21 @@ class GameApp {
     }
 
     if (proto === 200) {
+      let envelope;
+      let body;
+      try {
+        envelope = JSON.parse(msg && msg.json);
+        body = envelope.msgdata ? JSON.parse(envelope.msgdata) : {};
+      } catch {
+        return c.send(pack(200, { res: { error: 1, what: '房内消息格式无效' } }));
+      }
       const table = this.tables.get(c.roomId);
-      const { msghead, msgdata } = JSON.parse(msg.json);
-      const body = msgdata ? JSON.parse(msgdata) : {};
+      const { msghead, msgdata } = envelope;
+      if (typeof msghead !== 'string'
+        || (msgdata != null && typeof msgdata !== 'string')
+        || !body || typeof body !== 'object' || Array.isArray(body)) {
+        return c.send(pack(200, { res: { error: 1, what: '房内消息格式无效' } }));
+      }
       console.log(`  200 房内消息 ${msghead} ${msgdata || ''}`);
       if (!table || table.closed) {
         return c.send(pack(200, { res: { error: 1, what: '不在房间里' } }));
