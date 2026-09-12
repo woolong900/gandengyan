@@ -124,6 +124,14 @@ RULES.push([
   u2b('this.inviteCodeLabel.string = "我的邀请码：" + (a.default.myInviteCode || "");'),
 ]);
 RULES.push([
+  'var o = u.default.gameRecordList.collection(t, d.default.timerSort);\no.length < 1 ? this.noDataTipNode.active = !0 : this.noDataTipNode.active = !1;',
+  'var o = u.default.gameRecordList.collection(t, d.default.timerSort);\no.length < 1 ? this.noDataTipNode.active = !0 : this.noDataTipNode.active = !1;\nthis._updateDayStat(o);',
+]);
+RULES.push([
+  't.prototype._addItem = function(e, t) {',
+  u2b('t.prototype._updateDayStat = function(e) {\nvar t = this.node.getChildByName("bg"), o = t && t.getChildByName("DateSelector");\nif (!o) return;\nvar n = o.getChildByName("DateInput");\nn = n && n.getChildByName("input_date");\nn = n && n.getChildByName("DateLabel");\nvar r = function(i, a, s) {\nvar l = t.getChildByName(i);\nif (!l) {\nl = n ? cc.instantiate(n) : new cc.Node(i);\nl.name = i;\nvar c = l.getComponent(cc.Label);\nif (!c) {\nc = l.addComponent(cc.Label);\nc.useSystemFont = !0;\nc.fontFamily = "sans-serif-medium";\nc.fontSize = 26;\nc.lineHeight = 26;\nl.color = new cc.Color(93, 70, 26);\n}\nc.horizontalAlign = 2;\nl.setAnchorPoint(1, .5);\nl.setPosition(o.x + a, o.y);\nt.addChild(l);\n}\nl.getComponent(cc.Label).string = s;\n};\nvar i = 0, a = u.default.uid;\nfor (var s = 0; s < e.length; s++) {\nvar l = u.default.gameRecordList.get(e[s]);\nif (l && l.players) for (var c = 0; c < l.players.length; c++) if (Number(l.players[c].uid) === Number(a)) {\ni += l.players[c].score;\nbreak;\n}\n}\nr("DayGames", -360, "总场次：" + e.length);\nr("DayScore", -160, "总分：" + i);\n};\nt.prototype._addItem = function(e, t) {'),
+]);
+RULES.push([
   'e.prototype.replaceDYJPay = function() {\nvar e = this._storageData.ids;\nif (e.length > 0) {\nvar t = 14, o = 12;',
   'e.prototype.replaceDYJPay = function() {\nvar e = this._storageData.ids;\nif (2 === this.index && e) {\nfor (var q = e.length - 1; q >= 0; q--) (1 === e[q] || 26 === e[q]) && (e[q] = 2);\nthis._storageData.ids = this._unique(e);\ne = this._storageData.ids;\n}\nif (e.length > 0) {\nvar t = 14, o = 12;',
 ]);
