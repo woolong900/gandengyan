@@ -253,5 +253,27 @@ const openRoom = (app, host, opts = {}) => {
   t('聊天频率受限', last(a.box, 200).res.what, '聊天太频繁');
 }
 
+{
+  const { app, login } = boot();
+  const a = { ...login('a', 't_voice_skip_a'), id: 'a' };
+  const b = { ...login('b', 't_voice_skip_b'), id: 'b' };
+  const roomId = openRoom(app, a);
+  app.onMessage('a', packCs(202, { roomId }));
+  app.onMessage('b', packCs(202, { roomId }));
+  a.box.sent.length = 0;
+  b.box.sent.length = 0;
+  app.onMessage('a', gameJson('chatroom', { chat: { type: 3, content: 'qjqp:abc', duration: 2000 } }));
+  t('语音发送成功', num(last(a.box, 200).res.error), 0);
+  t('发送方不收到自己的语音', lastPush(a.box, 'chatroom'), null);
+  const voice = lastPush(b.box, 'chatroom');
+  t('对方收到语音', voice && JSON.parse(voice.chat).type, 3);
+  t('对方语音来自发送方', voice && JSON.parse(voice.chat).fromUid, a.player.uid);
+  a.box.sent.length = 0;
+  b.box.sent.length = 0;
+  app.onMessage('a', gameJson('chatroom', { chat: { type: 1, content: '0', duration: 2000 } }));
+  t('文字发送方仍能看到自己的气泡', JSON.parse(lastPush(a.box, 'chatroom').chat).type, 1);
+  t('对方也收到文字', JSON.parse(lastPush(b.box, 'chatroom').chat).type, 1);
+}
+
 console.log(`\n${pass} 过 / ${fail} 挂`);
 process.exit(fail ? 1 : 0);

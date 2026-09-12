@@ -11,7 +11,14 @@ import com.gme.TMG.ITMGContext;
 import com.gme.TMG.ITMGPTT;
 import com.gme.av.sig.AuthBuffer;
 import com.yuanlai.Constants;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import org.cocos2dx.javascript.AppActivity;
 import org.json.JSONObject;
 
@@ -280,20 +287,48 @@ public class Voice {
   public static String stopRecording() {
     if (ctx == null) return "fail";
     int r = ctx.GetPTT().StopRecording();
-    Log.e(TAG, "stopRecording ret:" + r);
+    File f = new File(write_msg_path);
+    Log.e(TAG, "stopRecording ret:" + r + " size:" + (f.isFile() ? f.length() : -1));
     queuePoll();
     return ok(r);
   }
 
   public static String uploadRecordedFile() {
-    if (ctx == null) return "fail";
-    int r = ctx.GetPTT().UploadRecordedFile(write_msg_path);
-    Log.e(TAG, "uploadRecordedFile ret:" + r);
-    queuePoll();
-    return ok(r);
+    runBg(new Runnable() {
+      public void run() {
+        for (int i = 0; i < 10; i++) {
+          File f = new File(write_msg_path);
+          if (f.isFile() && f.length() > 8) break;
+          try { Thread.sleep(50); } catch (InterruptedException ie) { break; }
+        }
+        String id = postVoiceFile();
+        if (id != null) {
+          tellOnGl("uploadRecordedFile", "success", id);
+          return;
+        }
+        if (ctx == null) {
+          tellOnGl("uploadRecordedFile", "fail", null);
+          return;
+        }
+        int r = ctx.GetPTT().UploadRecordedFile(write_msg_path);
+        Log.e(TAG, "uploadRecordedFile GME ret:" + r);
+        queuePoll();
+      }
+    });
+    return "ok";
   }
 
   public static String downloadRecordedFile(String fileId) {
+    if (isLocalId(fileId)) {
+      final String id = fileId;
+      runBg(new Runnable() {
+        public void run() {
+          if (getVoiceFile(id)) tellOnGl("downloadRecordedFile", "success", id);
+          else tellOnGl("downloadRecordedFile", "fail", id);
+        }
+      });
+      return "ok";
+    }
     if (ctx == null) return "fail";
     int r = ctx.GetPTT().DownloadRecordedFile(fileId, download_msg_path);
     Log.e(TAG, "downloadRecordedFile ret:" + r + " id:" + fileId);
@@ -334,5 +369,130 @@ public class Voice {
     if (ctx == null) return;
     int r = ctx.Resume();
     Log.e(TAG, r == 0 ? "voice resume success." : "voice resume error:" + r);
+  }
+
+  private static boolean isLocalId(String fileId) {
+    return fileId != null && fileId.startsWith("qjqp:");
+  }
+
+  private static String gameHttp() {
+    try {
+      String v = Constants.sdkConfig("SDK_VOICE_HTTP");
+      if (v == null) return "";
+      v = v.trim();
+      while (v.endsWith("/")) v = v.substring(0, v.length() - 1);
+      return v.startsWith("http") ? v : "";
+    } catch (Throwable t) {
+      Log.e(TAG, "gameHttp", t);
+      return "";
+    }
+  }
+
+  private static void runBg(Runnable r) {
+    new Thread(r, "qjqp-voice-http").start();
+  }
+
+  private static void tellOnGl(final String action, final String code, final String extra) {
+    try {
+      Class<?> c = Class.forName("org.cocos2dx.lib.Cocos2dxGLSurfaceView");
+      Object gl = c.getMethod("getInstance").invoke(null);
+      if (gl != null) {
+        c.getMethod("queueEvent", Runnable.class).invoke(gl, new Runnable() {
+          public void run() {
+            tell(BRIDGE, action, code, extra);
+          }
+        });
+        return;
+      }
+    } catch (Throwable ignored) {
+    }
+    tell(BRIDGE, action, code, extra);
+  }
+
+  private static String readUtf8(InputStream in, int max) throws Exception {
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+    byte[] buf = new byte[1024];
+    int n;
+    while ((n = in.read(buf)) > 0) {
+      if (out.size() + n > max) throw new Exception("too large");
+      out.write(buf, 0, n);
+    }
+    return out.toString("UTF-8");
+  }
+
+  private static String postVoiceFile() {
+    String base = gameHttp();
+    if (base.length() == 0) return null;
+    File f = new File(write_msg_path);
+    long sz = f.isFile() ? f.length() : 0;
+    Log.e(TAG, "POST /voice size=" + sz);
+    if (sz < 8) return null;
+    HttpURLConnection c = null;
+    try {
+      c = (HttpURLConnection) new URL(base + "/voice").openConnection();
+      c.setConnectTimeout(4000);
+      c.setReadTimeout(12000);
+      c.setDoOutput(true);
+      c.setRequestMethod("POST");
+      c.setRequestProperty("Content-Type", "application/octet-stream");
+      c.setFixedLengthStreamingMode((int) sz);
+      FileInputStream in = new FileInputStream(f);
+      OutputStream os = c.getOutputStream();
+      byte[] buf = new byte[4096];
+      int n;
+      while ((n = in.read(buf)) > 0) os.write(buf, 0, n);
+      in.close();
+      os.close();
+      int code = c.getResponseCode();
+      InputStream rs = code >= 400 ? c.getErrorStream() : c.getInputStream();
+      String body = rs == null ? "" : readUtf8(rs, 4096);
+      Log.e(TAG, "POST /voice " + code + " " + body);
+      if (code != 200) return null;
+      JSONObject o = new JSONObject(body);
+      if (o.optInt("err_code", 1) != 0) return null;
+      String id = o.optString("id", "");
+      return id.startsWith("qjqp:") ? id : null;
+    } catch (Throwable t) {
+      Log.e(TAG, "POST /voice", t);
+      return null;
+    } finally {
+      if (c != null) c.disconnect();
+    }
+  }
+
+  private static boolean getVoiceFile(String fileId) {
+    String base = gameHttp();
+    if (base.length() == 0) return false;
+    String id = fileId.startsWith("qjqp:") ? fileId.substring(5) : fileId;
+    HttpURLConnection c = null;
+    try {
+      c = (HttpURLConnection) new URL(base + "/voice/" + id).openConnection();
+      c.setConnectTimeout(4000);
+      c.setReadTimeout(12000);
+      c.setRequestMethod("GET");
+      int code = c.getResponseCode();
+      if (code != 200) {
+        Log.e(TAG, "GET /voice " + code + " id:" + id);
+        return false;
+      }
+      InputStream in = c.getInputStream();
+      FileOutputStream os = new FileOutputStream(download_msg_path);
+      byte[] buf = new byte[4096];
+      int n;
+      int total = 0;
+      while ((n = in.read(buf)) > 0) {
+        os.write(buf, 0, n);
+        total += n;
+      }
+      os.close();
+      in.close();
+      Log.e(TAG, "GET /voice ok bytes=" + total);
+      return total > 8;
+    } catch (Throwable t) {
+      Log.e(TAG, "GET /voice", t);
+      return false;
+    } finally {
+      if (c != null) c.disconnect();
+    }
   }
 }

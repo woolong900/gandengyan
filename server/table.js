@@ -88,6 +88,25 @@ class Table {
     for (const m of this.members) this.sendTo(m, frame);
   }
 
+  broadcastExcept(uid, msghead, data) {
+    const frame = push(msghead, data);
+    const skip = Number(uid);
+    for (const m of this.members) {
+      if (Number(m.player.uid) === skip) continue;
+      this.sendTo(m, frame);
+    }
+  }
+
+  pushChat(uid, encoded) {
+    const data = { chat: encoded };
+    let type = 0;
+    try {
+      type = Number(JSON.parse(encoded).type) || 0;
+    } catch { /* */ }
+    if (type === 3) this.broadcastExcept(uid, 'chatroom', data);
+    else this.broadcast('chatroom', data);
+  }
+
   makeIo() {
     const table = this;
     return {
@@ -519,7 +538,7 @@ class Table {
       if (msghead === 'chatroom') {
         const chat = this.chatFor(mine, uid, body);
         if (chat.error) return chat;
-        this.broadcast('chatroom', { chat: chat.chat });
+        this.pushChat(uid, chat.chat);
         return { error: 0 };
       }
       return { error: 0 };
@@ -532,7 +551,7 @@ class Table {
     if (msghead === 'chatroom') {
       const chat = this.chatFor(mine, uid, body);
       if (chat.error) return chat;
-      this.broadcast('chatroom', { chat: chat.chat });
+      this.pushChat(uid, chat.chat);
       return { error: 0 };
     }
     if (msghead === 'trustee') {

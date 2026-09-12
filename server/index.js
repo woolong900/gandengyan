@@ -2,10 +2,35 @@
  * Node 入口。牌局在 GameApp / Table，这里只接 HTTP 和 ws。
  */
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
 const { URL } = require('url');
 const { WebSocketServer } = require('ws');
 const store = require('./store');
 const { GameApp } = require('./app');
+
+const VOICE_DIR = path.join(path.dirname(store.FILE), 'voice');
+const MAX_VOICE = 256 * 1024;
+const VOICE_TTL_MS = 2 * 60 * 60 * 1000;
+
+const pruneVoice = () => {
+  try {
+    if (!fs.existsSync(VOICE_DIR)) return;
+    const now = Date.now();
+    for (const name of fs.readdirSync(VOICE_DIR)) {
+      const p = path.join(VOICE_DIR, name);
+      try {
+        if (now - fs.statSync(p).mtimeMs > VOICE_TTL_MS) fs.unlinkSync(p);
+      } catch { /* */ }
+    }
+  } catch { /* */ }
+};
+
+const voiceId = (raw) => {
+  const s = String(raw || '').replace(/^qjqp:/, '');
+  return /^[a-f0-9]{32}$/.test(s) ? s : '';
+};
 
 const PORT = Number(process.env.PORT) || 8080;
 
@@ -79,6 +104,31 @@ const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   console.log(`HTTP ${req.method} ${logUrl(url)}`);
 
+  if (url.pathname === '/voice' && req.method === 'POST') {
+    pruneVoice();
+    return readBody(req, MAX_VOICE).then((body) => {
+      if (body.length < 8 || body.toString('ascii', 0, 6) !== '#!SILK') {
+        return json(res, { err_code: 1, err_msg: 'invalid' }, 400);
+      }
+      const id = crypto.randomBytes(16).toString('hex');
+      fs.mkdirSync(VOICE_DIR, { recursive: true });
+      fs.writeFileSync(path.join(VOICE_DIR, id), body);
+      console.log(`  语音 ${body.length}B -> ${id}`);
+      return json(res, { err_code: 0, id: `qjqp:${id}` });
+    }).catch(() => json(res, { err_code: 1, err_msg: 'too large' }, 400));
+  }
+  if (req.method === 'GET' && url.pathname.startsWith('/voice/')) {
+    const id = voiceId(url.pathname.slice('/voice/'.length));
+    const file = id ? path.join(VOICE_DIR, id) : '';
+    if (!id || !fs.existsSync(file)) return res.writeHead(404).end();
+    const buf = fs.readFileSync(file);
+    res.writeHead(200, {
+      'Content-Type': 'application/octet-stream',
+      'Content-Length': buf.length,
+    });
+    return res.end(buf);
+  }
+
   const out = app.http(url.pathname, url.searchParams);
   if (out.status === 404) return res.writeHead(404).end();
   return json(res, out.body);
@@ -138,5 +188,5 @@ try {
 }
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`服务端起在 :${PORT}  （/version /login /ws）`);
+  console.log(`服务端起在 :${PORT}  （/version /login /ws /voice）`);
 });

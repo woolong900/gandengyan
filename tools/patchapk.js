@@ -16,7 +16,8 @@
  *
  * 语音走自己的 GME AppID：写在 AndroidManifest 的 SDK_VOICE_*，
  * 用 --voice-appid / --voice-appkey，或环境变量 / .dev.vars，不要把密钥提交进 git。
- * 原生库从旧 GCloudVoice 换成 GME 2.9，按住说话仍走腾讯上传/下载（和原包一样）。
+ * 原生库从旧 GCloudVoice 换成 GME 2.9。录音仍用 GME，文件走自己服务器 /voice，
+ * 避免模拟器和真机落在不同 COS 分区后互相反向下载超时。
  *
  * usage: node tools/patchapk.js --apk <原始.apk> --host <主机[:端口]> [--tls] [--guest] [--out <输出.apk>]
  */
@@ -82,6 +83,10 @@ const RULES = [
 if (argv.includes('--guest')) {
   RULES.push(['this.guestNode.active = v.default.isDebug();', 'this.guestNode.active = true;']);
 }
+RULES.push([
+  '!c.default.isWatcher() && e.showVoice(a, n.content);',
+  'n.fromUid != D.default.uid && !c.default.isWatcher() && e.showVoice(a, n.content);',
+]);
 // 临时：创房/大厅只露出潜江晃晃。要恢复就把这一段删掉。
 RULES.push([
   'gameList: [ c.eGameIds.QJHH, c.eGameIds.QJHZ, c.eGameIds.PDKAA, c.eGameIds.DDZ, c.eGameIds.TMHH, c.eGameIds.QJSHZ, c.eGameIds.QJWSKBD ]',
@@ -277,7 +282,7 @@ const rmIf = (p) => {
   fs.rmSync(p, { recursive: true, force: true });
 };
 
-const writeVoiceMeta = (xml, appid, appkey) => {
+const writeVoiceMeta = (xml, appid, appkey, httpBase) => {
   let out = xml.replace(
     /(<meta-data android:name="SDK_VOICE_APPID" android:value=")[^"]*("\/>)/,
     `$1${appid}$2`
@@ -286,11 +291,27 @@ const writeVoiceMeta = (xml, appid, appkey) => {
     /(<meta-data android:name="SDK_VOICE_APPKEY" android:value=")[^"]*("\/>)/,
     `$1${appkey}$2`
   );
+  if (httpBase) {
+    if (out.includes('android:name="SDK_VOICE_HTTP"')) {
+      out = out.replace(
+        /(<meta-data android:name="SDK_VOICE_HTTP" android:value=")[^"]*("\/>)/,
+        `$1${httpBase}$2`
+      );
+    } else {
+      out = out.replace(
+        /(<meta-data android:name="SDK_VOICE_APPKEY" android:value="[^"]*"\/>)/,
+        `$1\n        <meta-data android:name="SDK_VOICE_HTTP" android:value="${httpBase}"/>`
+      );
+    }
+  }
   if (!out.includes(`android:name="SDK_VOICE_APPID" android:value="${appid}"`)) {
     throw new Error('没改到 SDK_VOICE_APPID');
   }
   if (!out.includes(`android:name="SDK_VOICE_APPKEY" android:value="${appkey}"`)) {
     throw new Error('没改到 SDK_VOICE_APPKEY');
+  }
+  if (httpBase && !out.includes(`android:name="SDK_VOICE_HTTP" android:value="${httpBase}"`)) {
+    throw new Error('没改到 SDK_VOICE_HTTP');
   }
   return out;
 };
@@ -310,7 +331,7 @@ const injectGme = (apkPath, appid, appkey) => {
   try {
     run('java', ['-jar', APKTOOL, 'd', '-f', apkPath, '-o', decoded]);
     const mf = path.join(decoded, 'AndroidManifest.xml');
-    fs.writeFileSync(mf, writeVoiceMeta(fs.readFileSync(mf, 'utf8'), appid, appkey));
+    fs.writeFileSync(mf, writeVoiceMeta(fs.readFileSync(mf, 'utf8'), appid, appkey, http));
     console.log('      已写入自己的 GME AppID');
 
     for (const name of fs.readdirSync(path.join(decoded, 'smali/com/yuanlai/external'))) {
