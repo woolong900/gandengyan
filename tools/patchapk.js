@@ -14,6 +14,9 @@
  * 不如就在这里改 JS，反正 project.jsc 本来就要重新加密。别顺手把 `isDebug()`
  * 整个改成 true：那会把 gameMode 切到 debug，牵动的地方远不止一个按钮。
  *
+ * 语音房要自己的 GVoice AppID：写在 AndroidManifest 的 SDK_VOICE_*，
+ * 用 --voice-appid / --voice-appkey，或环境变量 / .dev.vars，不要把密钥提交进 git。
+ *
  * usage: node tools/patchapk.js --apk <原始.apk> --host <主机[:端口]> [--tls] [--guest] [--out <输出.apk>]
  */
 const fs = require('fs');
@@ -27,6 +30,17 @@ const arg = (name, def) => {
   const i = argv.indexOf(`--${name}`);
   return i < 0 ? def : argv[i + 1];
 };
+
+const loadDotEnv = () => {
+  const p = path.join(__dirname, '..', '.dev.vars');
+  if (!fs.existsSync(p)) return;
+  for (const line of fs.readFileSync(p, 'utf8').split('\n')) {
+    const m = line.match(/^(QJQP_VOICE_APPID|QJQP_VOICE_APPKEY)=(.*)$/);
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim();
+  }
+};
+loadDotEnv();
+
 const APK = arg('apk');
 const HOST = arg('host');
 const TLS = argv.includes('--tls');
@@ -34,6 +48,9 @@ const OUT = arg('out', APK && APK.replace(/\.apk$/, '-patched.apk'));
 const SDK = process.env.ANDROID_SDK_ROOT || '/opt/homebrew/share/android-commandlinetools';
 const KEYSTORE = arg('keystore', path.join(os.homedir(), '.android-qjqp.keystore'));
 const STOREPASS = 'qjqp123456';
+const VOICE_APPID = arg('voice-appid', process.env.QJQP_VOICE_APPID);
+const VOICE_APPKEY = arg('voice-appkey', process.env.QJQP_VOICE_APPKEY);
+const APKTOOL = process.env.APKTOOL || '/tmp/apktool.jar';
 
 if (!APK || !HOST) {
   console.error('usage: node tools/patchapk.js --apk <原始.apk> --host <主机[:端口]> [--tls] [--out <输出.apk>]');
@@ -116,6 +133,46 @@ const tool = (name) => {
   return path.join(dir, ver, name);
 };
 
+/** 清单里的原厂 GVoice 凭证换成自己的。密钥不打日志。 */
+const patchVoiceMeta = (apkPath, appid, appkey) => {
+  if (!appid || !appkey) return;
+  if (!fs.existsSync(APKTOOL)) {
+    console.warn('      没有 apktool.jar，跳过 GVoice 凭证（APKTOOL=/tmp/apktool.jar）');
+    return;
+  }
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qjqp-am-'));
+  const built = `${apkPath}.am.apk`;
+  const manDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qjqp-mf-'));
+  try {
+    run('java', ['-jar', APKTOOL, 'd', '-f', '-s', apkPath, '-o', dir]);
+    const mf = path.join(dir, 'AndroidManifest.xml');
+    let xml = fs.readFileSync(mf, 'utf8');
+    xml = xml.replace(
+      /(<meta-data android:name="SDK_VOICE_APPID" android:value=")[^"]*("\/>)/,
+      `$1${appid}$2`
+    );
+    xml = xml.replace(
+      /(<meta-data android:name="SDK_VOICE_APPKEY" android:value=")[^"]*("\/>)/,
+      `$1${appkey}$2`
+    );
+    if (!xml.includes(`android:name="SDK_VOICE_APPID" android:value="${appid}"`)) {
+      throw new Error('没改到 SDK_VOICE_APPID');
+    }
+    if (!xml.includes(`android:name="SDK_VOICE_APPKEY" android:value="${appkey}"`)) {
+      throw new Error('没改到 SDK_VOICE_APPKEY');
+    }
+    fs.writeFileSync(mf, xml);
+    run('java', ['-jar', APKTOOL, 'b', dir, '-o', built]);
+    run('unzip', ['-q', '-o', built, 'AndroidManifest.xml', '-d', manDir]);
+    run('zip', ['-q', '-0', '-X', apkPath, 'AndroidManifest.xml'], manDir);
+    console.log('      已写入自己的 GVoice AppID');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(manDir, { recursive: true, force: true });
+    try { fs.unlinkSync(built); } catch { /* */ }
+  }
+};
+
 const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'qjqp-patch-'));
 const rel = 'assets/src/project.jsc';
 
@@ -135,6 +192,13 @@ console.log('3/6 复制并替换 APK 内的条目');
 const out = path.resolve(OUT);
 fs.copyFileSync(APK, out);
 run('zip', ['-q', '-0', '-X', out, rel], stage);
+
+if (VOICE_APPID && VOICE_APPKEY) {
+  console.log('3b/6 写入自己的 GVoice AppID');
+  patchVoiceMeta(out, VOICE_APPID, VOICE_APPKEY);
+} else {
+  console.log('3b/6 未提供 GVoice 凭证，语音房仍用原厂 AppID');
+}
 
 console.log('4/6 删掉旧签名');
 // v1 的三个文件留着会和新签名打架；v2 的签名块 zipalign 会一并丢弃
