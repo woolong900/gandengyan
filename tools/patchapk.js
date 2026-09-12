@@ -19,7 +19,10 @@
  * 原生库从旧 GCloudVoice 换成 GME 2.9。录音仍用 GME，文件走自己服务器 /voice，
  * 避免模拟器和真机落在不同 COS 分区后互相反向下载超时。
  *
- * usage: node tools/patchapk.js --apk <原始.apk> --host <主机[:端口]> [--tls] [--guest] [--out <输出.apk>]
+ * 地址一律写局域网 IP。不要打 10.0.2.2：那是模拟器回环，真机连不上。
+ * 模拟器也能访问电脑的 192.168.*。不写 --host 时自动探测网卡。
+ *
+ * usage: node tools/patchapk.js --apk <原始.apk> [--host <主机[:端口]>] [--tls] [--guest] [--out <输出.apk>]
  */
 const fs = require('fs');
 const os = require('os');
@@ -43,8 +46,38 @@ const loadDotEnv = () => {
 };
 loadDotEnv();
 
+const lanIPv4 = () => {
+  const ifs = os.networkInterfaces();
+  const all = [];
+  for (const name of Object.keys(ifs)) {
+    for (const a of ifs[name] || []) {
+      const family = a.family === 4 || a.family === 'IPv4';
+      if (!family || a.internal) continue;
+      if (a.address === '10.0.2.2') continue;
+      all.push({ name, address: a.address });
+    }
+  }
+  for (const want of ['en0', 'en1', 'eth0', 'wlan0']) {
+    const hit = all.find((x) => x.name === want);
+    if (hit) return hit.address;
+  }
+  const priv = all.find((x) => /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(x.address));
+  return (priv || all[0] || {}).address || '';
+};
+
 const APK = arg('apk');
-const HOST = arg('host');
+const LAN = lanIPv4();
+let HOST = arg('host');
+if (HOST && /^10\.0\.2\.2(?::|$)/.test(HOST)) {
+  if (!LAN) {
+    console.error('不能打 10.0.2.2，真机连不上，也找不到局域网 IP');
+    process.exit(1);
+  }
+  console.log(`--host ${HOST} 真机连不上，改用 ${LAN}:8899`);
+  HOST = `${LAN}:8899`;
+}
+if (!HOST) HOST = LAN ? `${LAN}:8899` : '';
+if (HOST && !/:\d+$/.test(HOST)) HOST = `${HOST}:8899`;
 const TLS = argv.includes('--tls');
 const OUT = arg('out', APK && APK.replace(/\.apk$/, '-patched.apk'));
 const SDK = process.env.ANDROID_SDK_ROOT || '/opt/homebrew/share/android-commandlinetools';
@@ -60,9 +93,10 @@ const ANDROID_JAR = process.env.ANDROID_JAR
   || path.join(SDK, 'platforms', 'android-34', 'android.jar');
 
 if (!APK || !HOST) {
-  console.error('usage: node tools/patchapk.js --apk <原始.apk> --host <主机[:端口]> [--tls] [--out <输出.apk>]');
+  console.error('usage: node tools/patchapk.js --apk <原始.apk> [--host <局域网IP[:端口]>] [--tls] [--out <输出.apk>]');
   process.exit(1);
 }
+console.log(`打包地址 ${TLS ? 'https' : 'http'}://${HOST}`);
 
 /** 中文规则要按 UTF-8 字节进 binary 串，否则 split 对不上 */
 const u2b = (s) => Buffer.from(s, 'utf8').toString('binary');
@@ -71,6 +105,10 @@ const http = `${TLS ? 'https' : 'http'}://${HOST}`;
 const ws = `${TLS ? 'wss' : 'ws'}://${HOST}`;
 /** 长的先替换，否则裸域名会把带路径的那几条先吃掉 */
 const RULES = [
+  ['http://10.0.2.2:8899', http],
+  ['ws://10.0.2.2:8899', ws],
+  ['http://10.0.2.2', http],
+  ['ws://10.0.2.2', ws],
   ['wss://qj.yuanlaiqipai.net', ws],
   ['wss://test2.yuanlaihuyu.com', ws],
   ['https://qj.yuanlaiqipai.net', http],
@@ -375,6 +413,15 @@ for (const [from, to] of RULES) {
   if (n) console.log(`      ${from} -> ${to}  (${n} 处)`);
   js = js.split(from).join(to);
 }
+js = js.replace(/https?:\/\/192\.168\.\d+\.\d+:8899/g, (m) => (m === http ? m : http));
+js = js.replace(/wss?:\/\/192\.168\.\d+\.\d+:8899/g, (m) => (m === ws ? m : ws));
+if (js.includes('10.0.2.2')) {
+  throw new Error('jsc 里还留着 10.0.2.2，真机连不上');
+}
+if (!js.includes(http)) {
+  throw new Error(`jsc 里没有写进局域网地址 ${http}`);
+}
+console.log(`      已写入 ${http}  (${js.split(http).length - 1} 处)`);
 fs.writeFileSync(path.join(stage, rel), toJsc(Buffer.from(js, 'binary')));
 
 console.log('3/6 复制并替换 APK 内的条目');
