@@ -106,12 +106,16 @@ RULES.push([
   'r.default.inviteCode = t.inviteCode || "";\nr.default.myInviteCode = t.username || "";\nr.default.inviteCodeAward = t.giveCard || 0;',
 ]);
 RULES.push([
-  u2b('this.inviteTipLabel.string = "绑定推荐人邀请码，可获得" + l.default.inviteCodeAward + "张房卡哦！";'),
-  u2b('this.inviteTipLabel.string = "我的邀请码：" + (l.default.myInviteCode || "") + "，绑定后双方各得" + l.default.inviteCodeAward + "张";'),
+  'a.default.isBindInviteCode() ? i.default.uiHelper.showWithNode(l.eWindowID.InviteCodeOK, this.bindInviteCodeOkPre) : i.default.uiHelper.showWithNode(l.eWindowID.InviteCode, this.bindInviteCodePre);',
+  'i.default.uiHelper.showWithNode(l.eWindowID.InviteCode, this.bindInviteCodePre);',
+]);
+RULES.push([
+  u2b('t.prototype.start = function() {\nthis.inviteTipLabel.string = "绑定推荐人邀请码，可获得" + l.default.inviteCodeAward + "张房卡哦！";\n};'),
+  u2b('t.prototype.start = function() {\nvar e = this.inviteTipLabel;\ne.fontSize = 36;\ne.lineHeight = 44;\ne.overflow = 3;\ne.string = "我的邀请码：" + (l.default.myInviteCode || "") + "\\n绑定后双方各得" + l.default.inviteCodeAward + "张房卡";\n};'),
 ]);
 RULES.push([
   u2b('this.inviteCodeLabel.string = "邀请码：" + a.default.inviteCode;'),
-  u2b('this.inviteCodeLabel.string = "我的邀请码：" + (a.default.myInviteCode || "");'),
+  u2b('var e = this.inviteCodeLabel;\ne.overflow = 3;\ne.lineHeight = 34;\ne.node.width = 640;\ne.string = "我的邀请码：" + (a.default.myInviteCode || "") + "\\n绑定后双方各得" + a.default.inviteCodeAward + "张房卡";'),
 ]);
 RULES.push([
   'e.prototype.replaceDYJPay = function() {\nvar e = this._storageData.ids;\nif (e.length > 0) {\nvar t = 14, o = 12;',
