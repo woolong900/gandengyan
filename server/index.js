@@ -11,11 +11,21 @@ const { GameApp } = require('./app');
 const PORT = Number(process.env.PORT) || 8080;
 
 let saveTimer = null;
+let saveQueue = Promise.resolve();
+let stopping = false;
+
+const queueSave = (data) => {
+  saveQueue = saveQueue
+    .then(() => store.saveAsync(data))
+    .catch((err) => console.error('写存档失败', err));
+  return saveQueue;
+};
+
 const persistSoon = () => {
-  if (saveTimer) return;
+  if (saveTimer || stopping) return;
   saveTimer = setTimeout(() => {
     saveTimer = null;
-    flush();
+    queueSave(app.dump());
   }, 150);
 };
 
@@ -24,11 +34,7 @@ const flush = (data) => {
     clearTimeout(saveTimer);
     saveTimer = null;
   }
-  try {
-    store.save(data || app.dump());
-  } catch (err) {
-    console.error('写存档失败', err);
-  }
+  return queueSave(data || app.dump());
 };
 
 const app = new GameApp({
@@ -111,25 +117,27 @@ wss.on('connection', (ws) => {
   });
 });
 
-const shutdown = (why) => {
+const shutdown = async (why) => {
+  if (stopping) return;
+  stopping = true;
   console.log(`收到 ${why}，落盘后退出`);
-  try { flush(); } catch (err) { console.error(err); }
+  try { await flush(); } catch (err) { console.error(err); }
   process.exit(0);
 };
 
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => { void shutdown('SIGTERM'); });
+process.on('SIGINT', () => { void shutdown('SIGINT'); });
 process.on('uncaughtException', (err) => {
   console.error('uncaughtException', err);
-  try { flush(); } catch (flushErr) { console.error(flushErr); }
-  process.exit(1);
+  stopping = true;
+  void flush().finally(() => process.exit(1));
 });
 process.on('unhandledRejection', (err) => console.error('unhandledRejection', err));
 server.on('error', (err) => console.error('HTTP 监听出错', err));
 
 try {
   app.restore(store.load());
-  flush();
+  void flush();
   console.log(`从存档恢复 ${app.players.size} 个玩家、${app.tables.size} 个房间  ${store.FILE}`);
 } catch (err) {
   console.error('读存档失败，空着启动', err);

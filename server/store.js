@@ -3,6 +3,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const fsp = fs.promises;
 
 const FILE = process.env.QJQP_STATE
   || path.join(__dirname, '..', 'data', 'state.json');
@@ -42,4 +43,11 @@ const save = (data) => {
   fs.renameSync(tmp, FILE);
 };
 
-module.exports = { FILE, load, save };
+const saveAsync = async (data) => {
+  await fsp.mkdir(path.dirname(FILE), { recursive: true });
+  const tmp = `${FILE}.${process.pid}.tmp`;
+  await fsp.writeFile(tmp, JSON.stringify(data));
+  await fsp.rename(tmp, FILE);
+};
+
+module.exports = { FILE, load, save, saveAsync };
