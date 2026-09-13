@@ -1,1 +1,110 @@
-{"__type__":"cc.AnimationClip","_name":"gift_4","_duration":1.9333333333333333,"curveData":{"paths":{"sprite":{"comps":{"cc.Sprite":{"spriteFrame":[{"frame":0,"value":{"__uuid__":"dce5qL95dAmKWtuH+0B2zN"}},{"frame":0.7166666666666667,"value":{"__uuid__":"d94ypmZexH97e4wvoLKIsP"}},{"frame":0.8166666666666667,"value":{"__uuid__":"84/7esQodDVZcWk8hlps6D"}},{"frame":0.9166666666666666,"value":{"__uuid__":"e54DueQeROGrV8/Qb9kGd2"}},{"frame":1.0166666666666666,"value":{"__uuid__":"14dRBYdCxKAbD8OpnRYc8X"}},{"frame":1.1166666666666667,"value":{"__uuid__":"336rBwuapNZYRyiaX/f+XG"}},{"frame":1.2166666666666666,"value":{"__uuid__":"01tNF+s3hNPKa/gdDyAVvr"}},{"frame":1.3166666666666667,"value":{"__uuid__":"d4OyH4NxBGhKb6R1w0pkIW"}},{"frame":1.4166666666666667,"value":{"__uuid__":"dcTMTsoRFH+IqQF0dhU3yA"}},{"frame":1.5166666666666666,"value":{"__uuid__":"55BYJmGRdLDZVLKGs9xxD0"}},{"frame":1.6166666666666667,"value":{"__uuid__":"aaDPqE80dLo6t/7hYUihle"}},{"frame":1.7166666666666666,"value":{"__uuid__":"11W7rmCk9GCIhFtqHbc/EK"}},{"frame":1.8166666666666667,"value":{"__uuid__":"7eAgNEun1EeaAynEaz7ePG"}},{"frame":1.9166666666666667,"value":{"__uuid__":"d93LB9LEtEt6yJo10OD9GS"}}]}}}}},"events":[{"frame":0.6,"func":"onPlaySound","params":["zhadan"]}]}
+{
+  "__type__": "cc.AnimationClip",
+  "_name": "gift_4",
+  "_duration": 1.9333333333333333,
+  "curveData": {
+    "paths": {
+      "sprite": {
+        "comps": {
+          "cc.Sprite": {
+            "spriteFrame": [
+              {
+                "frame": 0,
+                "value": {
+                  "__uuid__": "dc7b9a8b-f797-4098-a5ad-b87fb4076ccd"
+                }
+              },
+              {
+                "frame": 0.7166666666666667,
+                "value": {
+                  "__uuid__": "d9e32a66-65ec-47f7-b7b8-c2fa0b288b0f"
+                }
+              },
+              {
+                "frame": 0.8166666666666667,
+                "value": {
+                  "__uuid__": "84ffb7ac-4287-4355-9716-93c865a6ce83"
+                }
+              },
+              {
+                "frame": 0.9166666666666666,
+                "value": {
+                  "__uuid__": "e5e03b9e-41e4-4e1a-b57c-fd06fd906776"
+                }
+              },
+              {
+                "frame": 1.0166666666666666,
+                "value": {
+                  "__uuid__": "14751058-742c-4a01-b0fc-3a99d161cf17"
+                }
+              },
+              {
+                "frame": 1.1166666666666667,
+                "value": {
+                  "__uuid__": "33eab070-b9aa-4d65-8472-89a5ff7fe5c6"
+                }
+              },
+              {
+                "frame": 1.2166666666666666,
+                "value": {
+                  "__uuid__": "01b4d17e-b378-4d3c-a6bf-81d0f2015beb"
+                }
+              },
+              {
+                "frame": 1.3166666666666667,
+                "value": {
+                  "__uuid__": "d43b21f8-3710-4684-a6fa-475c34a64216"
+                }
+              },
+              {
+                "frame": 1.4166666666666667,
+                "value": {
+                  "__uuid__": "dc4cc4ec-a111-47f8-8a90-174761537c80"
+                }
+              },
+              {
+                "frame": 1.5166666666666666,
+                "value": {
+                  "__uuid__": "55058266-1917-4b0d-954b-286b3dc710f4"
+                }
+              },
+              {
+                "frame": 1.6166666666666667,
+                "value": {
+                  "__uuid__": "aa0cfa84-f347-4ba3-ab7f-ee16148a195e"
+                }
+              },
+              {
+                "frame": 1.7166666666666666,
+                "value": {
+                  "__uuid__": "115bbae6-0a4f-4608-8845-b6a1db73f10a"
+                }
+              },
+              {
+                "frame": 1.8166666666666667,
+                "value": {
+                  "__uuid__": "7e020344-ba7d-4479-a032-9c46b3ede3c6"
+                }
+              },
+              {
+                "frame": 1.9166666666666667,
+                "value": {
+                  "__uuid__": "d9dcb07d-2c4b-44b7-ac89-a35d0e0fd192"
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "events": [
+    {
+      "frame": 0.6,
+      "func": "onPlaySound",
+      "params": [
+        "zhadan"
+      ]
+    }
+  ]
+}

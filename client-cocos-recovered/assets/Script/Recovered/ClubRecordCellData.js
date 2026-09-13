@@ -5,7 +5,7 @@ cc._RF.push(t, "1b782cdK01HVoxIPXQI2HIM", "ClubRecordCellData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./Constants"), r = function() {
+var n = require("./Constants"), r = function() {
 function e(e, t) {
 this.avatarUrl = "";
 this.nickname = "";

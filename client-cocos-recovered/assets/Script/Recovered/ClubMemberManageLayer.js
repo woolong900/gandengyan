@@ -27,7 +27,7 @@ return i > 3 && a && Object.defineProperty(t, o, a), a;
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var i = e("./BaseComponent"), a = e("./Image"), s = e("./ClubMemberInfoBtn"), l = e("./ClubMemberCellData"), c = e("./SoundUtils"), u = e("./gContext"), d = e("./ClubMsg"), p = e("./ClubListData"), f = e("./EventKeys"), h = e("./StringUtils"), m = cc._decorator, y = m.ccclass, g = m.property, _ = [ {
+var i = require("./BaseComponent"), a = require("./Image"), s = require("./ClubMemberInfoBtn"), l = require("./ClubMemberCellData"), c = require("./SoundUtils"), u = require("./gContext"), d = require("./ClubMsg"), p = require("./ClubListData"), f = require("./EventKeys"), h = require("./StringUtils"), m = cc._decorator, y = m.ccclass, g = m.property, _ = [ {
 label: "升为管理员"
 }, {
 label: "冻结"

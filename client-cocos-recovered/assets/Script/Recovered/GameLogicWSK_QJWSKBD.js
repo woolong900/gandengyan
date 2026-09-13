@@ -23,7 +23,7 @@ t.prototype = null === o ? Object.create(o) : (n.prototype = o.prototype, new n(
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var r, i = e("./CommonEnum"), a = e("./GameLogicWSK");
+var r, i = require("./CommonEnum"), a = require("./GameLogicWSK");
 (function(e) {
 e[e.Single = 1] = "Single";
 e[e.Double = 2] = "Double";

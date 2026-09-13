@@ -27,7 +27,7 @@ return i > 3 && a && Object.defineProperty(t, o, a), a;
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var i = e("./CommonEnum"), a = e("./VioceShowNode"), s = e("./EmojiShowNode"), l = e("./TextShowNode"), c = e("./RoomInfoData"), u = e("./Image"), d = e("./gContext"), p = e("./EventKeys"), f = e("./EventUtils"), h = e("./StringUtils"), m = e("./OperateListData"), y = e("./OperateAnimate"), g = e("./ExVoice"), _ = e("./CardHighlight"), v = e("./SoundUtils"), C = e("./WindowConfig"), b = e("./GameInfoData"), D = e("./UserData"), S = e("./RoomUtils"), w = e("./GameChatUtils"), O = cc._decorator, P = O.ccclass, I = O.property, R = function(e) {
+var i = require("./CommonEnum"), a = require("./VioceShowNode"), s = require("./EmojiShowNode"), l = require("./TextShowNode"), c = require("./RoomInfoData"), u = require("./Image"), d = require("./gContext"), p = require("./EventKeys"), f = require("./EventUtils"), h = require("./StringUtils"), m = require("./OperateListData"), y = require("./OperateAnimate"), g = require("./ExVoice"), _ = require("./CardHighlight"), v = require("./SoundUtils"), C = require("./WindowConfig"), b = require("./GameInfoData"), D = require("./UserData"), S = require("./RoomUtils"), w = require("./GameChatUtils"), O = cc._decorator, P = O.ccclass, I = O.property, R = function(e) {
 n(t, e);
 function t() {
 var t = null !== e && e.apply(this, arguments) || this;

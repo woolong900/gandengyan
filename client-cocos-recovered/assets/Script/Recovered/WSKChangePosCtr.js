@@ -27,7 +27,7 @@ return i > 3 && a && Object.defineProperty(t, o, a), a;
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var i, a = e("./RoomInfoData"), s = e("./StringUtils"), l = e("./Image"), c = e("./WSKRoomUtils"), u = e("./WSKPosHandCardsCtr"), d = e("./WSKPosPlayerInfoCtr"), p = cc._decorator, f = p.ccclass, h = p.property, m = [ -274, -114, 114, 274 ];
+var i, a = require("./RoomInfoData"), s = require("./StringUtils"), l = require("./Image"), c = require("./WSKRoomUtils"), u = require("./WSKPosHandCardsCtr"), d = require("./WSKPosPlayerInfoCtr"), p = cc._decorator, f = p.ccclass, h = p.property, m = [ -274, -114, 114, 274 ];
 (function(e) {
 e[e.Null = 0] = "Null";
 e[e.My = 1] = "My";

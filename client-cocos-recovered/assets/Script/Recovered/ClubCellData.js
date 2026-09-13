@@ -5,7 +5,7 @@ cc._RF.push(t, "cc013gt08hLdY84m8ZYDu0V", "ClubCellData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./ClubTableListData"), r = e("./ClubMemberListData"), i = e("./ClubTableSchemeListData"), a = e("./gContext"), s = e("./EventKeys"), l = e("./ClubMemberAntiAddictionListData"), c = e("./ClubMemberCellData"), u = function() {
+var n = require("./ClubTableListData"), r = require("./ClubMemberListData"), i = require("./ClubTableSchemeListData"), a = require("./gContext"), s = require("./EventKeys"), l = require("./ClubMemberAntiAddictionListData"), c = require("./ClubMemberCellData"), u = function() {
 function e(e) {
 this.id = 0;
 this.avatarUrl = "";

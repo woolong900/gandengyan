@@ -43,9 +43,10 @@ if (!fs.existsSync(APK)) throw new Error(`APK 不存在：${APK}`);
 if (!fs.existsSync(APKTOOL)) throw new Error(`apktool 不存在：${APKTOOL}`);
 
 const decodeUuid = (value) => {
-  if (value.length !== 22) return value;
-  let hex = value.slice(0, 2);
-  for (let index = 2; index < value.length; index += 2) {
+  if (value.length !== 22 && value.length !== 23) return value;
+  const prefixLength = value.length === 23 ? 5 : 2;
+  let hex = value.slice(0, prefixLength);
+  for (let index = prefixLength; index < value.length; index += 2) {
     const lhs = BASE64.indexOf(value[index]);
     const rhs = BASE64.indexOf(value[index + 1]);
     if (lhs < 0 || rhs < 0) return value;
@@ -396,16 +397,19 @@ try {
   console.log('4/5 拆分 669 个编译脚本模块');
   const captureSource = projectSource.replace(
     'window.__require = function e(t, o, n) {',
-    'window.__require = function e(t, o, n) { __recoveredModules = t; n = [];',
+    'window.__require = function e(t, o, n) { __recoveredModules = t; __recoveredEntries = n; n = [];',
   );
-  const moduleContext = { window: {}, __recoveredModules: null };
+  const moduleContext = { window: {}, __recoveredModules: null, __recoveredEntries: null };
   vm.createContext(moduleContext);
   vm.runInContext(captureSource, moduleContext, { timeout: 5000 });
   const modules = moduleContext.__recoveredModules;
   if (!modules) throw new Error('无法解析项目脚本模块');
   const moduleNames = new Map();
   for (const name of Object.keys(modules)) {
-    const safe = name.replace(/[^a-zA-Z0-9_$.-]/g, '_');
+    const raw = name.replace(/[^a-zA-Z0-9_$.-]/g, '_');
+    // Creator 2.4 fails to resolve relative requires whose filename starts
+    // with a digit and emits `void 0` in the bundle dependency table.
+    const safe = /^\d/.test(raw) ? `module_${raw}` : raw;
     moduleNames.set(name, safe);
   }
 
@@ -421,11 +425,17 @@ try {
         unresolvedRequires.push({ module: name, request, target });
         continue;
       }
-      body = body.split(`e(${JSON.stringify(request)})`).join(`e(${JSON.stringify(`./${moduleNames.get(targetName)}`)})`);
+      const escaped = request.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      body = body.replace(
+        new RegExp(`(^|[^\\w$])e\\(["']${escaped}["']\\)`, 'gm'),
+        `$1require(${JSON.stringify(`./${moduleNames.get(targetName)}`)})`,
+      );
     }
     const destination = path.join(scriptsRoot, `${moduleNames.get(name)}.js`);
     write(destination, `// Recovered from the production CommonJS bundle.\nvar e = require, t = module, o = exports;\n${body}\n`);
-    write(`${destination}.meta`, meta(stableUuid(`recovered-script:${name}`), { isPlugin: false, loadPluginInWeb: true, loadPluginInNative: true, loadPluginInEditor: false, subMetas: {} }));
+    const classMatch = body.match(/cc\._RF\.push\([^,]+,\s*["']([^"']+)/);
+    const scriptUuid = classMatch ? decodeUuid(classMatch[1]) : stableUuid(`recovered-script:${name}`);
+    write(`${destination}.meta`, meta(scriptUuid, { isPlugin: false, loadPluginInWeb: true, loadPluginInNative: true, loadPluginInEditor: false, subMetas: {} }));
   }
 
   console.log('5/5 写入工程配置和恢复报告');
@@ -448,6 +458,10 @@ try {
   write(path.join(OUT, 'recovery-report', 'settings.js'), settingsSource);
   write(path.join(OUT, 'recovery-report', 'project.bundle.js'), projectSource);
   write(path.join(OUT, 'recovery-report', 'module-map.json'), `${JSON.stringify(Object.fromEntries(moduleNames), null, 2)}\n`);
+  write(path.join(OUT, 'recovery-report', 'module-graph.json'), `${JSON.stringify({
+    modules: Object.fromEntries(Object.entries(modules).map(([name, value]) => [name, value[1] || {}])),
+    entries: moduleContext.__recoveredEntries || [],
+  }, null, 2)}\n`);
   write(path.join(OUT, 'recovery-report', 'unresolved-requires.json'), `${JSON.stringify(unresolvedRequires, null, 2)}\n`);
   write(path.join(OUT, 'recovery-report', 'AndroidManifest.xml'), fs.readFileSync(path.join(decoded, 'AndroidManifest.xml')));
 

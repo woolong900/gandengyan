@@ -5,7 +5,7 @@ cc._RF.push(t, "18016/kDftKLaBF94J6/84T", "ExUtils");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n, r = e("./Bridge"), i = e("./GameConfig"), a = e("./CommonEnum"), s = e("./LocationData"), l = e("./GameConstant"), c = e("./Storage"), u = e("./UserData"), d = e("./StringUtils");
+var n, r = require("./Bridge"), i = require("./GameConfig"), a = require("./CommonEnum"), s = require("./LocationData"), l = require("./GameConstant"), c = require("./Storage"), u = require("./UserData"), d = require("./StringUtils");
 (function(e) {
 e.shareText = "shareText";
 e.shareImage = "shareImage";

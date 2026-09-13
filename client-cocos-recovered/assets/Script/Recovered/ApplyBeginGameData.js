@@ -5,7 +5,7 @@ cc._RF.push(t, "61550/OK65LyotRY50Mtcom", "ApplyBeginGameData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./CommonEnum"), r = e("./EventKeys"), i = e("./gContext"), a = new (function() {
+var n = require("./CommonEnum"), r = require("./EventKeys"), i = require("./gContext"), a = new (function() {
 function e() {
 this.applying = !1;
 this.agreeList = [];

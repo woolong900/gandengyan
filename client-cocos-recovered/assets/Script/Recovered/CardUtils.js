@@ -5,7 +5,7 @@ cc._RF.push(t, "403095uyWhOhbtlc5aQENV0", "CardUtils");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./CommonEnum"), r = e("./pb");
+var n = require("./CommonEnum"), r = require("./pb");
 o.MJ_BACK_ID = -1;
 o.MJ_HIDE_ID = -2;
 o.MJ_HZ_ID = 31;

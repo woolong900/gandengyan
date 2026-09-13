@@ -5,7 +5,7 @@ cc._RF.push(t, "a57f5rc0HVMvJaAq2BLZigJ", "GameMsgBase");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./GameConn"), r = e("./ExUtils"), i = e("./RoomInfoData"), a = e("./CommonEnum"), s = e("./gContext"), l = e("./Constants"), c = e("./UserData"), u = e("./RoomConfig"), d = e("./PDKCardUtils"), p = e("./AnalysisMsg"), f = function() {
+var n = require("./GameConn"), r = require("./ExUtils"), i = require("./RoomInfoData"), a = require("./CommonEnum"), s = require("./gContext"), l = require("./Constants"), c = require("./UserData"), u = require("./RoomConfig"), d = require("./PDKCardUtils"), p = require("./AnalysisMsg"), f = function() {
 function e() {
 this._lastChatMsgSendTime = 0;
 }

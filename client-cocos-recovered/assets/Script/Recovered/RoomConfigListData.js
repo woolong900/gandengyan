@@ -5,7 +5,7 @@ cc._RF.push(t, "3550bjQMvhF/a5KhqMI2jVq", "RoomConfigListData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./RoomConfig"), r = e("./Storage"), i = e("./RoomConfigCellData"), a = e("./GameConstant"), s = e("./CommonEnum"), l = Object.create(null), c = new (function() {
+var n = require("./RoomConfig"), r = require("./Storage"), i = require("./RoomConfigCellData"), a = require("./GameConstant"), s = require("./CommonEnum"), l = Object.create(null), c = new (function() {
 function e() {}
 e.prototype.save = function() {
 for (var e in l) r.default.saveRoomConfig(e, l[e].storageData());

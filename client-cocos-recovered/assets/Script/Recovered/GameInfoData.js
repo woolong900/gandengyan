@@ -5,7 +5,7 @@ cc._RF.push(t, "e4ae5acIKRKHL2VtaM8zi1a", "GameInfoData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n, r = e("./CommonEnum"), i = e("./SiteInfoListData"), a = e("./SingleEndInfoData"), s = e("./SiteInfoCellData"), l = e("./CardUtils"), c = e("./gContext"), u = e("./EventKeys");
+var n, r = require("./CommonEnum"), i = require("./SiteInfoListData"), a = require("./SingleEndInfoData"), s = require("./SiteInfoCellData"), l = require("./CardUtils"), c = require("./gContext"), u = require("./EventKeys");
 (function(e) {
 e[e.Free = 0] = "Free";
 e[e.Gameing = 1] = "Gameing";

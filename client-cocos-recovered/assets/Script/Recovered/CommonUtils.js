@@ -5,7 +5,7 @@ cc._RF.push(t, "419d2a6egRNG6j1kuDRVQ+M", "CommonUtils");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./CommonEnum"), r = e("./CardUtils"), i = e("./StringUtils"), a = e("./UserData"), s = e("./RoomConfig"), l = function() {
+var n = require("./CommonEnum"), r = require("./CardUtils"), i = require("./StringUtils"), a = require("./UserData"), s = require("./RoomConfig"), l = function() {
 function e() {}
 e.isMobile = function(e) {
 return e === n.ePlatformType.iOS || e === n.ePlatformType.android;

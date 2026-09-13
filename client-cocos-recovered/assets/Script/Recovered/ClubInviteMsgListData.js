@@ -5,7 +5,7 @@ cc._RF.push(t, "0901aNCJytNUZhl1T7l2zr4", "ClubInviteMsgListData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./CommonUtils"), r = e("./gContext"), i = e("./EventKeys"), a = new (function() {
+var n = require("./CommonUtils"), r = require("./gContext"), i = require("./EventKeys"), a = new (function() {
 function e() {
 this._data = {};
 this._count = 0;

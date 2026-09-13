@@ -5,7 +5,7 @@ cc._RF.push(t, "8ed39d4Q7ZPpaq7mX3Uw653", "DDZGameInfoData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./DDZSiteListData"), r = e("./DDZSiteCellData"), i = e("./gContext"), a = e("./DDZEnum"), s = e("./DDZEventKeys"), l = e("./EventKeys"), c = e("./RoomInfoData"), u = function() {
+var n = require("./DDZSiteListData"), r = require("./DDZSiteCellData"), i = require("./gContext"), a = require("./DDZEnum"), s = require("./DDZEventKeys"), l = require("./EventKeys"), c = require("./RoomInfoData"), u = function() {
 function e() {
 this.curStep = 0;
 this.status = a.eDDZGameStatus.Free;

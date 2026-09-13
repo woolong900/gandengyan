@@ -27,7 +27,7 @@ return i > 3 && a && Object.defineProperty(t, o, a), a;
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var i, a = e("./GameConfig"), s = e("./CommonEnum"), l = e("./gContext"), c = e("./ExUser"), u = e("./Http"), d = e("./Storage"), p = e("./UserData"), f = e("./LoginMsg"), h = e("./ExGameAnalytics"), m = e("./WindowConfig"), y = e("./Constants"), g = e("./ExVoice"), _ = e("./SoundUtils"), v = e("./ExUtils"), C = e("./StringUtils"), b = cc._decorator, D = b.ccclass, S = b.property;
+var i, a = require("./GameConfig"), s = require("./CommonEnum"), l = require("./gContext"), c = require("./ExUser"), u = require("./Http"), d = require("./Storage"), p = require("./UserData"), f = require("./LoginMsg"), h = require("./ExGameAnalytics"), m = require("./WindowConfig"), y = require("./Constants"), g = require("./ExVoice"), _ = require("./SoundUtils"), v = require("./ExUtils"), C = require("./StringUtils"), b = cc._decorator, D = b.ccclass, S = b.property;
 (function(e) {
 e[e.tokenError = 1] = "tokenError";
 e[e.netError = 2] = "netError";

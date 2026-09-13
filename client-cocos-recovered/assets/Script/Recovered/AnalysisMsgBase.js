@@ -5,7 +5,7 @@ cc._RF.push(t, "185f0w8nExBMYturuJJtwfB", "AnalysisMsgBase");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./gContext"), r = e("./RoomInfoData"), i = e("./RoomConfigCellData"), a = e("./PlayerInfoListData"), s = e("./pb"), l = e("./DismissRoomInfoData"), c = e("./TotalEndData"), u = e("./CommonEnum"), d = e("./ChatMsgData"), p = e("./EventKeys"), f = e("./UserData"), h = e("./ApplyBeginGameData"), m = function() {
+var n = require("./gContext"), r = require("./RoomInfoData"), i = require("./RoomConfigCellData"), a = require("./PlayerInfoListData"), s = require("./pb"), l = require("./DismissRoomInfoData"), c = require("./TotalEndData"), u = require("./CommonEnum"), d = require("./ChatMsgData"), p = require("./EventKeys"), f = require("./UserData"), h = require("./ApplyBeginGameData"), m = function() {
 function e() {
 this._curGameCount = 0;
 }

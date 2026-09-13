@@ -5,27 +5,5 @@
   "wrapMode": "clamp",
   "filterMode": "bilinear",
   "premultiplyAlpha": false,
-  "subMetas": {
-    "img0": {
-      "ver": "1.0.3",
-      "uuid": "31dddd81-3045-4291-a5dc-1a923f284848",
-      "rawTextureUuid": "1ed5a6da4",
-      "trimType": "custom",
-      "trimThreshold": 1,
-      "rotated": false,
-      "offsetX": 0,
-      "offsetY": 0,
-      "trimX": 3,
-      "trimY": 3,
-      "width": 858,
-      "height": 540,
-      "rawWidth": 858,
-      "rawHeight": 540,
-      "borderTop": 0,
-      "borderBottom": 0,
-      "borderLeft": 0,
-      "borderRight": 0,
-      "subMetas": {}
-    }
-  }
+  "subMetas": {}
 }

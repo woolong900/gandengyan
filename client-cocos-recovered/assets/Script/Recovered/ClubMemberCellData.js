@@ -5,7 +5,7 @@ cc._RF.push(t, "9ad0dBq2TdAAZGYpnm0aAxl", "ClubMemberCellData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n, r = e("./pb"), i = e("./Constants"), a = e("./StringUtils"), s = e("./UserData");
+var n, r = require("./pb"), i = require("./Constants"), a = require("./StringUtils"), s = require("./UserData");
 (function(e) {
 e[e.Player = 1] = "Player";
 e[e.Admin = 2] = "Admin";

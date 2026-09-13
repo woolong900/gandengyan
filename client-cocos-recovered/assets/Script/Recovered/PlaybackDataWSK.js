@@ -23,7 +23,7 @@ t.prototype = null === o ? Object.create(o) : (n.prototype = o.prototype, new n(
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var r, i = e("./WSKEnum"), a = e("./CommonEnum"), s = e("./Constants"), l = e("./gContext"), c = e("./AnalysisMsg"), u = e("./pb"), d = e("./PlaybackDataBase"), p = e("./RoomInfoData");
+var r, i = require("./WSKEnum"), a = require("./CommonEnum"), s = require("./Constants"), l = require("./gContext"), c = require("./AnalysisMsg"), u = require("./pb"), d = require("./PlaybackDataBase"), p = require("./RoomInfoData");
 (function(e) {
 e[e.Pass = 0] = "Pass";
 e[e.CallBanker = 1] = "CallBanker";

@@ -1,6 +1,9 @@
 {
-  "ver": "1.0.0",
+  "ver": "2.2.0",
   "uuid": "8a3ecfa4-6513-cc2c-e7ad-bfe148cd2091",
   "type": "texture",
-  "subMetas": {}
+  "subMetas": {},
+  "wrapMode": "clamp",
+  "filterMode": "bilinear",
+  "premultiplyAlpha": false
 }

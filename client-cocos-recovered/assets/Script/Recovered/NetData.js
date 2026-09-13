@@ -5,7 +5,7 @@ cc._RF.push(t, "dc9b4b54DFBRoC4yDfY5Lmz", "NetData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./2"), r = function() {
+var n = require("./module_2"), r = function() {
 function e() {}
 e.unpack = function(e) {
 var t = new n.Buffer(e), o = 0, r = t.readUInt32BE(o, !0);

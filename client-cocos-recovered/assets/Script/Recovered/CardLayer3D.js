@@ -27,7 +27,7 @@ return i > 3 && a && Object.defineProperty(t, o, a), a;
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var i = e("./RoomInfoData"), a = e("./CommonEnum"), s = e("./CardsManage3D"), l = e("./GameInfoData"), c = e("./CommonUtils"), u = e("./CardHandCtr"), d = e("./OperateListData"), p = e("./gContext"), f = e("./EventKeys"), h = e("./EventUtils"), m = e("./CardLayerBase"), y = e("./CardHandShowCtr3D"), g = e("./Constants"), _ = e("./CardUtils"), v = e("./GameControl"), C = e("./RoomUtils"), b = e("./GameSoundMJ"), D = cc._decorator, S = D.ccclass, w = D.property, O = function(e) {
+var i = require("./RoomInfoData"), a = require("./CommonEnum"), s = require("./CardsManage3D"), l = require("./GameInfoData"), c = require("./CommonUtils"), u = require("./CardHandCtr"), d = require("./OperateListData"), p = require("./gContext"), f = require("./EventKeys"), h = require("./EventUtils"), m = require("./CardLayerBase"), y = require("./CardHandShowCtr3D"), g = require("./Constants"), _ = require("./CardUtils"), v = require("./GameControl"), C = require("./RoomUtils"), b = require("./GameSoundMJ"), D = cc._decorator, S = D.ccclass, w = D.property, O = function(e) {
 n(t, e);
 function t() {
 var t = null !== e && e.apply(this, arguments) || this;

@@ -5,7 +5,7 @@ cc._RF.push(t, "0cac8J0q1lPd6WP/UVctFZi", "DBDSiteListData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./DBDEnum"), r = function() {
+var n = require("./DBDEnum"), r = function() {
 function e() {
 this._data = null;
 this._data = Object.create(null);

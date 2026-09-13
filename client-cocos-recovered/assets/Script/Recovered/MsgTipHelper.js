@@ -27,7 +27,7 @@ return i > 3 && a && Object.defineProperty(t, o, a), a;
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var i, a = e("./MsgTipItem"), s = cc._decorator, l = s.ccclass, c = s.property;
+var i, a = require("./MsgTipItem"), s = cc._decorator, l = s.ccclass, c = s.property;
 (function(e) {
 e[e.COMMON = 1] = "COMMON";
 e[e.WARNING = 2] = "WARNING";

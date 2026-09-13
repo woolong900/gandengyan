@@ -51,6 +51,6 @@ cc.error("必须实现");
 return [];
 };
 return t;
-}(e("./GameLogicBase").default);
+}(require("./GameLogicBase").default);
 o.default = r;
 cc._RF.pop();

@@ -23,7 +23,7 @@ t.prototype = null === o ? Object.create(o) : (n.prototype = o.prototype, new n(
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var r = e("./RoomInfoData"), i = function(e) {
+var r = require("./RoomInfoData"), i = function(e) {
 n(t, e);
 function t() {
 var t = null !== e && e.apply(this, arguments) || this;
@@ -50,6 +50,6 @@ t.prototype.score = function(e) {
 return this._players[e].score / r.default.scoreRatio;
 };
 return t;
-}(e("./Singleton").default);
+}(require("./Singleton").default);
 o.default = i;
 cc._RF.pop();

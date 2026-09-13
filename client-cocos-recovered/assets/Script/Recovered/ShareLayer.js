@@ -27,7 +27,7 @@ return i > 3 && a && Object.defineProperty(t, o, a), a;
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var i, a = e("./BaseComponent"), s = e("./ExUtils"), l = e("./gContext"), c = e("./CommonEnum"), u = e("./RoomInfoData"), d = e("./GameConfig"), p = e("./CenterMsg"), f = e("./EventKeys"), h = e("./RoomUtils"), m = cc._decorator, y = m.ccclass, g = m.property;
+var i, a = require("./BaseComponent"), s = require("./ExUtils"), l = require("./gContext"), c = require("./CommonEnum"), u = require("./RoomInfoData"), d = require("./GameConfig"), p = require("./CenterMsg"), f = require("./EventKeys"), h = require("./RoomUtils"), m = cc._decorator, y = m.ccclass, g = m.property;
 (function(e) {
 e[e.ShareHall = 0] = "ShareHall";
 e[e.ShareGameInvite = 1] = "ShareGameInvite";

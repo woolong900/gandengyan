@@ -1,5 +1,5 @@
 {
-  "ver": "1.0.0",
+  "ver": "2.2.0",
   "uuid": "efadd389-418d-4e44-a7ef-a4eb661991ab",
   "subMetas": {
     "ypd2_17": {
@@ -4286,5 +4286,9 @@
       "borderRight": 0,
       "subMetas": {}
     }
-  }
+  },
+  "type": "texture",
+  "wrapMode": "clamp",
+  "filterMode": "bilinear",
+  "premultiplyAlpha": false
 }

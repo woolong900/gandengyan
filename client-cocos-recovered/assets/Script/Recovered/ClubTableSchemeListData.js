@@ -5,7 +5,7 @@ cc._RF.push(t, "43301MDBxtCRbWmI5Q++fY3", "ClubTableSchemeListData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./CommonUtils"), r = e("./gContext"), i = e("./EventKeys"), a = function() {
+var n = require("./CommonUtils"), r = require("./gContext"), i = require("./EventKeys"), a = function() {
 function e(e) {
 this._data = {};
 this._clubID = 0;

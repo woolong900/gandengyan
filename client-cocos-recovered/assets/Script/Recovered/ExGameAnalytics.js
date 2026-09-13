@@ -5,7 +5,7 @@ cc._RF.push(t, "ea5c0f91hROpo6lq2Assdq7", "ExGameAnalytics");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./GameConfig"), r = e("./CommonEnum"), i = e("./Bridge"), a = new (function() {
+var n = require("./GameConfig"), r = require("./CommonEnum"), i = require("./Bridge"), a = new (function() {
 function e() {}
 e.prototype.submitAccountInfo = function(e) {
 var t = n.default.platform;

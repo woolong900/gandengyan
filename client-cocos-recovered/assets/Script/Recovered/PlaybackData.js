@@ -5,7 +5,7 @@ cc._RF.push(t, "4badeRsSrdNCY7lwOc6CFq/", "PlaybackData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./CommonEnum"), r = e("./RoomConfig"), i = e("./PlaybackDataMJ"), a = e("./PlaybackDataD7"), s = e("./PlaybackDataPDK"), l = e("./PlaybackDataWSK"), c = e("./PlaybackDataDBD"), u = e("./PlaybackDataDDZ"), d = new (function() {
+var n = require("./CommonEnum"), r = require("./RoomConfig"), i = require("./PlaybackDataMJ"), a = require("./PlaybackDataD7"), s = require("./PlaybackDataPDK"), l = require("./PlaybackDataWSK"), c = require("./PlaybackDataDBD"), u = require("./PlaybackDataDDZ"), d = new (function() {
 function e() {
 this._categort = 0;
 }

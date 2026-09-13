@@ -5,7 +5,7 @@ cc._RF.push(t, "a0e7dj2AYVKxa0BgcsNe9TX", "TotalEndData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n, r = e("./RoomInfoData");
+var n, r = require("./RoomInfoData");
 (function(e) {
 e[e.ZI_MO = 1] = "ZI_MO";
 e[e.JIE_PAO = 2] = "JIE_PAO";

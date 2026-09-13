@@ -23,7 +23,7 @@ t.prototype = null === o ? Object.create(o) : (n.prototype = o.prototype, new n(
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var r = e("./RoomInfoData"), i = e("./SoundUtils"), a = function(e) {
+var r = require("./RoomInfoData"), i = require("./SoundUtils"), a = function(e) {
 n(t, e);
 function t() {
 return null !== e && e.apply(this, arguments) || this;
@@ -85,6 +85,6 @@ this.gameJson(t, null, !0);
 };
 t._instance = null;
 return t;
-}(e("./GameMsgBase").default);
+}(require("./GameMsgBase").default);
 o.default = a;
 cc._RF.pop();

@@ -27,7 +27,7 @@ return i > 3 && a && Object.defineProperty(t, o, a), a;
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var i = e("./GameChatUtils"), a = e("./Loader"), s = cc._decorator, l = s.ccclass, c = s.property, u = function(e) {
+var i = require("./GameChatUtils"), a = require("./Loader"), s = cc._decorator, l = s.ccclass, c = s.property, u = function(e) {
 n(t, e);
 function t() {
 var t = null !== e && e.apply(this, arguments) || this;

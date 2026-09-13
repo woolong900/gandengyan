@@ -5,7 +5,7 @@ cc._RF.push(t, "8e1a8kTdCFLXqNyqv4AFr9c", "PlayerInfoCellData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./LocationData"), r = e("./pb"), i = e("./UserData"), a = e("./Constants"), s = e("./gContext"), l = e("./EventKeys"), c = e("./RoomInfoData"), u = function() {
+var n = require("./LocationData"), r = require("./pb"), i = require("./UserData"), a = require("./Constants"), s = require("./gContext"), l = require("./EventKeys"), c = require("./RoomInfoData"), u = function() {
 function e(e) {
 this.uid = 0;
 this.headImg = "";

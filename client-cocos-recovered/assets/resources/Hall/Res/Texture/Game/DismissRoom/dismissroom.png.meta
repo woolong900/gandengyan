@@ -1,5 +1,5 @@
 {
-  "ver": "1.0.0",
+  "ver": "2.2.0",
   "uuid": "da507952-0510-4cf9-b316-9014c925b688",
   "subMetas": {
     "dismissroom_jsfj": {
@@ -191,5 +191,9 @@
       "borderRight": 0,
       "subMetas": {}
     }
-  }
+  },
+  "type": "texture",
+  "wrapMode": "clamp",
+  "filterMode": "bilinear",
+  "premultiplyAlpha": false
 }

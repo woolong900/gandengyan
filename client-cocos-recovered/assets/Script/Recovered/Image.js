@@ -27,7 +27,7 @@ return i > 3 && a && Object.defineProperty(t, o, a), a;
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var i, a = e("./GameConfig"), s = e("./CommonEnum"), l = e("./md5"), c = e("./Loader"), u = cc._decorator, d = u.ccclass, p = u.property;
+var i, a = require("./GameConfig"), s = require("./CommonEnum"), l = require("./md5"), c = require("./Loader"), u = cc._decorator, d = u.ccclass, p = u.property;
 (function(e) {
 e[e.RED = 1] = "RED";
 e[e.GREY = 2] = "GREY";

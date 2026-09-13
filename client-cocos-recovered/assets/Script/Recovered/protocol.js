@@ -5,7 +5,7 @@ cc._RF.push(t, "04f59yF5xpPpqHMrsWX4VH+", "protocol");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./pb");
+var n = require("./pb");
 o.protocol = {
 99: {
 cs: null,

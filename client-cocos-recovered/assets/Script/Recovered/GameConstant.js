@@ -5,7 +5,7 @@ cc._RF.push(t, "f0cdcuuu4hBeb4BYoVwtrI0", "GameConstant");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n, r, i, a, s, l, c = e("./CommonEnum"), u = {
+var n, r, i, a, s, l, c = require("./CommonEnum"), u = {
 appName: "qjqp",
 assertVer: 258,
 packageVer: "1.0.5",

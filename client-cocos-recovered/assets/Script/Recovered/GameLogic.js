@@ -5,7 +5,7 @@ cc._RF.push(t, "3f8c2S8j6ZHB4bSbOCkr4R3", "GameLogic");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./CommonEnum"), r = e("./GameLogicMJ_QJHH"), i = e("./GameLogicMJ_HZHH"), a = e("./GameLogicMJ_HZHZ"), s = e("./GameLogicMJ_LTMJ"), l = e("./GameLogicMJ_XSMJ"), c = e("./GameLogicMJ_QCHZ"), u = e("./GameLogicMJ_QCHH"), d = e("./GameLogicD7_XS"), p = e("./GameLogicMJ_MCHZ"), f = e("./GameLogicMJ_QCGD"), h = e("./GameLogicMJ_HMMJ"), m = e("./GameLogicMJ_YJLY"), y = e("./GameLogicPDK_AA"), g = e("./GameLogicMJ_TMHH"), _ = e("./GameLogicWSK_QCDG"), v = e("./GameLogicWSK_QJSHZ"), C = e("./GameLogicWSK_QJWSKBD"), b = e("./GameLogicMJ_QJHZ"), D = e("./GameLogicMJ_DYKKF"), S = e("./GameLogicMJ_DYHH"), w = e("./GameLogicDBD_HG"), O = e("./GameLogicWSK_XSWSK"), P = e("./GameLogicDDZ"), I = function() {
+var n = require("./CommonEnum"), r = require("./GameLogicMJ_QJHH"), i = require("./GameLogicMJ_HZHH"), a = require("./GameLogicMJ_HZHZ"), s = require("./GameLogicMJ_LTMJ"), l = require("./GameLogicMJ_XSMJ"), c = require("./GameLogicMJ_QCHZ"), u = require("./GameLogicMJ_QCHH"), d = require("./GameLogicD7_XS"), p = require("./GameLogicMJ_MCHZ"), f = require("./GameLogicMJ_QCGD"), h = require("./GameLogicMJ_HMMJ"), m = require("./GameLogicMJ_YJLY"), y = require("./GameLogicPDK_AA"), g = require("./GameLogicMJ_TMHH"), _ = require("./GameLogicWSK_QCDG"), v = require("./GameLogicWSK_QJSHZ"), C = require("./GameLogicWSK_QJWSKBD"), b = require("./GameLogicMJ_QJHZ"), D = require("./GameLogicMJ_DYKKF"), S = require("./GameLogicMJ_DYHH"), w = require("./GameLogicDBD_HG"), O = require("./GameLogicWSK_XSWSK"), P = require("./GameLogicDDZ"), I = function() {
 function e() {}
 e.getInstance = function(e) {
 var t = null;

@@ -5,7 +5,7 @@ cc._RF.push(t, "3ec55MSpP5GK4ZJQm12NRl4", "PlaybackDataBase");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./RoomInfoData"), r = e("./DismissRoomInfoData"), i = e("./gContext"), a = function() {
+var n = require("./RoomInfoData"), r = require("./DismissRoomInfoData"), i = require("./gContext"), a = function() {
 function e() {
 this._dataSteps = null;
 this._playbackCode = null;

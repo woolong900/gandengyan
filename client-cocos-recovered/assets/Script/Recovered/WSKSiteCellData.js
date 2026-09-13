@@ -5,7 +5,7 @@ cc._RF.push(t, "5ee42mkbMdGz4o9Swb2ex2u", "WSKSiteCellData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n, r = e("./GameLogicWSK"), i = e("./Storage"), a = e("./gContext"), s = e("./WSKEnum"), l = e("./WSKEventKeys");
+var n, r = require("./GameLogicWSK"), i = require("./Storage"), a = require("./gContext"), s = require("./WSKEnum"), l = require("./WSKEventKeys");
 (function(e) {
 e[e.Desc = 0] = "Desc";
 e[e.Bomb = 1] = "Bomb";

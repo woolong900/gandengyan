@@ -5,7 +5,7 @@ cc._RF.push(t, "082d1EC9WpPwKOIhbDoUdYM", "DDZCardUtils");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./RoomInfoData");
+var n = require("./RoomInfoData");
 (function(e) {
 e[e.Hei = 4] = "Hei";
 e[e.Hong = 3] = "Hong";
@@ -1263,7 +1263,7 @@ invalids: []
 return e;
 }();
 o.default = i;
-var a = e("./DDZMyRoundTipCtr"), s = function() {
+var a = require("./DDZMyRoundTipCtr"), s = function() {
 function e() {}
 e._tipSingle = function(e, t, n) {
 void 0 === n && (n = 0);

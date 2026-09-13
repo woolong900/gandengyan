@@ -138,7 +138,7 @@ done: !0
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var s = e("./DismissRoomInfoData"), l = e("./RoomInfoData"), c = e("./UserData"), u = e("./EventKeys"), d = e("./EventUtils"), p = e("./GameLogicWSK"), f = e("./GameSoundWSK"), h = e("./gContext"), m = e("./WSKEnum"), y = e("./WSKEventKeys"), g = e("./WSKAnimationBeginCtr"), _ = e("./WSKChangePosCtr"), v = e("./WSKFirendCardShowCtr"), C = cc._decorator, b = C.ccclass, D = C.property, S = function(e) {
+var s = require("./DismissRoomInfoData"), l = require("./RoomInfoData"), c = require("./UserData"), u = require("./EventKeys"), d = require("./EventUtils"), p = require("./GameLogicWSK"), f = require("./GameSoundWSK"), h = require("./gContext"), m = require("./WSKEnum"), y = require("./WSKEventKeys"), g = require("./WSKAnimationBeginCtr"), _ = require("./WSKChangePosCtr"), v = require("./WSKFirendCardShowCtr"), C = cc._decorator, b = C.ccclass, D = C.property, S = function(e) {
 n(t, e);
 function t() {
 var t = null !== e && e.apply(this, arguments) || this;

@@ -1,1 +1,76 @@
-[{"__type__":"cc.Prefab","_name":"LiuJuAnimate","data":{"__id__":1}},{"__type__":"cc.Node","_name":"LiuJuAnimate","_level":1,"_components":[{"__id__":2},{"__type__":"cc.Sprite","node":{"__id__":1},"_materials":[{"__uuid__":"ecpdLyjvZBwrvm+cedCcQy"}],"_spriteFrame":{"__uuid__":"fcmKW0goREwIUQGiFAsIyb"}},{"__type__":"862bbNk8tVG8bBdQgVelBs+","node":{"__id__":1},"animation":{"__id__":2}}],"_prefab":{"__type__":"cc.PrefabInfo","root":{"__id__":1},"asset":{"__uuid__":"96iIpS/H9LSIp4ujhIGDlp"},"fileId":"86yuRJPXhLJ4W+FqVqImNz"},"_contentSize":{"__type__":"cc.Size","width":517,"height":158},"_position":{"__type__":"cc.Vec3","y":-360}},{"__type__":"cc.Animation","node":{"__id__":1},"_defaultClip":{"__uuid__":"4aL/SyCqlMn67bFGxi/9K0"},"_clips":[{"__uuid__":"4aL/SyCqlMn67bFGxi/9K0"}],"playOnLoad":true}]
+[
+  {
+    "__type__": "cc.Prefab",
+    "_name": "LiuJuAnimate",
+    "data": {
+      "__id__": 1
+    }
+  },
+  {
+    "__type__": "cc.Node",
+    "_name": "LiuJuAnimate",
+    "_level": 1,
+    "_components": [
+      {
+        "__id__": 2
+      },
+      {
+        "__type__": "cc.Sprite",
+        "node": {
+          "__id__": 1
+        },
+        "_materials": [
+          {
+            "__uuid__": "eca5d2f2-8ef6-41c2-bbe6-f9c79d09c432"
+          }
+        ],
+        "_spriteFrame": {
+          "__uuid__": "fc98a5b4-8284-44c0-8510-1a2140b08c9b"
+        }
+      },
+      {
+        "__type__": "862bbNk8tVG8bBdQgVelBs+",
+        "node": {
+          "__id__": 1
+        },
+        "animation": {
+          "__id__": 2
+        }
+      }
+    ],
+    "_prefab": {
+      "__type__": "cc.PrefabInfo",
+      "root": {
+        "__id__": 1
+      },
+      "asset": {
+        "__uuid__": "96888a52-fc7f-4b48-8a78-ba3848183969"
+      },
+      "fileId": "86yuRJPXhLJ4W+FqVqImNz"
+    },
+    "_contentSize": {
+      "__type__": "cc.Size",
+      "width": 517,
+      "height": 158
+    },
+    "_position": {
+      "__type__": "cc.Vec3",
+      "y": -360
+    }
+  },
+  {
+    "__type__": "cc.Animation",
+    "node": {
+      "__id__": 1
+    },
+    "_defaultClip": {
+      "__uuid__": "4a2ff4b2-0aa9-4c9f-aedb-146c62ffd2b4"
+    },
+    "_clips": [
+      {
+        "__uuid__": "4a2ff4b2-0aa9-4c9f-aedb-146c62ffd2b4"
+      }
+    ],
+    "playOnLoad": true
+  }
+]

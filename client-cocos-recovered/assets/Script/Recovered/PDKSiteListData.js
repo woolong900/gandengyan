@@ -5,7 +5,7 @@ cc._RF.push(t, "01fc8yztOxBwIsSOy9aYlEl", "PDKSiteListData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./PDKEnum"), r = function() {
+var n = require("./PDKEnum"), r = function() {
 function e() {
 this._data = null;
 this._data = Object.create(null);

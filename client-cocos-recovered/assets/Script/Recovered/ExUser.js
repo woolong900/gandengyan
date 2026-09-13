@@ -5,7 +5,7 @@ cc._RF.push(t, "cb695FyS8dJKJryOST7Jr4O", "ExUser");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./Bridge"), r = e("./GameConfig"), i = e("./CommonEnum"), a = new (function() {
+var n = require("./Bridge"), r = require("./GameConfig"), i = require("./CommonEnum"), a = new (function() {
 function e() {}
 e.prototype.init = function(e, t) {
 var o = r.default.platform;

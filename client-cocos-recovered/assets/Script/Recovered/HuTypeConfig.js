@@ -5,7 +5,7 @@ cc._RF.push(t, "21452cbkVdGposMkEEfElI8", "HuTypeConfig");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n, r, i, a, s, l, c, u, d, p, f, h, m, y, g, _, v, C = e("./CommonEnum"), b = e("./CommonUtils");
+var n, r, i, a, s, l, c, u, d, p, f, h, m, y, g, _, v, C = require("./CommonEnum"), b = require("./CommonUtils");
 o.HuTypeBitConfig = ((n = {})[C.eGameIds.QJHH] = ((r = {})[1] = {
 desc: "黑摸",
 weight: 80,

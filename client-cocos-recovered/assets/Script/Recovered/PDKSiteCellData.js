@@ -5,7 +5,7 @@ cc._RF.push(t, "c8b9cjld75I6ICqocrtXoyf", "PDKSiteCellData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./PDKCardUtils"), r = e("./gContext"), i = e("./PDKEventKeys"), a = e("./PDKEnum"), s = function() {
+var n = require("./PDKCardUtils"), r = require("./gContext"), i = require("./PDKEventKeys"), a = require("./PDKEnum"), s = function() {
 function e(e) {
 this.pos = 0;
 this._piaoScore = -1;

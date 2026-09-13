@@ -117,7 +117,7 @@ done: !0
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var i, a = e("./GameConn"), s = e("./UserData"), l = e("./gContext"), c = e("./Constants"), u = e("./ClubMsg"), d = e("./ClubControl"), p = e("./ClubListData"), f = e("./RoomInfoData"), h = e("./CenterMsg"), m = e("./EventKeys");
+var i, a = require("./GameConn"), s = require("./UserData"), l = require("./gContext"), c = require("./Constants"), u = require("./ClubMsg"), d = require("./ClubControl"), p = require("./ClubListData"), f = require("./RoomInfoData"), h = require("./CenterMsg"), m = require("./EventKeys");
 (function(e) {
 e.NetError = "net_error";
 e.DataError = "data_error";

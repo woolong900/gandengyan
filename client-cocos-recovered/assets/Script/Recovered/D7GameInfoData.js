@@ -5,7 +5,7 @@ cc._RF.push(t, "d439d+ZKKpNQ4HhGHQZQf9g", "D7GameInfoData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n, r, i = e("./D7SiteListData"), a = e("./D7Enum"), s = e("./D7SiteCellData"), l = e("./gContext"), c = e("./D7EventKeys"), u = e("./RoomInfoData"), d = e("./D7CardUtils"), p = e("./CommonUtils"), f = e("./EventKeys"), h = function() {
+var n, r, i = require("./D7SiteListData"), a = require("./D7Enum"), s = require("./D7SiteCellData"), l = require("./gContext"), c = require("./D7EventKeys"), u = require("./RoomInfoData"), d = require("./D7CardUtils"), p = require("./CommonUtils"), f = require("./EventKeys"), h = function() {
 function e() {
 this.curStep = 0;
 this.curOpUid = 0;

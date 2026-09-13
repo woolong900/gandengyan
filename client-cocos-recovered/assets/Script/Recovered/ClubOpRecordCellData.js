@@ -5,7 +5,7 @@ cc._RF.push(t, "dc33boDDypFEZFiNJdKKoSL", "ClubOpRecordCellData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./Constants"), r = function() {
+var n = require("./Constants"), r = function() {
 return function(e, t) {
 this.weight = 0;
 this.opAvatarUrl = "";

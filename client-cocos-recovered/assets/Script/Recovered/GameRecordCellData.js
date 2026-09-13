@@ -5,7 +5,7 @@ cc._RF.push(t, "b36701qaiZBSYf3r6U9Neli", "GameRecordCellData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./RoomConfig"), r = e("./RoomConfigCellData"), i = e("./gContext"), a = function() {
+var n = require("./RoomConfig"), r = require("./RoomConfigCellData"), i = require("./gContext"), a = function() {
 function e(e) {
 this._details = null;
 this._scoreRatio = 1;

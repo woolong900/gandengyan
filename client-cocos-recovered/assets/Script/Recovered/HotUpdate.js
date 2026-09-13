@@ -27,7 +27,7 @@ return i > 3 && a && Object.defineProperty(t, o, a), a;
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var i = e("./UpdateUtils"), a = e("./SoundUtils"), s = cc._decorator, l = s.ccclass, c = s.property, u = function(e, t, o) {
+var i = require("./UpdateUtils"), a = require("./SoundUtils"), s = cc._decorator, l = s.ccclass, c = s.property, u = function(e, t, o) {
 try {
 var n = JSON.parse(e);
 n.packageUrl = o + t + "/";

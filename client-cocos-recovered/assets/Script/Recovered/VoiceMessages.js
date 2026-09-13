@@ -27,7 +27,7 @@ return i > 3 && a && Object.defineProperty(t, o, a), a;
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var i, a, s, l = e("./ExVoice"), c = e("./CommonEnum"), u = e("./gContext"), d = e("./EventKeys"), p = e("./SoundUtils"), f = cc._decorator, h = f.ccclass, m = f.property;
+var i, a, s, l = require("./ExVoice"), c = require("./CommonEnum"), u = require("./gContext"), d = require("./EventKeys"), p = require("./SoundUtils"), f = cc._decorator, h = f.ccclass, m = f.property;
 (function(e) {
 e.SpeakFail = "speak_fail";
 e.SpeakSuccess = "speak_success";

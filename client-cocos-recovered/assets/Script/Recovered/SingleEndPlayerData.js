@@ -5,7 +5,7 @@ cc._RF.push(t, "41d61Yyk6VKmYl8Nc5nEkV2", "SingleEndPlayerData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./RoomInfoData");
+var n = require("./RoomInfoData");
 (function(e) {
 e[e.NULL = 0] = "NULL";
 e[e.FengDing = 1] = "FengDing";

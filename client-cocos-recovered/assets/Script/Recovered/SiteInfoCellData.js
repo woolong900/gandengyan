@@ -5,7 +5,7 @@ cc._RF.push(t, "f2243NuOgdDo7BHC5OdzxeK", "SiteInfoCellData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./OperateListData"), r = e("./OperateCellData"), i = e("./CardUtils"), a = e("./gContext"), s = e("./EventKeys"), l = e("./CommonUtils"), c = e("./OperateConfig"), u = e("./RoomUtils"), d = function() {
+var n = require("./OperateListData"), r = require("./OperateCellData"), i = require("./CardUtils"), a = require("./gContext"), s = require("./EventKeys"), l = require("./CommonUtils"), c = require("./OperateConfig"), u = require("./RoomUtils"), d = function() {
 function e(e) {
 this.pos = 0;
 this.operateList = new n.default();

@@ -5,7 +5,7 @@ cc._RF.push(t, "6d319pNDhlGzbtqwOfJ4FYp", "WSKGameInfoData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./WSKEnum"), r = e("./WSKSiteCellData"), i = e("./WSKSiteListData"), a = e("./gContext"), s = e("./WSKEventKeys"), l = e("./EventKeys"), c = function() {
+var n = require("./WSKEnum"), r = require("./WSKSiteCellData"), i = require("./WSKSiteListData"), a = require("./gContext"), s = require("./WSKEventKeys"), l = require("./EventKeys"), c = function() {
 function e() {
 this.curStep = 0;
 this.status = n.eWSKGameStatus.Free;

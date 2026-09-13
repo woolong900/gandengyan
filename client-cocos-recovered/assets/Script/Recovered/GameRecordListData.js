@@ -5,7 +5,7 @@ cc._RF.push(t, "120a4TXdDtKhYcKM1czL6FB", "GameRecordListData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./CommonUtils"), r = function() {
+var n = require("./CommonUtils"), r = function() {
 function e() {
 this.totalCount = 0;
 this._data = null;

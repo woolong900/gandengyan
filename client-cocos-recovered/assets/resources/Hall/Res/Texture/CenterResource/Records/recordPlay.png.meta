@@ -1,5 +1,5 @@
 {
-  "ver": "1.0.0",
+  "ver": "2.2.0",
   "uuid": "b274523c-ec6b-4122-85a4-080312e49bb8",
   "subMetas": {
     "record_tt_2": {
@@ -632,5 +632,9 @@
       "borderRight": 11,
       "subMetas": {}
     }
-  }
+  },
+  "type": "texture",
+  "wrapMode": "clamp",
+  "filterMode": "bilinear",
+  "premultiplyAlpha": false
 }

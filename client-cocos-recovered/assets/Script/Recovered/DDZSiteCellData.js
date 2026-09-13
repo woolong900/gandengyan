@@ -5,7 +5,7 @@ cc._RF.push(t, "7b4d2gafsdJ/r9FbQsxB1YS", "DDZSiteCellData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./DDZCardUtils"), r = e("./gContext"), i = e("./DDZEventKeys"), a = e("./DDZEnum"), s = function() {
+var n = require("./DDZCardUtils"), r = require("./gContext"), i = require("./DDZEventKeys"), a = require("./DDZEnum"), s = function() {
 function e(e) {
 this.pos = 0;
 this.handCards = [];

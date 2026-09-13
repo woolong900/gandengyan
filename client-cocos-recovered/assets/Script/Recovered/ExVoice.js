@@ -5,7 +5,7 @@ cc._RF.push(t, "22ed4KKe7ZNVI3d9/Agg9lC", "ExVoice");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./GameConfig"), r = e("./CommonEnum"), i = e("./Bridge"), a = new (function() {
+var n = require("./GameConfig"), r = require("./CommonEnum"), i = require("./Bridge"), a = new (function() {
 function e() {}
 e.prototype.init = function(e) {
 this._caller("init", e);

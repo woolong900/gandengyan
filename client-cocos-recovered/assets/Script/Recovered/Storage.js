@@ -5,7 +5,7 @@ cc._RF.push(t, "98ccc4iP05OQJl0wwPnWb+6", "Storage");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n, r = e("./UserData"), i = e("./CommonEnum");
+var n, r = require("./UserData"), i = require("./CommonEnum");
 (function(e) {
 e[e.user = 1] = "user";
 e[e.global = 2] = "global";

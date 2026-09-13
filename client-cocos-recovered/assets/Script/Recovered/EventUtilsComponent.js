@@ -27,7 +27,7 @@ return i > 3 && a && Object.defineProperty(t, o, a), a;
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var i = e("./gContext"), a = cc._decorator, s = a.ccclass, l = (a.property,
+var i = require("./gContext"), a = cc._decorator, s = a.ccclass, l = (a.property,
 function(e) {
 n(t, e);
 function t() {

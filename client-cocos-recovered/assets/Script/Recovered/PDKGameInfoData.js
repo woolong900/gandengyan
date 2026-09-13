@@ -5,7 +5,7 @@ cc._RF.push(t, "f3c5e8FDV9NhLyjsFtRHYu4", "PDKGameInfoData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./PDKSiteListData"), r = e("./PDKSiteCellData"), i = e("./gContext"), a = e("./PDKEnum"), s = e("./PDKEventKeys"), l = e("./EventKeys"), c = function() {
+var n = require("./PDKSiteListData"), r = require("./PDKSiteCellData"), i = require("./gContext"), a = require("./PDKEnum"), s = require("./PDKEventKeys"), l = require("./EventKeys"), c = function() {
 function e() {
 this.curStep = 0;
 this.status = a.ePDKGameStatus.Free;

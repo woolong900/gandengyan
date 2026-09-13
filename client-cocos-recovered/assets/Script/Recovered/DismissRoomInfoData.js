@@ -5,7 +5,7 @@ cc._RF.push(t, "d6e97+pBF5HXqkNyupjwmQW", "DismissRoomInfoData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./CommonEnum"), r = e("./gContext"), i = e("./EventKeys"), a = new (function() {
+var n = require("./CommonEnum"), r = require("./gContext"), i = require("./EventKeys"), a = new (function() {
 function e() {
 this.destroying = !1;
 this.uid = 0;

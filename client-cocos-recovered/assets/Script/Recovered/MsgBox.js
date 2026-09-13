@@ -5,7 +5,7 @@ cc._RF.push(t, "b47afeFMllG3J7qvp0LLOlR", "MsgBox");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./Loader"), r = e("./gContext"), i = e("./RoomInfoData"), a = e("./WindowConfig"), s = function() {
+var n = require("./Loader"), r = require("./gContext"), i = require("./RoomInfoData"), a = require("./WindowConfig"), s = function() {
 function e() {}
 e.prototype._show = function(e, t, o, i, s, l, c, u, d, p) {
 n.default.loadPre("Hall/Res/Prefab/MsgBox/MsgBoxCommon", function(n) {

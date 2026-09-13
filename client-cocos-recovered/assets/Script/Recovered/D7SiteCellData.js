@@ -5,7 +5,7 @@ cc._RF.push(t, "db950pl+3xB4pS80mi1ji79", "D7SiteCellData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./D7CardUtils"), r = e("./gContext"), i = e("./D7EventKeys"), a = function() {
+var n = require("./D7CardUtils"), r = require("./gContext"), i = require("./D7EventKeys"), a = function() {
 function e(e) {
 this.pos = 0;
 this.handCards = [];

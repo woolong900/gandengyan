@@ -5,7 +5,7 @@ cc._RF.push(t, "1f9bdNZL71IyauiXdJ+AlUB", "PlayerInfoListData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./gContext"), r = e("./EventKeys"), i = e("./CommonUtils"), a = e("./UserData"), s = e("./SoundUtils"), l = function() {
+var n = require("./gContext"), r = require("./EventKeys"), i = require("./CommonUtils"), a = require("./UserData"), s = require("./SoundUtils"), l = function() {
 function e() {
 this._data = null;
 this._count = 0;

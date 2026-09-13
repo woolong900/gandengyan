@@ -5,7 +5,7 @@ cc._RF.push(t, "509b5vTZylJVp9lslWH544T", "WSKSiteListData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./WSKEnum"), r = function() {
+var n = require("./WSKEnum"), r = function() {
 function e() {
 this._data = null;
 this._data = Object.create(null);

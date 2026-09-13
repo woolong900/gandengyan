@@ -5,7 +5,7 @@ cc._RF.push(t, "f15b4YexyxEDLw3P7H/3B5e", "GameConn");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./ConnCreator"), r = e("./protocol"), i = e("./NotifyMsg"), a = e("./UserData");
+var n = require("./ConnCreator"), r = require("./protocol"), i = require("./NotifyMsg"), a = require("./UserData");
 (function(e) {
 e[e.Null = 0] = "Null";
 e[e.TokenInvalid = 1] = "TokenInvalid";

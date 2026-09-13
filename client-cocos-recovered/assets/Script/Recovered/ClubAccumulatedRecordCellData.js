@@ -5,7 +5,7 @@ cc._RF.push(t, "ccf67MOa61OPIPCuGC64Opf", "ClubAccumulatedRecordCellData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./Constants"), r = function() {
+var n = require("./Constants"), r = function() {
 return function(e, t) {
 this.avatarUrl = "";
 this.nickname = "";

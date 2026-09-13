@@ -5,7 +5,7 @@ cc._RF.push(t, "fe86eGbCW9OqrGN6TdAp5I8", "GameConfig");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./CommonEnum"), r = e("./ExUtils"), i = e("./GameConstant"), a = e("./Http"), s = new (function() {
+var n = require("./CommonEnum"), r = require("./ExUtils"), i = require("./GameConstant"), a = require("./Http"), s = new (function() {
 function e() {
 this._platform = n.ePlatformType.unknown;
 this._mode = n.eGameMode.unknown;

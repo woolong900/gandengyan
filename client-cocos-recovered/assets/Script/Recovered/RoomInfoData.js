@@ -5,7 +5,7 @@ cc._RF.push(t, "53209Vqye5A+JReEuMPf/cK", "RoomInfoData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./RoomConfigCellData"), r = e("./GameInfoData"), i = e("./PlayerInfoListData"), a = e("./PlayerInfoCellData"), s = e("./UserData"), l = e("./CommonEnum"), c = e("./gContext"), u = e("./EventKeys"), d = e("./ClubListData"), p = e("./ClubMsg"), f = e("./Constants"), h = e("./Storage"), m = e("./D7Enum"), y = e("./D7GameInfoData"), g = e("./DBDEnum"), _ = e("./DBDGameInfoData"), v = e("./PDKEnum"), C = e("./PDKGameInfoData"), b = e("./DDZEnum"), D = e("./DDZGameInfoData"), S = e("./WSKEnum"), w = e("./WSKGameInfoData"), O = e("./MaJiangMsg"), P = e("./GameMsgMJ"), I = new (function() {
+var n = require("./RoomConfigCellData"), r = require("./GameInfoData"), i = require("./PlayerInfoListData"), a = require("./PlayerInfoCellData"), s = require("./UserData"), l = require("./CommonEnum"), c = require("./gContext"), u = require("./EventKeys"), d = require("./ClubListData"), p = require("./ClubMsg"), f = require("./Constants"), h = require("./Storage"), m = require("./D7Enum"), y = require("./D7GameInfoData"), g = require("./DBDEnum"), _ = require("./DBDGameInfoData"), v = require("./PDKEnum"), C = require("./PDKGameInfoData"), b = require("./DDZEnum"), D = require("./DDZGameInfoData"), S = require("./WSKEnum"), w = require("./WSKGameInfoData"), O = require("./MaJiangMsg"), P = require("./GameMsgMJ"), I = new (function() {
 function e() {
 this._playback = !1;
 this._myWatchPos = 0;

@@ -27,7 +27,7 @@ return i > 3 && a && Object.defineProperty(t, o, a), a;
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var i = e("./RoomInfoData"), a = e("./DDZEnum"), s = e("./DDZCardUtils"), l = e("./gContext"), c = e("./DDZEventKeys"), u = e("./EventUtils"), d = e("./DDZMyCardsPointer"), p = e("./SoundUtils"), f = cc._decorator, h = f.ccclass, m = f.property, y = f.executionOrder, g = 0;
+var i = require("./RoomInfoData"), a = require("./DDZEnum"), s = require("./DDZCardUtils"), l = require("./gContext"), c = require("./DDZEventKeys"), u = require("./EventUtils"), d = require("./DDZMyCardsPointer"), p = require("./SoundUtils"), f = cc._decorator, h = f.ccclass, m = f.property, y = f.executionOrder, g = 0;
 t.exports = {
 SetTipIndex: function(e) {
 g = e;

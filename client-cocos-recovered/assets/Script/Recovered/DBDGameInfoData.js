@@ -5,7 +5,7 @@ cc._RF.push(t, "0038cNSu/BE5ZCQO6Mi8aca", "DBDGameInfoData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./RoomInfoData"), r = e("./EventKeys"), i = e("./gContext"), a = e("./DBDEnum"), s = e("./DBDEventKeys"), l = e("./DBDSiteCellData"), c = e("./DBDSiteListData"), u = function() {
+var n = require("./RoomInfoData"), r = require("./EventKeys"), i = require("./gContext"), a = require("./DBDEnum"), s = require("./DBDEventKeys"), l = require("./DBDSiteCellData"), c = require("./DBDSiteListData"), u = function() {
 function e() {
 this.curStep = 0;
 this.status = a.eDBDGameStatus.Free;

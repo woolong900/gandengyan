@@ -5,7 +5,7 @@ cc._RF.push(t, "648c27AZCxH1LzvQn4fOq2t", "RoomConfigCellData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n, r = e("./RoomConfig"), i = e("./CommonUtils"), a = e("./gContext"), s = e("./EventKeys"), l = e("./CommonEnum");
+var n, r = require("./RoomConfig"), i = require("./CommonUtils"), a = require("./gContext"), s = require("./EventKeys"), l = require("./CommonEnum");
 (function(e) {
 e[e.peopleCount = 1] = "peopleCount";
 e[e.gameCount = 2] = "gameCount";

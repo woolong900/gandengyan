@@ -78,6 +78,6 @@ t.prototype.playerInitCards = function(e) {
 return this._players[e].card.init_card || [];
 };
 return t;
-}(e("./Singleton").default);
+}(require("./Singleton").default);
 o.default = r;
 cc._RF.pop();

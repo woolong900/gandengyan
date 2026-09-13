@@ -5,7 +5,7 @@ cc._RF.push(t, "33899D8d+hOx5Rt7oKqZZu5", "CreateRoomAssist");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./GameConstant"), r = e("./RoomConfigListData"), i = e("./RoomConfigCellData"), a = e("./ClubListData"), s = new (function() {
+var n = require("./GameConstant"), r = require("./RoomConfigListData"), i = require("./RoomConfigCellData"), a = require("./ClubListData"), s = new (function() {
 function e() {
 this._clubId = 0;
 this._clubType = 0;

@@ -78,6 +78,6 @@ t.prototype.isAutoGameRoom = function(e) {
 return !1;
 };
 return t;
-}(e("./GameLogicBase").default);
+}(require("./GameLogicBase").default);
 o.default = r;
 cc._RF.pop();

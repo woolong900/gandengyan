@@ -5,7 +5,7 @@ cc._RF.push(t, "2323d89xDZJeboC8Fm3fxFO", "ClubApplyListData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./CommonUtils"), r = new (function() {
+var n = require("./CommonUtils"), r = new (function() {
 function e() {
 this._count = 0;
 this._data = {};

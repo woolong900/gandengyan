@@ -23,7 +23,7 @@ t.prototype = null === o ? Object.create(o) : (n.prototype = o.prototype, new n(
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var r, i = e("./CommonEnum"), a = e("./GameInfoData"), s = e("./OperateConfig"), l = e("./RoomInfoData"), c = e("./gContext"), u = e("./MaJiangMsg"), d = e("./pb"), p = e("./Constants"), f = e("./AnalysisMsgMJ"), h = e("./PlaybackDataBase"), m = e("./GameSoundMJ");
+var r, i = require("./CommonEnum"), a = require("./GameInfoData"), s = require("./OperateConfig"), l = require("./RoomInfoData"), c = require("./gContext"), u = require("./MaJiangMsg"), d = require("./pb"), p = require("./Constants"), f = require("./AnalysisMsgMJ"), h = require("./PlaybackDataBase"), m = require("./GameSoundMJ");
 (function(e) {
 e[e.GetCard = 1] = "GetCard";
 e[e.PutCard = 2] = "PutCard";

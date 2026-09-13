@@ -5,7 +5,7 @@ cc._RF.push(t, "aa685b0qV5FHaodNf705tyn", "AnalysisMsg");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./CommonEnum"), r = e("./AnalysisMsgMJ"), i = e("./AnalysisMsgD7"), a = e("./AnalysisMsgPDK"), s = e("./AnalysisMsgWSK"), l = e("./AnalysisMsgDBD"), c = e("./AnalysisMsgDDZ"), u = function() {
+var n = require("./CommonEnum"), r = require("./AnalysisMsgMJ"), i = require("./AnalysisMsgD7"), a = require("./AnalysisMsgPDK"), s = require("./AnalysisMsgWSK"), l = require("./AnalysisMsgDBD"), c = require("./AnalysisMsgDDZ"), u = function() {
 function e() {}
 e.getInstance = function(e) {
 if (e === n.eGameCategort.MJ) {

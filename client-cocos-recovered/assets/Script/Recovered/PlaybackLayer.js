@@ -27,7 +27,7 @@ return i > 3 && a && Object.defineProperty(t, o, a), a;
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var i = e("./RoomInfoData"), a = e("./UserData"), s = e("./CenterMsg"), l = e("./gContext"), c = e("./SoundUtils"), u = e("./GameInfoData"), d = e("./EventKeys"), p = e("./EventUtils"), f = e("./CommonEnum"), h = e("./OperateConfig"), m = e("./OperateCellData"), y = e("./Loader"), g = e("./RoomUtils"), _ = e("./PlaybackData"), v = cc._decorator, C = v.ccclass, b = v.property, D = function(e) {
+var i = require("./RoomInfoData"), a = require("./UserData"), s = require("./CenterMsg"), l = require("./gContext"), c = require("./SoundUtils"), u = require("./GameInfoData"), d = require("./EventKeys"), p = require("./EventUtils"), f = require("./CommonEnum"), h = require("./OperateConfig"), m = require("./OperateCellData"), y = require("./Loader"), g = require("./RoomUtils"), _ = require("./PlaybackData"), v = cc._decorator, C = v.ccclass, b = v.property, D = function(e) {
 n(t, e);
 function t() {
 var t = null !== e && e.apply(this, arguments) || this;

@@ -27,7 +27,7 @@ return i > 3 && a && Object.defineProperty(t, o, a), a;
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var i = e("./BaseComponent"), a = e("./Image"), s = e("./ClubMemberInfoBtn"), l = cc._decorator, c = l.ccclass, u = l.property, d = [ {
+var i = require("./BaseComponent"), a = require("./Image"), s = require("./ClubMemberInfoBtn"), l = cc._decorator, c = l.ccclass, u = l.property, d = [ {
 label: "开启审批权限"
 }, {
 label: "开启邀请权限"

@@ -5,7 +5,7 @@ cc._RF.push(t, "e1d25ShRrhC0qTSmCADnS4u", "CardPosConfig2D");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n, r = e("./CommonEnum"), i = ((n = {})[r.eViewPos.Down] = {
+var n, r = require("./CommonEnum"), i = ((n = {})[r.eViewPos.Down] = {
 handGrid: {
 beginPos: cc.v2(58.5, 69),
 line: 1,

@@ -5,7 +5,7 @@ cc._RF.push(t, "c371ebtxdFIw4Mhi1nJN5JQ", "SoundUtils");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./Storage"), r = new (function() {
+var n = require("./Storage"), r = new (function() {
 function e() {
 this._isInit = !1;
 this._bgm = null;

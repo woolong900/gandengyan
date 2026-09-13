@@ -5,7 +5,7 @@ cc._RF.push(t, "949e0PeY9lPH6VQf2lVnWhD", "OperateCellData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./CommonUtils"), r = e("./OperateConfig"), i = e("./CommonEnum"), a = e("./HuTypeConfig"), s = e("./gContext"), l = e("./Constants"), c = function() {
+var n = require("./CommonUtils"), r = require("./OperateConfig"), i = require("./CommonEnum"), a = require("./HuTypeConfig"), s = require("./gContext"), l = require("./Constants"), c = function() {
 function e(e) {
 this.category = 0;
 this.cards = [];

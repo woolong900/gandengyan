@@ -23,7 +23,7 @@ t.prototype = null === o ? Object.create(o) : (n.prototype = o.prototype, new n(
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var r = e("./WSKEnum"), i = e("./WSKEventKeys"), a = e("./WSKSingleEndData"), s = e("./WSKGameControl"), l = e("./CommonEnum"), c = e("./RoomInfoData"), u = e("./GameLogicWSK"), d = e("./GameSoundWSK"), p = e("./gContext"), f = function(e) {
+var r = require("./WSKEnum"), i = require("./WSKEventKeys"), a = require("./WSKSingleEndData"), s = require("./WSKGameControl"), l = require("./CommonEnum"), c = require("./RoomInfoData"), u = require("./GameLogicWSK"), d = require("./GameSoundWSK"), p = require("./gContext"), f = function(e) {
 n(t, e);
 function t() {
 return null !== e && e.apply(this, arguments) || this;
@@ -302,6 +302,6 @@ var t = c.default.gameInfoWSK.siteInfos.get(e);
 t && t.updatePickUpScore(0, !1);
 };
 return t;
-}(e("./AnalysisMsgBase").default);
+}(require("./AnalysisMsgBase").default);
 o.default = f;
 cc._RF.pop();

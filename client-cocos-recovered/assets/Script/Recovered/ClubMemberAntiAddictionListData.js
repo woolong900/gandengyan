@@ -5,7 +5,7 @@ cc._RF.push(t, "fac6cEX3lhBu4/GIeSODgLw", "ClubMemberAntiAddictionListData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./CommonUtils"), r = e("./gContext"), i = e("./EventKeys"), a = e("./ClubMemberAntiAddictionCellData"), s = function() {
+var n = require("./CommonUtils"), r = require("./gContext"), i = require("./EventKeys"), a = require("./ClubMemberAntiAddictionCellData"), s = function() {
 function e(e) {
 this._data = {};
 this._count = 0;

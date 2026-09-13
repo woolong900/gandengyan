@@ -5,7 +5,7 @@ cc._RF.push(t, "234290iqUdCoqWIODX8/B9J", "ClubTableSchemeCellData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./CommonEnum"), r = e("./RoomConfigCellData"), i = e("./gContext"), a = e("./CommonUtils"), s = e("./GameConfig"), l = {
+var n = require("./CommonEnum"), r = require("./RoomConfigCellData"), i = require("./gContext"), a = require("./CommonUtils"), s = require("./GameConfig"), l = {
 0: {
 color: cc.color(46, 120, 165),
 path: "Hall/Res/Texture/Club/New/color_0"

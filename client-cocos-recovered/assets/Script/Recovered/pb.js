@@ -6,7 +6,7 @@ var n = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? func
 return typeof e;
 } : function(e) {
 return e && "function" == typeof Symbol && e.constructor === Symbol && e !== Symbol.prototype ? "symbol" : typeof e;
-}, r = e("./12"), i = r.Reader, a = r.Writer, s = r.util, l = r.roots.default || (r.roots.default = {});
+}, r = require("./module_12"), i = r.Reader, a = r.Writer, s = r.util, l = r.roots.default || (r.roots.default = {});
 l.pb = function() {
 var e = {};
 e.eGender = function() {

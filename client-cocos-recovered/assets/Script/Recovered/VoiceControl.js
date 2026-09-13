@@ -27,7 +27,7 @@ return i > 3 && a && Object.defineProperty(t, o, a), a;
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var i, a = e("./ExVoice"), s = e("./RoomInfoData"), l = e("./CommonEnum"), c = e("./gContext"), u = e("./EventKeys"), d = cc._decorator, p = d.ccclass;
+var i, a = require("./ExVoice"), s = require("./RoomInfoData"), l = require("./CommonEnum"), c = require("./gContext"), u = require("./EventKeys"), d = cc._decorator, p = d.ccclass;
 d.property;
 (function(e) {
 e.eJoinFail = "join_fail";

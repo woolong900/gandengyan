@@ -23,7 +23,7 @@ t.prototype = null === o ? Object.create(o) : (n.prototype = o.prototype, new n(
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var r = e("./AnalysisMsgBase"), i = e("./RoomInfoData"), a = e("./D7SingleEndData"), s = e("./D7Enum"), l = e("./D7GameInfoData"), c = e("./GameSoundD7"), u = e("./UserData"), d = e("./gContext"), p = e("./D7EventKeys"), f = e("./D7CardUtils"), h = e("./GameConn"), m = function(e) {
+var r = require("./AnalysisMsgBase"), i = require("./RoomInfoData"), a = require("./D7SingleEndData"), s = require("./D7Enum"), l = require("./D7GameInfoData"), c = require("./GameSoundD7"), u = require("./UserData"), d = require("./gContext"), p = require("./D7EventKeys"), f = require("./D7CardUtils"), h = require("./GameConn"), m = function(e) {
 n(t, e);
 function t() {
 return null !== e && e.apply(this, arguments) || this;

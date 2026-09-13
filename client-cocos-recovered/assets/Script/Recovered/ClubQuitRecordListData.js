@@ -5,7 +5,7 @@ cc._RF.push(t, "c8577g7Fm5EP7mTkPFibkVk", "ClubQuitRecordListData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./CommonUtils"), r = new (function() {
+var n = require("./CommonUtils"), r = new (function() {
 function e() {
 this._data = {};
 this._init();

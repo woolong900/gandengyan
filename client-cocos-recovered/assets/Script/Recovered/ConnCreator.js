@@ -5,7 +5,7 @@ cc._RF.push(t, "47ea8oHYB1HY5RgBQvsRtrl", "ConnCreator");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./NetData"), r = e("./gContext"), i = e("./GameConfig"), a = e("./CenterMsg"), s = function() {
+var n = require("./NetData"), r = require("./gContext"), i = require("./GameConfig"), a = require("./CenterMsg"), s = function() {
 r.default.uiHelper.showTip("网络错误，请检查您的网络.");
 }, l = function() {
 function e(e) {

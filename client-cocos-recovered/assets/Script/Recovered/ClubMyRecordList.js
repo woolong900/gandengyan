@@ -27,7 +27,7 @@ return i > 3 && a && Object.defineProperty(t, o, a), a;
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var i = e("./ScrollContens"), a = e("./TrAdjust"), s = e("./ClubMyRecordItem"), l = e("./ClubMsg"), c = e("./gContext"), u = e("./ClubControl"), d = e("./UserData"), p = e("./PageHandle"), f = e("./BaseComponent"), h = e("./StringUtils"), m = e("./ClubMyRecordListData"), y = cc._decorator, g = y.ccclass, _ = y.property, v = {
+var i = require("./ScrollContens"), a = require("./TrAdjust"), s = require("./ClubMyRecordItem"), l = require("./ClubMsg"), c = require("./gContext"), u = require("./ClubControl"), d = require("./UserData"), p = require("./PageHandle"), f = require("./BaseComponent"), h = require("./StringUtils"), m = require("./ClubMyRecordListData"), y = cc._decorator, g = y.ccclass, _ = y.property, v = {
 1: "今日战绩",
 2: "昨日战绩"
 }, C = function(e) {

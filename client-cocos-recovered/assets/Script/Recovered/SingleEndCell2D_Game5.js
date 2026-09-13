@@ -27,7 +27,7 @@ return i > 3 && a && Object.defineProperty(t, o, a), a;
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var i = e("./SingleEndCell2D"), a = e("./RoomInfoData"), s = e("./gContext"), l = e("./OperateConfig"), c = e("./HuTypeConfig"), u = e("./Loader"), d = e("./CardUtils"), p = e("./SingleEndCell2D_GameBase"), f = cc._decorator, h = f.ccclass, m = (f.property,
+var i = require("./SingleEndCell2D"), a = require("./RoomInfoData"), s = require("./gContext"), l = require("./OperateConfig"), c = require("./HuTypeConfig"), u = require("./Loader"), d = require("./CardUtils"), p = require("./SingleEndCell2D_GameBase"), f = cc._decorator, h = f.ccclass, m = (f.property,
 function(e) {
 n(t, e);
 function t() {

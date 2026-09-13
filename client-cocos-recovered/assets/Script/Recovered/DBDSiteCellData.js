@@ -5,7 +5,7 @@ cc._RF.push(t, "54398Hwt1pE9ZhXjxn1dfes", "DBDSiteCellData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./gContext"), r = e("./DBDEnum"), i = e("./DBDEventKeys"), a = e("./DBDCardUtils"), s = function() {
+var n = require("./gContext"), r = require("./DBDEnum"), i = require("./DBDEventKeys"), a = require("./DBDCardUtils"), s = function() {
 function e(e) {
 this.pos = 0;
 this._jiaodizhu = 0;

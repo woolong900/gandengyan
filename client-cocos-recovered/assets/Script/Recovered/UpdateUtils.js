@@ -5,7 +5,7 @@ cc._RF.push(t, "f7ca5VKarVPrZKI686tyEhx", "UpdateUtils");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n, r = e("./GameConfig"), i = e("./Http"), a = e("./ExUtils"), s = e("./UserData"), l = e("./StringUtils"), c = e("./Storage");
+var n, r = require("./GameConfig"), i = require("./Http"), a = require("./ExUtils"), s = require("./UserData"), l = require("./StringUtils"), c = require("./Storage");
 (function(e) {
 e.NetError = "net_error";
 e.DataError = "data_error";

@@ -5,7 +5,7 @@ cc._RF.push(t, "2b5604d5UNA5KrlvpOwHV9A", "CenterMsg");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./GameConn"), r = e("./UserData"), i = e("./gContext"), a = e("./GameRecordCellData"), s = e("./GameRecordDetailsData"), l = e("./PlaybackData"), c = function() {
+var n = require("./GameConn"), r = require("./UserData"), i = require("./gContext"), a = require("./GameRecordCellData"), s = require("./GameRecordDetailsData"), l = require("./PlaybackData"), c = function() {
 function e() {}
 e.prototype.getRealName = function(e, t) {
 n.default.sendMsg(101, null, function(t, o, n) {

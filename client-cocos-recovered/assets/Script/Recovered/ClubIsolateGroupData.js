@@ -5,7 +5,7 @@ cc._RF.push(t, "74044A14ZFKF7xlVrb+OGGC", "ClubIsolateGroupData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./Constants"), r = function() {
+var n = require("./Constants"), r = function() {
 function e(e) {
 this.id = 0;
 this.isolateMembers = {};

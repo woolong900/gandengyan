@@ -5,7 +5,7 @@ cc._RF.push(t, "3637edM8RNI/a1qPxf/KtVo", "ClubTableCellData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./RoomConfigCellData"), r = e("./gContext"), i = function() {
+var n = require("./RoomConfigCellData"), r = require("./gContext"), i = function() {
 function e(e) {
 this.id = 0;
 this.status = 0;

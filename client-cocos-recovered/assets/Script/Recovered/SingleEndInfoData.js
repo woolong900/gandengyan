@@ -5,7 +5,7 @@ cc._RF.push(t, "c8ddaWpkkNAC5AtAkPctt7V", "SingleEndInfoData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./SingleEndPlayerData"), r = e("./UserData"), i = e("./gContext"), a = e("./CommonUtils"), s = e("./GameSoundMJ"), l = function() {
+var n = require("./SingleEndPlayerData"), r = require("./UserData"), i = require("./gContext"), a = require("./CommonUtils"), s = require("./GameSoundMJ"), l = function() {
 function e() {
 this.time = 0;
 this.endType = 1;

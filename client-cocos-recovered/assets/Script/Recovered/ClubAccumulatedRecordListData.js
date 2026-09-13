@@ -5,7 +5,7 @@ cc._RF.push(t, "99b39DdMoRFQrqc2GNtKWp7", "ClubAccumulatedRecordListData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./CommonUtils"), r = new (function() {
+var n = require("./CommonUtils"), r = new (function() {
 function e() {
 this._data = {};
 this._init();

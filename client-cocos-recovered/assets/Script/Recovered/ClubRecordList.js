@@ -27,7 +27,7 @@ return i > 3 && a && Object.defineProperty(t, o, a), a;
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var i = e("./ClubRecordItem"), a = e("./Loader"), s = e("./InnerBase"), l = e("./ScrollContens"), c = e("./SoundUtils"), u = e("./TrAdjust"), d = e("./ClubRecordStatistItem"), p = e("./ClubRecordBiaoItem"), f = e("./ClubMsg"), h = e("./gContext"), m = e("./ClubControl"), y = e("./CenterMsg"), g = e("./UserData"), _ = e("./ClubRecordListData"), v = e("./GameRecordListData"), C = e("./EventKeys"), b = e("./EventUtils"), D = e("./PageHandle"), S = e("./ClubAccumulatedRecordListData"), w = e("./GameConfig"), O = e("./CommonEnum"), P = cc._decorator, I = P.ccclass, R = P.property, k = function(e) {
+var i = require("./ClubRecordItem"), a = require("./Loader"), s = require("./InnerBase"), l = require("./ScrollContens"), c = require("./SoundUtils"), u = require("./TrAdjust"), d = require("./ClubRecordStatistItem"), p = require("./ClubRecordBiaoItem"), f = require("./ClubMsg"), h = require("./gContext"), m = require("./ClubControl"), y = require("./CenterMsg"), g = require("./UserData"), _ = require("./ClubRecordListData"), v = require("./GameRecordListData"), C = require("./EventKeys"), b = require("./EventUtils"), D = require("./PageHandle"), S = require("./ClubAccumulatedRecordListData"), w = require("./GameConfig"), O = require("./CommonEnum"), P = cc._decorator, I = P.ccclass, R = P.property, k = function(e) {
 n(t, e);
 function t() {
 var t = null !== e && e.apply(this, arguments) || this;

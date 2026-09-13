@@ -5,7 +5,7 @@ cc._RF.push(t, "24d9eEytOFNxpVikXnSZ9Y7", "PayData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n, r = e("./ExUtils"), i = e("./UserData"), a = e("./GameConfig"), s = e("./Http"), l = e("./CommonEnum");
+var n, r = require("./ExUtils"), i = require("./UserData"), a = require("./GameConfig"), s = require("./Http"), l = require("./CommonEnum");
 (function(e) {
 e.WX = "wx";
 e.ZFB = "zfb";

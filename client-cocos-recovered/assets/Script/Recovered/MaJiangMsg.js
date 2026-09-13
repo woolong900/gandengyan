@@ -5,7 +5,7 @@ cc._RF.push(t, "55e26OnO2BL8qVK8KmiI2/D", "MaJiangMsg");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./RoomInfoData"), r = e("./OperateCellData"), i = e("./OperateConfig"), a = e("./CardUtils"), s = e("./CommonEnum"), l = e("./UserData"), c = e("./GameControl"), u = e("./gContext"), d = e("./GameConn"), p = e("./OperateListData"), f = e("./GameSoundMJ"), h = function() {
+var n = require("./RoomInfoData"), r = require("./OperateCellData"), i = require("./OperateConfig"), a = require("./CardUtils"), s = require("./CommonEnum"), l = require("./UserData"), c = require("./GameControl"), u = require("./gContext"), d = require("./GameConn"), p = require("./OperateListData"), f = require("./GameSoundMJ"), h = function() {
 function e() {}
 e.adOperate = function(e, t) {
 var o = function() {

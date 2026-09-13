@@ -5,7 +5,7 @@ cc._RF.push(t, "fe0eaNnOO9IS5VID+V0vyOH", "ClubQuitRecordCellData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n, r = e("./Constants");
+var n, r = require("./Constants");
 (function(e) {
 e[e.SELF = 0] = "SELF";
 e[e.ADMIN = 1] = "ADMIN";

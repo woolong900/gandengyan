@@ -23,7 +23,7 @@ t.prototype = null === o ? Object.create(o) : (n.prototype = o.prototype, new n(
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var r, i, a = e("./CommonUtils"), s = e("./GameLogicBase");
+var r, i, a = require("./CommonUtils"), s = require("./GameLogicBase");
 (function(e) {
 e[e.Any = 6] = "Any";
 e[e.King = 5] = "King";

@@ -5,7 +5,7 @@ cc._RF.push(t, "af30ej7RSBCqrG6Bi/Xtggd", "ClubInviteUserCellData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./Constants"), r = function() {
+var n = require("./Constants"), r = function() {
 return function(e) {
 this.id = 0;
 this.avatarUrl = "";

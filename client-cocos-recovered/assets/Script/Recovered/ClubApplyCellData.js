@@ -5,7 +5,7 @@ cc._RF.push(t, "feb5c7e8dlLK7ReGcDWlSAY", "ClubApplyCellData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n, r = e("./Constants");
+var n, r = require("./Constants");
 (function(e) {
 e[e.JOIN = 0] = "JOIN";
 e[e.QUIT = 1] = "QUIT";

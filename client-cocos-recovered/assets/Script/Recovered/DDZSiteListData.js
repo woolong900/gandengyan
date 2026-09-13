@@ -5,7 +5,7 @@ cc._RF.push(t, "14f198LTexHF5S85VRr6Pg8", "DDZSiteListData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./DDZEnum"), r = function() {
+var n = require("./DDZEnum"), r = function() {
 function e() {
 this._data = null;
 this._data = Object.create(null);

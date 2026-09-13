@@ -5,7 +5,7 @@ cc._RF.push(t, "23099JyrT5L3YPkw5YD2F0X", "NotifyMsg");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n, r = e("./gContext"), i = e("./UserData"), a = e("./GameConn"), s = e("./Constants"), l = e("./ClubControl"), c = e("./RoomInfoData"), u = e("./RoomConfig"), d = e("./AnalysisMsg"), p = ((n = {})[401] = function() {
+var n, r = require("./gContext"), i = require("./UserData"), a = require("./GameConn"), s = require("./Constants"), l = require("./ClubControl"), c = require("./RoomInfoData"), u = require("./RoomConfig"), d = require("./AnalysisMsg"), p = ((n = {})[401] = function() {
 i.default.cleanLoginData();
 a.default.close();
 cc.director.getScene().name === s.default.LoginSceneName ? r.default.uiHelper.showTip("登录时效已过期,请重新登录～") : r.default.msgBox.showOnlyOk("登录时效已过期,请返回登录界面重新登录~", function() {

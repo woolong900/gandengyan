@@ -44,6 +44,6 @@ t.prototype.isShowRemain = function(e) {
 return !0;
 };
 return t;
-}(e("./GameLogicBase").default);
+}(require("./GameLogicBase").default);
 o.default = r;
 cc._RF.pop();

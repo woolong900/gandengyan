@@ -5,7 +5,7 @@ cc._RF.push(t, "02989Il48RLKbTwmzbvIxB6", "UserData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./CommonEnum"), r = e("./Storage"), i = e("./gContext"), a = e("./EventKeys"), s = e("./GameConfig"), l = e("./Constants"), c = e("./GameRecordListData"), u = e("./RoomInfoData"), d = e("./GameConstant"), p = new (function() {
+var n = require("./CommonEnum"), r = require("./Storage"), i = require("./gContext"), a = require("./EventKeys"), s = require("./GameConfig"), l = require("./Constants"), c = require("./GameRecordListData"), u = require("./RoomInfoData"), d = require("./GameConstant"), p = new (function() {
 function e() {
 this.sex = 0;
 this._inviteCode = null;

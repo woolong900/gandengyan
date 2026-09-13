@@ -5,7 +5,7 @@ cc._RF.push(t, "6ccf8KrrvdAn7hPcpeIhjul", "OperateListData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = e("./OperateCellData"), r = e("./CommonUtils"), i = e("./OperateConfig"), a = e("./RoomInfoData"), s = e("./CommonEnum"), l = function() {
+var n = require("./OperateCellData"), r = require("./CommonUtils"), i = require("./OperateConfig"), a = require("./RoomInfoData"), s = require("./CommonEnum"), l = function() {
 function e(e) {
 this._data = [];
 this._count = 0;
