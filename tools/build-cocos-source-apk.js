@@ -169,6 +169,30 @@ walk(app, (file) => { if (file.endsWith('/org/cocos2dx/javascript/AppActivity.ja
 if (appActivity.length !== 1) throw new Error(`AppActivity 数量异常：${appActivity.length}`);
 const javaRoot = appActivity[0].slice(0, -'org/cocos2dx/javascript/AppActivity.java'.length);
 fs.cpSync(path.join(SOURCE, 'native/android/java'), javaRoot, { recursive: true });
+
+// Creator 2.4 forces SHORT_EDGES and renders under display cutouts.  The
+// production client kept the game inside the landscape safe area, so retain
+// that window geometry to avoid exposing extra horizontal scene content.
+let activitySource = fs.readFileSync(appActivity[0], 'utf8');
+if (!activitySource.includes('restoreLegacySafeArea')) {
+  activitySource = activitySource
+    .replace('import android.os.Bundle;', 'import android.os.Bundle;\nimport android.os.Build;\nimport android.view.WindowManager;')
+    .replace('super.onCreate(savedInstanceState);', 'super.onCreate(savedInstanceState);\n        restoreLegacySafeArea();')
+    .replace('    @Override\n    protected void onResume()', `    private void restoreLegacySafeArea() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            WindowManager.LayoutParams params = getWindow().getAttributes();
+            params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_NEVER;
+            getWindow().setAttributes(params);
+        }
+    }
+
+    @Override
+    protected void onResume()`);
+  if (!activitySource.includes('private void restoreLegacySafeArea()')) {
+    throw new Error('无法给 AppActivity 写入安全区兼容逻辑');
+  }
+  fs.writeFileSync(appActivity[0], activitySource);
+}
 fs.mkdirSync(path.join(app, 'libs'), { recursive: true });
 fs.copyFileSync(path.join(GME_DIR, 'libs/gmesdk.jar'), path.join(app, 'libs/gmesdk.jar'));
 for (const abi of ['arm64-v8a']) {
