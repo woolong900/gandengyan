@@ -1,0 +1,31 @@
+{
+  "ver": "2.2.0",
+  "uuid": "fce0d237-72b2-4de9-b145-ac4de1c62144",
+  "subMetas": {
+    "backroom_btn": {
+      "ver": "1.0.3",
+      "uuid": "a339f329-3210-45d3-8536-7cc751b77835",
+      "rawTextureUuid": "fce0d237-72b2-4de9-b145-ac4de1c62144",
+      "trimType": "custom",
+      "trimThreshold": 1,
+      "rotated": false,
+      "offsetX": -0.5,
+      "offsetY": 0,
+      "trimX": 0,
+      "trimY": 0,
+      "width": 268,
+      "height": 210,
+      "rawWidth": 269,
+      "rawHeight": 210,
+      "borderTop": 0,
+      "borderBottom": 0,
+      "borderLeft": 0,
+      "borderRight": 0,
+      "subMetas": {}
+    }
+  },
+  "type": "texture",
+  "wrapMode": "clamp",
+  "filterMode": "bilinear",
+  "premultiplyAlpha": false
+}

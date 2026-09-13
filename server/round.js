@@ -131,17 +131,17 @@ class Round {
     return type;
   }
 
-  /** 桌上已经有朝天刻（朝天笑） */
+  /** 桌上已经有朝天副露（朝天笑） */
   hasPiziKe(seat) {
     return this.melds[seat].some((m) => m.card === this.pizi && (m.type === 'pizi' || m.type === 'an' || m.type === 'ming' || m.type === 'bu'));
   }
 
   /**
-   * 三个朝天单独成刻，其余牌仍能胡。桌上已有朝天刻也算。
+   * 胡牌时三个朝天必须仍在手中并单独成刻，其余牌也能胡。
+   * 之前已经朝天杠并放入副露区的不算双大胡。
    * 3455 + 5 这种朝天拆进顺子/将的不算。
    */
   isShuangDaHu(seat) {
-    if (this.hasPiziKe(seat)) return true;
     return mahjong.isShuangDaHu(
       this.looseTiles(seat),
       this.pizi,
@@ -618,13 +618,16 @@ class Round {
     const candidates = [];
     for (let s = 0; s < this.n; s++) {
       if (s === from) continue;
+      const gang = mahjong.canMingGang(this.hands[s], card, this.jokerFor(s), this.pizi);
       const ops = {
         hu: this.discardHu(s, card, from),
         // 土豪必杠癞子当普通牌，可以碰杠；另外两种癞子不参与碰杠。
         // 过手碰：能碰却过了，摸 / 碰 / 杠之前不能再碰同一张
+        // 两张皮子接别人打出的皮子时是朝天，不能再让玩家退回普通碰。
         peng: mahjong.canPeng(this.hands[s], card, this.jokerFor(s))
-          && !this.passPeng[s].has(card),
-        gang: mahjong.canMingGang(this.hands[s], card, this.jokerFor(s), this.pizi),
+          && !this.passPeng[s].has(card)
+          && !(card === this.pizi && gang),
+        gang,
       };
       if (ops.hu || ops.peng || ops.gang) candidates.push({ seat: s, ops });
     }
@@ -869,14 +872,24 @@ class Round {
   }
 
   takeGang(seat, card, from) {
-    const take = card === this.pizi ? 2 : 3;
+    const isPizi = card === this.pizi;
+    const take = isPizi ? 2 : 3;
     if (!this.remove(seat, card, take)) return '手里凑不够杠';
+    this.clearPassed(seat);
     this.popRiver(from, card);
     this.melds[seat].push({ type: 'ming', card, from });
+    this.turn = seat;
     this.io.all('game_gang', { uid: this.uid(seat), card, view: GANG_VIEW.ming, from: this.uid(from) });
     if (this.tape) this.tape.op(this.uid(seat), IDX.GANG, [card, GANG.ming]);
     this.io.each('game_info', (viewer) => this.snapshot(viewer, { begin: true }));
     this.settleGang(seat, 'ming', from);
+    // 别人打出一张皮子、手里拿两张组成的朝天本身已经补齐了出牌张数，
+    // 再从牌墙补一张会多牌。保持本人出牌权，直接等他出牌。
+    if (isPizi) {
+      this.drawn[seat] = null;
+      this.hotSeat = seat;
+      return null;
+    }
     this.afterGang(seat);
     return null;
   }
@@ -945,6 +958,12 @@ class Round {
     const err = this.applySelfGang(seat, card, isBu);
     if (err) return err;
     this.pending = null;
+    // 朝天笑是三张皮子直接成副露，不从牌墙补牌；玩家仍保持当前出牌权。
+    // 它仍属于一笔杠，所以紧接着打出的牌可以触发热铳。
+    if (!isBu && card === this.pizi) {
+      this.hotSeat = seat;
+      return null;
+    }
     this.afterGang(seat);
     return null;
   }

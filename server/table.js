@@ -205,7 +205,7 @@ class Table {
   }
 
   clearAllTimers() {
-    for (const m of this.members) this.host.cancel(`turn-${m.player.uid}`);
+    for (const m of this.members) this.cancelTurn(m);
     this.host.cancel('dismiss');
     this.host.cancel('empty');
     for (const m of this.members) this.host.cancel(`kick-${m.player.uid}`);
@@ -233,28 +233,36 @@ class Table {
     this.cardCharges.push({ uid, amount });
   }
 
-  armTurns() {
+  cancelTurn(member) {
+    this.host.cancel(`turn-${member.player.uid}`);
+    member.turnDeadline = 0;
+    member.turnDueAt = 0;
+  }
+
+  armTurns(onlyUid) {
     const round = this.round;
+    const members = onlyUid == null
+      ? this.members : this.members.filter((m) => m.player.uid === onlyUid);
     if (!round || round.over) {
-      for (const m of this.members) this.host.cancel(`turn-${m.player.uid}`);
+      for (const m of members) this.cancelTurn(m);
       return;
     }
     const waiting = new Set(round.waitingSeats());
-    for (const m of this.members) {
-      const seat = this.round.seatOf(m.player.uid);
+    for (const m of members) {
+      const seat = round.seatOf(m.player.uid);
       const key = `turn-${m.player.uid}`;
-      if (!waiting.has(seat)) {
-        this.host.cancel(key);
-        m.turnDeadline = 0;
+      if (m.view || seat < 0 || !waiting.has(seat)) {
+        this.cancelTurn(m);
         continue;
       }
       const sec = m.bot ? 0.8 : (m.trustee ? 1 : (this.config.托管 || 0));
       if (sec <= 0) {
-        this.host.cancel(key);
+        this.cancelTurn(m);
         continue;
       }
-      m.turnDeadline = Math.floor(this.host.now() / 1000 + sec);
-      this.host.schedule(key, this.host.now() + sec * 1000);
+      m.turnDueAt = this.host.now() + sec * 1000;
+      m.turnDeadline = Math.floor(m.turnDueAt / 1000);
+      this.host.schedule(key, m.turnDueAt);
     }
   }
 
@@ -471,10 +479,10 @@ class Table {
     this.broadcast('lineperson', { uid, line: false });
     this.broadcast('roominfo', roomInfo(this));
 
-    if (this.round && !this.round.over && !mine.trustee) {
+    if (this.round && !this.round.over && !mine.trustee && this.config.托管 > 0) {
       mine.trustee = true;
       this.broadcast('trustee', { uid, status: true });
-      this.armTurns();
+      this.armTurns(uid);
     }
 
     const kickSec = this.round ? 0 : (this.config.踢人 || 0);
@@ -515,8 +523,16 @@ class Table {
     if (name.startsWith('turn-')) {
       const uid = Number(name.slice(5));
       const m = this.members.find((x) => x.player.uid === uid);
-      if (!m || !this.round) return;
+      if (!m || !this.round || this.round.over) return;
       const seat = this.round.seatOf(uid);
+      // 取消托管或回合已变化后，旧回调不能再代打；重新计时后也要等到新期限。
+      if (m.view || seat < 0 || !this.round.waitingSeats().includes(seat)
+        || (!m.bot && !m.trustee && !(this.config.托管 > 0))) {
+        this.cancelTurn(m);
+        return;
+      }
+      if (!m.turnDueAt || this.host.now() < m.turnDueAt) return;
+      this.cancelTurn(m);
       if (!m.trustee) {
         m.trustee = true;
         this.broadcast('trustee', { uid, status: true });
@@ -560,7 +576,7 @@ class Table {
         mine.trustee = !mine.trustee;
         this.broadcast('trustee', { uid, status: mine.trustee });
         this.host.log(`  [房${this.roomId}] ${uid} ${mine.trustee ? '托管' : '取消托管'}`);
-        if (mine.trustee) this.armTurns();
+        this.armTurns(uid);
       }
       this.host.persist();
       return { error: 0 };

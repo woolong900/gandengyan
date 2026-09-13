@@ -1,0 +1,48 @@
+{
+  "text": [
+    "你太牛啦",
+    "哈哈，手气真好",
+    "快点出牌哦",
+    "今天真高兴",
+    "你放炮，我不胡",
+    "你家里是开银行的吧",
+    "不好意思，我有事要先走一步了",
+    "你的牌打得太好了",
+    "大家好，很高兴见到各位",
+    "怎么又断线了，网络怎么这么差啊"
+  ],
+  "sound": [
+    "Hall/Sound/gender/___/talks/talk1",
+    "Hall/Sound/gender/___/talks/talk2",
+    "Hall/Sound/gender/___/talks/talk3",
+    "Hall/Sound/gender/___/talks/talk4",
+    "Hall/Sound/gender/___/talks/talk5",
+    "Hall/Sound/gender/___/talks/talk6",
+    "Hall/Sound/gender/___/talks/talk7",
+    "Hall/Sound/gender/___/talks/talk8",
+    "Hall/Sound/gender/___/talks/talk9",
+    "Hall/Sound/gender/___/talks/talk10"
+  ],
+  "emoji": [
+    "Hall/Res/Texture/Game/chat/emoji/biaoqing_0",
+    "Hall/Res/Texture/Game/chat/emoji/biaoqing_1",
+    "Hall/Res/Texture/Game/chat/emoji/biaoqing_2",
+    "Hall/Res/Texture/Game/chat/emoji/biaoqing_3",
+    "Hall/Res/Texture/Game/chat/emoji/biaoqing_4",
+    "Hall/Res/Texture/Game/chat/emoji/biaoqing_5",
+    "Hall/Res/Texture/Game/chat/emoji/biaoqing_6",
+    "Hall/Res/Texture/Game/chat/emoji/biaoqing_7",
+    "Hall/Res/Texture/Game/chat/emoji/biaoqing_8",
+    "Hall/Res/Texture/Game/chat/emoji/biaoqing_9",
+    "Hall/Res/Texture/Game/chat/emoji/biaoqing_10",
+    "Hall/Res/Texture/Game/chat/emoji/biaoqing_11",
+    "Hall/Res/Texture/Game/chat/emoji/biaoqing_12",
+    "Hall/Res/Texture/Game/chat/emoji/biaoqing_13",
+    "Hall/Res/Texture/Game/chat/emoji/biaoqing_14",
+    "Hall/Res/Texture/Game/chat/emoji/biaoqing_15",
+    "Hall/Res/Texture/Game/chat/emoji/biaoqing_16",
+    "Hall/Res/Texture/Game/chat/emoji/biaoqing_17",
+    "Hall/Res/Texture/Game/chat/emoji/biaoqing_18",
+    "Hall/Res/Texture/Game/chat/emoji/biaoqing_19"
+  ]
+}

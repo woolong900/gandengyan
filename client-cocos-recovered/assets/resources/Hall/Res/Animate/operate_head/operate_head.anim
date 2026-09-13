@@ -1,0 +1,1 @@
+{"__type__":"cc.AnimationClip","_name":"operate_head","_duration":1.25,"sample":24,"wrapMode":22,"curveData":{"paths":{"bao_2":{"props":{"opacity":[{"frame":0,"value":255,"curve":"expoInOut"},{"frame":0.625,"value":0,"curve":"expoInOut"},{"frame":1.25,"value":255}]}},"bao_1":{"props":{"opacity":[]}}}}}

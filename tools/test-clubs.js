@@ -131,7 +131,10 @@ app.onMessage('a', packCs(201, {
 const roomId = Number(last(boxes.a, 201).roomId);
 t('俱乐部建房成功', Number(last(boxes.a, 201).res.error), 0);
 app.onMessage('a', packCs(202, { roomId }));
+app.onMessage('a', packCs(133, { clubId, userId: b.uid, status: 0 }));
+t('解冻后允许成员入房', Number(last(boxes.a, 133).res.error), 0);
 app.onMessage('b', packCs(202, { roomId }));
+t('成员进俱乐部房成功', Number(last(boxes.b, 202).res.error), 0);
 app.onMessage('a', packCs(122, { clubId }));
 const rooms = last(boxes.a, 122);
 t('俱乐部房间列表', rooms.rooms.length, 1);

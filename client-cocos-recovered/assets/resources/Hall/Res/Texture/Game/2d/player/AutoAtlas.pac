@@ -1,0 +1,1 @@
+{"__type__":"cc.SpriteAtlas","_spriteFrames":{"zhuangjia":{"__uuid__":"58eZyWfgFL2ZJqg8UsuDgu"},"bg_name_bg":{"__uuid__":"01+V1EFZVOQJgulsar7+xB"},"head_frame":{"__uuid__":"5fMYcU9vxJSZrb1RKFr2vR"},"bg_head":{"__uuid__":"fe/twWMx5PzYWrrM5Onwd8"}}}

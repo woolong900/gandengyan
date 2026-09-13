@@ -22,7 +22,8 @@
  * 地址一律写局域网 IP。不要打 10.0.2.2：那是模拟器回环，真机连不上。
  * 模拟器也能访问电脑的 192.168.*。不写 --host 时自动探测网卡。
  *
- * usage: node tools/patchapk.js --apk <原始.apk> [--host <主机[:端口]>] [--tls] [--guest] [--out <输出.apk>]
+ * usage: node tools/patchapk.js --apk <原始.apk> [--host <主机[:端口]>] [--tls] [--guest]
+ *   [--package <包名>] [--app-name <应用名>] [--wechat-appid <微信AppID>] [--out <输出.apk>]
  */
 const fs = require('fs');
 const os = require('os');
@@ -40,7 +41,7 @@ const loadDotEnv = () => {
   const p = path.join(__dirname, '..', '.dev.vars');
   if (!fs.existsSync(p)) return;
   for (const line of fs.readFileSync(p, 'utf8').split('\n')) {
-    const m = line.match(/^(QJQP_VOICE_APPID|QJQP_VOICE_APPKEY)=(.*)$/);
+    const m = line.match(/^(QJQP_VOICE_APPID|QJQP_VOICE_APPKEY|QJQP_WECHAT_APPID)=(.*)$/);
     if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim();
   }
 };
@@ -82,15 +83,40 @@ const TLS = argv.includes('--tls');
 const OUT = arg('out', APK && APK.replace(/\.apk$/, '-patched.apk'));
 const SDK = process.env.ANDROID_SDK_ROOT || '/opt/homebrew/share/android-commandlinetools';
 const KEYSTORE = arg('keystore', path.join(os.homedir(), '.android-qjqp.keystore'));
+const KEY_ALIAS = arg('key-alias', 'gandengyan');
 const STOREPASS = 'qjqp123456';
 const VOICE_APPID = arg('voice-appid', process.env.QJQP_VOICE_APPID);
 const VOICE_APPKEY = arg('voice-appkey', process.env.QJQP_VOICE_APPKEY);
+const WECHAT_APPID = arg('wechat-appid', process.env.QJQP_WECHAT_APPID);
+const ORIGINAL_PACKAGE = 'com.yuanlai.qjqp';
+const APP_PACKAGE = arg('package', 'com.haoke.gandengyan');
+const APP_NAME = arg('app-name', '潜江干瞪眼');
+const ICON_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'icon.png');
+const LOGIN_LOGO_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'login', 'login-logo.png');
+const LOGIN_BACKGROUND_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'login', 'login-background.jpg');
+const HALL_BACKGROUND_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'hall', 'hall-background.png');
+const HALL_CHARACTER_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'hall', 'hall-character.png');
+const SPLASH_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'startup', 'splash-screen.png');
+const LEGACY_CLEANUP_DIR = path.join(__dirname, '..', 'assets', 'branding', 'legacy-cleanup');
 const APKTOOL = process.env.APKTOOL || '/tmp/apktool.jar';
 const GME_URL = process.env.GME_SDK_URL
   || 'https://dl.gmertc.com/gme/GME2.9.17/Android/GME_android_audio_sdk_2.9.17.9e947c95.zip';
 const GME_DIR = process.env.GME_SDK || '/tmp/gme-sdk';
 const ANDROID_JAR = process.env.ANDROID_JAR
   || path.join(SDK, 'platforms', 'android-34', 'android.jar');
+
+if (WECHAT_APPID && !/^wx[0-9a-zA-Z]{16}$/.test(WECHAT_APPID)) {
+  console.error('微信 AppID 格式错误，应为 wx 加 16 位字母或数字');
+  process.exit(1);
+}
+if (!/^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+$/.test(APP_PACKAGE)) {
+  console.error(`Android 包名格式错误：${APP_PACKAGE}`);
+  process.exit(1);
+}
+if (!APP_NAME.trim()) {
+  console.error('应用名称不能为空');
+  process.exit(1);
+}
 
 if (!APK || !HOST) {
   console.error('usage: node tools/patchapk.js --apk <原始.apk> [--host <局域网IP[:端口]>] [--tls] [--out <输出.apk>]');
@@ -121,6 +147,100 @@ const RULES = [
 if (argv.includes('--guest')) {
   RULES.push(['this.guestNode.active = v.default.isDebug();', 'this.guestNode.active = true;']);
 }
+
+// 游客登录携带 Android ID。已有游客 token 也一并发送，服务端会先把旧账号
+// 绑定到当前设备；以后即使应用数据被清除，同一设备仍能找回这个游客账号。
+RULES.push([
+  't.prototype._guestLogin = function() {\nvar e = this, t = {\nappName: a.default.appName,\naccountType: s.eAccountType.guest,\ncode: void 0,\ntoken: void 0\n};\nl.default.uiHelper.showLoading();\nvar o = d.default.guestToken.getValue();\no ? this._tokenLogin(o) : this._accountSend(t, function(t) {\ne._loginSuccess(t.token, s.eAccountType.guest, function(e) {\ne && l.default.uiHelper.removeLoading();\n});\n}, function(e, t) {\nl.default.uiHelper.removeLoading();\nl.default.uiHelper.showTip(t);\n});\n};',
+  't.prototype._guestLogin = function() {\nvar e = this, t = {\nappName: a.default.appName,\naccountType: s.eAccountType.guest,\ncode: void 0,\ntoken: d.default.guestToken.getValue(),\ndeviceId: void 0\n};\nif (cc.sys.os === cc.sys.OS_ANDROID) try {\nt.deviceId = jsb.reflection.callStaticMethod("com/yuanlai/external/Utils", "getGuestDeviceId", "()Ljava/lang/String;");\n} catch (o) {\ncc.error("get guest device id failed:", o);\n}\nl.default.uiHelper.showLoading();\nthis._accountSend(t, function(t) {\ne._loginSuccess(t.token, s.eAccountType.guest, function(e) {\ne && l.default.uiHelper.removeLoading();\n});\n}, function(e, t) {\nl.default.uiHelper.removeLoading();\nl.default.uiHelper.showTip(t);\n});\n};',
+  true,
+]);
+
+// 登录页只保留微信（以及显式开启的调试游客入口）。同时禁用旧手机令牌的
+// 自动登录路径，避免用户升级后仍被上个版本保存的登录方式带进游戏。
+RULES.push([
+  'this.mobileNode.active = !0;',
+  'this.mobileNode.active = !1;',
+  true,
+]);
+RULES.push([
+  'e === s.eAccountType.mobile && d.default.mobileToken.getValue() && this._mobileLogin(null);',
+  '',
+  true,
+]);
+
+// 分享弹窗去掉未配置且不再使用的钉钉、默往入口。
+RULES.push([
+  'this.ddNode.active = !0;\nthis.mwNode.active = !0;',
+  'this.ddNode.active = !1;\nthis.mwNode.active = !1;',
+  true,
+]);
+
+// 去掉大厅首页左侧的手机认证按钮。
+RULES.push([
+  'this.node.getChildByName("box").getChildByName("BtnBuyCard").active = !a.default.isReivew;',
+  'var mobileBtn = this.node.getChildByName("LeftBtns").getChildByName("BtnMobile");\nmobileBtn && (mobileBtn.active = !1);\nthis.node.getChildByName("box").getChildByName("BtnBuyCard").active = !a.default.isReivew;',
+  true,
+]);
+
+// 登录页：去掉许可证编号那一排文字，并用不含旧品牌角标的新标题图。
+RULES.push([
+  'u.default.setImg("Hall/Res/Texture/Login/login_logo", this.logo);',
+  'var e = this, t = this.node.getChildByName("login_bg"), o = t && t.getChildByName("IBSA");\no && (o.active = !1);\nif (cc.sys.isNative) {\nvar n = jsb.fileUtils.fullPathForFilename("branding/login-logo.png");\ncc.loader.load({ url: n, type: "png" }, function(t, o) {\nt ? u.default.setImg("Hall/Res/Texture/Login/login_logo", e.logo) : e.logo && e.logo.isValid && (e.logo.spriteFrame = new cc.SpriteFrame(o));\n});\n} else u.default.setImg("Hall/Res/Texture/Login/login_logo", this.logo);',
+  true,
+]);
+
+// 资源版本号，与 Android 包版本 1.0.5 一起显示为 1.0.5-R258。
+RULES.push([
+  'assertVer: 226,\npackageVer: "1.0.2",',
+  'assertVer: 258,\npackageVer: "1.0.5",',
+  true,
+]);
+
+// 旧支付流程会把这个字段显示为订单中的商品/应用名称。保留支付渠道枚举，
+// 只改用户能看到的名称，避免影响服务端对支付方式的匹配。
+RULES.push([u2b('"元来游戏"'), u2b(`"${APP_NAME}"`)]);
+
+// 去掉大厅推广员入口，并切回不带推广按钮的普通顶部背景。
+// 标记为 required，避免客户端版本变化后静默漏掉这个改动。
+RULES.push([
+  'e.headerBg.active = !a.default.isAgent;\ne.headerBg01.active = a.default.isAgent;\ne.btnAgent.active = a.default.isAgent;',
+  'e.headerBg.active = !0;\ne.headerBg01.active = !1;\ne.btnAgent.active = !1;',
+  true,
+]);
+
+// 去掉个人信息里的代理入口；没有绑定手机号时也不留下多余分隔线。
+RULES.push([
+  'this.dividerNode.active = !(!c.default.mobile && !c.default.isAgent);\nthis.agentEnterNode.active = c.default.isAgent;',
+  'this.dividerNode.active = !!c.default.mobile;\nthis.agentEnterNode.active = !1;',
+  true,
+]);
+
+// 实名表单先清理空格并统一身份证末位 X，减少输入错误；服务端仍执行完整校验。
+RULES.push([
+  'var t = this.nameLabel.string, o = this.idCardLabel.string;',
+  'var t = this.nameLabel.string.replace(/[\\s\\u00a0]+/g, "").replace(/[•・]/g, "·"), o = this.idCardLabel.string.replace(/\\s+/g, "").toUpperCase();',
+  true,
+]);
+// 服务端只回传脱敏数据；首次提交仍在本地使用刚输入的原值，两个场景都正确展示。
+RULES.push([
+  'this.nameLabel.string = i.default.realName.slice(0, 1) + "**";\nthis.cardLabel.string = i.default.idCard.slice(0, 6) + "*******" + i.default.idCard.slice(-4, i.default.idCard.length);',
+  'this.nameLabel.string = i.default.realName.slice(0, 1) + "**";\nthis.cardLabel.string = i.default.idCard.indexOf("*") >= 0 ? i.default.idCard : i.default.idCard.slice(0, 6) + "********" + i.default.idCard.slice(-4, i.default.idCard.length);',
+  true,
+]);
+
+// 朝天笑只有三张皮子。原客户端虽然会在碰杠区按三张绘制，却仍按普通杠
+// 删除手牌：暗朝天删四张、接别人打出的朝天删三张，都会让本地手牌错乱。
+RULES.push([
+  'if (_.subType === i.eGangType.AnGang) y ? m.removeHandCards([ D, D, D, D ], !0) : m.removeHandCards([ a.MJ_BACK_ID, a.MJ_BACK_ID, a.MJ_BACK_ID, a.MJ_BACK_ID ], !0); else if (_.subType === i.eGangType.MingGang) {',
+  'if (_.subType === i.eGangType.AnGang) y ? m.removeHandCards(u.default.gameLogic().is3CardGang(D) ? [ D, D, D ] : [ D, D, D, D ], !0) : m.removeHandCards(u.default.gameLogic().is3CardGang(D) ? [ a.MJ_BACK_ID, a.MJ_BACK_ID, a.MJ_BACK_ID ] : [ a.MJ_BACK_ID, a.MJ_BACK_ID, a.MJ_BACK_ID, a.MJ_BACK_ID ], !0); else if (_.subType === i.eGangType.MingGang) {',
+  true,
+]);
+RULES.push([
+  'y ? m.removeHandCards([ D, D, D ], !0) : m.removeHandCards([ a.MJ_BACK_ID, a.MJ_BACK_ID, a.MJ_BACK_ID ], !0);\no();',
+  'y ? m.removeHandCards(u.default.gameLogic().is3CardGang(D) ? [ D, D ] : [ D, D, D ], !0) : m.removeHandCards(u.default.gameLogic().is3CardGang(D) ? [ a.MJ_BACK_ID, a.MJ_BACK_ID ] : [ a.MJ_BACK_ID, a.MJ_BACK_ID, a.MJ_BACK_ID ], !0);\no();',
+  true,
+]);
 RULES.push([
   '!c.default.isWatcher() && e.showVoice(a, n.content);',
   'n.fromUid != D.default.uid && !c.default.isWatcher() && e.showVoice(a, n.content);',
@@ -329,15 +449,255 @@ const rmIf = (p) => {
   fs.rmSync(p, { recursive: true, force: true });
 };
 
+const walkFiles = (root, visit) => {
+  if (!fs.existsSync(root)) return;
+  for (const name of fs.readdirSync(root)) {
+    const file = path.join(root, name);
+    if (fs.statSync(file).isDirectory()) walkFiles(file, visit);
+    else visit(file);
+  }
+};
+
+const xmlEscape = (value) => String(value)
+  .replaceAll('&', '&amp;')
+  .replaceAll('<', '&lt;')
+  .replaceAll('>', '&gt;');
+
+const writeEncryptedAsset = (source, target) => {
+  const key = 0x77;
+  const input = fs.readFileSync(source);
+  const encrypted = Buffer.alloc(input.length);
+  for (let i = 0; i < input.length; i += 1) encrypted[i] = input[i] ^ key;
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.writeFileSync(target, Buffer.concat([Buffer.from('aaabbbccc', 'ascii'), Buffer.from([key]), encrypted]));
+};
+
+const sanitizeCocosText = (decoded) => {
+  const importRoot = path.join(decoded, 'assets', 'res', 'import');
+  const replacements = [
+    ['元来互娱俱乐部', `${APP_NAME}俱乐部`],
+    ['元来黄冈麻将', APP_NAME],
+    ['元来黄冈', APP_NAME],
+    ['元来棋牌', APP_NAME],
+    ['m1m1_77', '游戏客服'],
+  ];
+  let changedFiles = 0;
+  let changedStrings = 0;
+  walkFiles(importRoot, (file) => {
+    if (!file.endsWith('.json')) return;
+    const source = fs.readFileSync(file, 'utf8');
+    let changed = source;
+    for (const [from, to] of replacements) {
+      const count = changed.split(from).length - 1;
+      changedStrings += count;
+      changed = changed.split(from).join(to);
+    }
+    if (changed !== source) {
+      fs.writeFileSync(file, changed);
+      changedFiles += 1;
+    }
+  });
+  if (changedFiles !== 9 || changedStrings !== 30) {
+    throw new Error(`旧品牌界面文字清理数量异常：${changedFiles} 个文件、${changedStrings} 处`);
+  }
+  console.log(`      已清理界面文字 ${changedStrings} 处（${changedFiles} 个资源）`);
+};
+
+const replaceLegacyArtwork = (decoded) => {
+  const assets = {
+    '02dd5217-a089-4edb-af79-6e1c1f3e8f35.png': ['02', '02dd5217-a089-4edb-af79-6e1c1f3e8f35.png'],
+    '1b3339a9-7323-4d7a-bc29-a0541f03ebc0.png': ['1b', '1b3339a9-7323-4d7a-bc29-a0541f03ebc0.png'],
+    '1d602e4c2.png': ['1d', '1d602e4c2.png'],
+    '1f821cda2.png': ['1f', '1f821cda2.png'],
+    '352ea258-16a5-4785-9a93-7dcd168211b4.jpg': ['35', '352ea258-16a5-4785-9a93-7dcd168211b4.jpg'],
+    '735a1b69-bef3-4257-9942-773def542b50.png': ['73', '735a1b69-bef3-4257-9942-773def542b50.png'],
+    '7a66c68d-c67b-4977-881c-c9e860a9556f.png': ['7a', '7a66c68d-c67b-4977-881c-c9e860a9556f.png'],
+    '7b0ebbdf-d404-42ab-9c8e-85ad2b828ae9.png': ['7b', '7b0ebbdf-d404-42ab-9c8e-85ad2b828ae9.png'],
+    '9272ef06-deee-4241-b004-64c282072754.jpg': ['92', '9272ef06-deee-4241-b004-64c282072754.jpg'],
+    'af282322-83b5-482f-9f1a-9f7c5e822465.png': ['af', 'af282322-83b5-482f-9f1a-9f7c5e822465.png'],
+    'c8f530ab-040c-4919-b8c6-fa74703c8b06.png': ['c8', 'c8f530ab-040c-4919-b8c6-fa74703c8b06.png'],
+    'f80f7e41-3748-4fee-99cf-8066229ff1aa.png': ['f8', 'f80f7e41-3748-4fee-99cf-8066229ff1aa.png'],
+    'f89eca2a-97a6-4480-9d24-bdf2fec1e807.png': ['f8', 'f89eca2a-97a6-4480-9d24-bdf2fec1e807.png'],
+    'ff4a224b-c762-451f-badc-e999f4d4f91d.png': ['ff', 'ff4a224b-c762-451f-badc-e999f4d4f91d.png'],
+  };
+  for (const [sourceName, targetParts] of Object.entries(assets)) {
+    const source = path.join(LEGACY_CLEANUP_DIR, sourceName);
+    if (!fs.existsSync(source)) throw new Error(`缺少旧品牌替换素材：${source}`);
+    writeEncryptedAsset(
+      source,
+      path.join(decoded, 'assets', 'res', 'raw-assets', ...targetParts),
+    );
+  }
+  console.log(`      已替换旧品牌图片 ${Object.keys(assets).length} 张`);
+};
+
+const disableLegacyHotUpdate = (decoded) => {
+  const manifestFile = path.join(
+    decoded,
+    'assets', 'res', 'raw-assets', '2c', '2c8a7447-5900-4cca-b1ef-51d750d90396.manifest',
+  );
+  let source = fs.readFileSync(manifestFile, 'utf8');
+  const legacyBase = 'http://hotupgrade.yuanlaihuyu.com/hgmj/update/114';
+  const count = source.split(legacyBase).length - 1;
+  if (count !== 3) throw new Error(`旧热更新地址匹配到 ${count} 处，预期 3 处`);
+  source = source.split(legacyBase).join(`${http}/disabled-hot-update`);
+  if (/yuanlai(?:huyu|qipai)/i.test(source)) throw new Error('热更新清单仍含旧公司域名');
+  fs.writeFileSync(manifestFile, source);
+  console.log('      已禁用原公司的热更新地址');
+};
+
+const applyBranding = (decoded) => {
+  const manifestFile = path.join(decoded, 'AndroidManifest.xml');
+  let manifest = fs.readFileSync(manifestFile, 'utf8').replaceAll(ORIGINAL_PACKAGE, APP_PACKAGE);
+  manifest = manifest.replace(
+    /(<meta-data android:name="APP_DUN_ONOFF_DEBUG_URL" android:value=")[^"]*("\/>)/,
+    `$1${http}$2`,
+  );
+  if (!manifest.includes(`package="${APP_PACKAGE}"`) || manifest.includes(ORIGINAL_PACKAGE)) {
+    throw new Error('AndroidManifest 包名替换失败');
+  }
+  if (/yuanlai(?:huyu|qipai)\.(?:com|cn|net)/i.test(manifest)) {
+    throw new Error('AndroidManifest 仍含旧公司服务器地址');
+  }
+  fs.writeFileSync(manifestFile, manifest);
+
+  const stringsFile = path.join(decoded, 'res', 'values', 'strings.xml');
+  let strings = fs.readFileSync(stringsFile, 'utf8');
+  strings = strings.replace(
+    /(<string name="app_name">)[\s\S]*?(<\/string>)/,
+    `$1${xmlEscape(APP_NAME)}$2`,
+  );
+  if (!strings.includes(`<string name="app_name">${xmlEscape(APP_NAME)}</string>`)) {
+    throw new Error('应用名称替换失败');
+  }
+  fs.writeFileSync(stringsFile, strings);
+
+  const apktoolFile = path.join(decoded, 'apktool.yml');
+  let apktool = fs.readFileSync(apktoolFile, 'utf8');
+  apktool = apktool
+    .replace(/(^\s*versionCode:\s*)\d+$/m, '$1105')
+    .replace(/(^\s*versionName:\s*).*$/m, '$11.0.5');
+  if (!/^\s*versionCode:\s*105$/m.test(apktool) || !/^\s*versionName:\s*1\.0\.5$/m.test(apktool)) {
+    throw new Error('Android 版本号替换失败');
+  }
+  fs.writeFileSync(apktoolFile, apktool);
+
+  const oldDescriptor = ORIGINAL_PACKAGE.replaceAll('.', '/');
+  const newDescriptor = APP_PACKAGE.replaceAll('.', '/');
+  for (const name of fs.readdirSync(decoded).filter((entry) => entry.startsWith('smali'))) {
+    walkFiles(path.join(decoded, name), (file) => {
+      if (!file.endsWith('.smali')) return;
+      const source = fs.readFileSync(file, 'utf8');
+      const changed = source
+        .replaceAll(ORIGINAL_PACKAGE, APP_PACKAGE)
+        .replaceAll(oldDescriptor, newDescriptor);
+      if (changed !== source) fs.writeFileSync(file, changed);
+    });
+  }
+
+  const oldCallbacks = path.join(decoded, 'smali', ...oldDescriptor.split('/'));
+  const newCallbacks = path.join(decoded, 'smali', ...newDescriptor.split('/'));
+  if (!fs.existsSync(oldCallbacks)) throw new Error(`找不到旧回调类目录：${oldCallbacks}`);
+  fs.mkdirSync(path.dirname(newCallbacks), { recursive: true });
+  fs.renameSync(oldCallbacks, newCallbacks);
+
+  // 分享页已去掉钉钉入口，同时禁用其原生 SDK 初始化。旧 SDK 在部分
+  // Android 冷启动时取不到 Activity，会直接导致启动崩溃。
+  const dingDingFile = path.join(decoded, 'smali', 'com', 'yuanlai', 'dingding', 'DingDingHelper.smali');
+  let dingDing = fs.readFileSync(dingDingFile, 'utf8');
+  const dingDingInit = /\.method public init\(Ljava\/lang\/String;\)V[\s\S]*?\.end method/;
+  if (!dingDingInit.test(dingDing)) throw new Error('找不到钉钉 SDK 初始化方法');
+  dingDing = dingDing.replace(
+    dingDingInit,
+    '.method public init(Ljava/lang/String;)V\n    .locals 0\n\n    return-void\n.end method',
+  );
+  fs.writeFileSync(dingDingFile, dingDing);
+
+  const utilsFile = path.join(decoded, 'smali', 'com', 'yuanlai', 'external', 'Utils.smali');
+  let utils = fs.readFileSync(utilsFile, 'utf8');
+  const deviceMethodMarker = '.method public static getExternalStoragePath()Ljava/lang/String;';
+  if (!utils.includes(deviceMethodMarker)) throw new Error('找不到 Utils 原生方法插入位置');
+  const deviceMethod = [
+    '.method public static getGuestDeviceId()Ljava/lang/String;',
+    '    .locals 2',
+    '',
+    '    invoke-static {}, Lorg/cocos2dx/lib/Cocos2dxActivity;->getContext()Landroid/content/Context;',
+    '    move-result-object v0',
+    '    if-eqz v0, :empty',
+    '',
+    '    invoke-virtual {v0}, Landroid/content/Context;->getContentResolver()Landroid/content/ContentResolver;',
+    '    move-result-object v0',
+    '    const-string v1, "android_id"',
+    '    invoke-static {v0, v1}, Landroid/provider/Settings$Secure;->getString(Landroid/content/ContentResolver;Ljava/lang/String;)Ljava/lang/String;',
+    '    move-result-object v0',
+    '    if-nez v0, :done',
+    '',
+    '    :empty',
+    '    const-string v0, ""',
+    '',
+    '    :done',
+    '    return-object v0',
+    '.end method',
+    '',
+  ].join('\n');
+  utils = utils.replace(deviceMethodMarker, `${deviceMethod}${deviceMethodMarker}`);
+  fs.writeFileSync(utilsFile, utils);
+
+  const iconSizes = { ldpi: 36, mdpi: 48, hdpi: 72, xhdpi: 96, xxhdpi: 144, xxxhdpi: 192 };
+  if (!fs.existsSync(ICON_SOURCE)) throw new Error(`缺少应用图标源文件：${ICON_SOURCE}`);
+  for (const [density, pixels] of Object.entries(iconSizes)) {
+    const target = path.join(decoded, 'res', `mipmap-${density}`, 'ic_launcher.png');
+    run('sips', ['-z', String(pixels), String(pixels), ICON_SOURCE, '--out', target]);
+  }
+  if (!fs.existsSync(LOGIN_LOGO_SOURCE)) throw new Error(`缺少登录标题图：${LOGIN_LOGO_SOURCE}`);
+  if (!fs.existsSync(LOGIN_BACKGROUND_SOURCE)) throw new Error(`缺少登录背景图：${LOGIN_BACKGROUND_SOURCE}`);
+  if (!fs.existsSync(HALL_BACKGROUND_SOURCE)) throw new Error(`缺少大厅背景图：${HALL_BACKGROUND_SOURCE}`);
+  if (!fs.existsSync(HALL_CHARACTER_SOURCE)) throw new Error(`缺少大厅人物图：${HALL_CHARACTER_SOURCE}`);
+  if (!fs.existsSync(SPLASH_SOURCE)) throw new Error(`缺少启动画面：${SPLASH_SOURCE}`);
+  const loginLogoTarget = path.join(decoded, 'assets', 'branding', 'login-logo.png');
+  fs.mkdirSync(path.dirname(loginLogoTarget), { recursive: true });
+  fs.copyFileSync(LOGIN_LOGO_SOURCE, loginLogoTarget);
+  fs.copyFileSync(
+    LOGIN_BACKGROUND_SOURCE,
+    path.join(decoded, 'assets', 'res', 'raw-assets', '73', '73c931dd-4abb-4c4c-ab86-37f883c44430.jpg'),
+  );
+  writeEncryptedAsset(
+    HALL_BACKGROUND_SOURCE,
+    path.join(decoded, 'assets', 'res', 'raw-assets', '2d', '2dad1db8-b44a-4077-a9fa-52cbfe497b4d.png'),
+  );
+  writeEncryptedAsset(
+    HALL_CHARACTER_SOURCE,
+    path.join(decoded, 'assets', 'res', 'raw-assets', '1b', '1b6b9d70-3f53-4064-801d-f7fb08c52ba3.png'),
+  );
+  sanitizeCocosText(decoded);
+  replaceLegacyArtwork(decoded);
+  disableLegacyHotUpdate(decoded);
+  fs.copyFileSync(SPLASH_SOURCE, path.join(decoded, 'res', 'mipmap', 'splash_screen.png'));
+  console.log(`      包名 ${ORIGINAL_PACKAGE} -> ${APP_PACKAGE}`);
+  console.log(`      应用名称 -> ${APP_NAME}`);
+  console.log('      Android 版本 -> 1.0.5，资源版本 -> R258');
+  console.log('      已替换各分辨率应用图标');
+  console.log('      已替换登录标题、登录背景和启动画面');
+  console.log('      已替换大厅背景和卡通人物');
+  console.log('      已移除用户可见的旧品牌名称、公告和客服信息');
+  console.log('      协议页面已改为待补充真实运营主体的内部测试提示');
+  console.log('      已禁用不再使用的钉钉 SDK 启动初始化');
+  console.log('      已加入游客设备标识原生接口');
+};
+
+const writeMeta = (xml, name, value) => {
+  if (!value) return xml;
+  const pattern = new RegExp(`(<meta-data android:name="${name}" android:value=")[^"]*("\\/>)`);
+  const out = xml.replace(pattern, `$1${value}$2`);
+  if (!out.includes(`android:name="${name}" android:value="${value}"`)) {
+    throw new Error(`没改到 ${name}`);
+  }
+  return out;
+};
+
 const writeVoiceMeta = (xml, appid, appkey, httpBase) => {
-  let out = xml.replace(
-    /(<meta-data android:name="SDK_VOICE_APPID" android:value=")[^"]*("\/>)/,
-    `$1${appid}$2`
-  );
-  out = out.replace(
-    /(<meta-data android:name="SDK_VOICE_APPKEY" android:value=")[^"]*("\/>)/,
-    `$1${appkey}$2`
-  );
+  let out = writeMeta(xml, 'SDK_VOICE_APPID', appid);
+  out = writeMeta(out, 'SDK_VOICE_APPKEY', appkey);
   if (httpBase) {
     if (out.includes('android:name="SDK_VOICE_HTTP"')) {
       out = out.replace(
@@ -351,59 +711,64 @@ const writeVoiceMeta = (xml, appid, appkey, httpBase) => {
       );
     }
   }
-  if (!out.includes(`android:name="SDK_VOICE_APPID" android:value="${appid}"`)) {
-    throw new Error('没改到 SDK_VOICE_APPID');
-  }
-  if (!out.includes(`android:name="SDK_VOICE_APPKEY" android:value="${appkey}"`)) {
-    throw new Error('没改到 SDK_VOICE_APPKEY');
-  }
   if (httpBase && !out.includes(`android:name="SDK_VOICE_HTTP" android:value="${httpBase}"`)) {
     throw new Error('没改到 SDK_VOICE_HTTP');
   }
   return out;
 };
 
-/** 凭证写入清单，Java 桥和 .so 换成 GME。密钥不打日志。 */
-const injectGme = (apkPath, appid, appkey) => {
-  if (!appid || !appkey) return;
+/** SDK 配置写入清单；启用 GME 时一并替换 Java 桥和 .so。密钥不打日志。 */
+const injectNativeConfig = (apkPath, { voiceAppid, voiceAppkey, wechatAppid }) => {
+  const withVoice = !!(voiceAppid && voiceAppkey);
   if (!fs.existsSync(APKTOOL)) {
-    throw new Error('没有 apktool.jar，无法换 GME（APKTOOL=/tmp/apktool.jar）');
+    throw new Error('没有 apktool.jar，无法写入原生 SDK 配置（APKTOOL=/tmp/apktool.jar）');
   }
-  if (!fs.existsSync(ANDROID_JAR)) {
+  if (withVoice && !fs.existsSync(ANDROID_JAR)) {
     throw new Error(`没有 android.jar：${ANDROID_JAR}`);
   }
-  const compiled = compileGmeVoiceSmali();
-  const decoded = fs.mkdtempSync(path.join(os.tmpdir(), 'qjqp-gmeapk-'));
-  const built = `${apkPath}.gme.apk`;
+  const compiled = withVoice ? compileGmeVoiceSmali() : null;
+  const decoded = fs.mkdtempSync(path.join(os.tmpdir(), 'qjqp-nativeapk-'));
+  const built = `${apkPath}.native.apk`;
   try {
     run('java', ['-jar', APKTOOL, 'd', '-f', apkPath, '-o', decoded]);
+    applyBranding(decoded);
     const mf = path.join(decoded, 'AndroidManifest.xml');
-    fs.writeFileSync(mf, writeVoiceMeta(fs.readFileSync(mf, 'utf8'), appid, appkey, http));
-    console.log('      已写入自己的 GME AppID');
-
-    for (const name of fs.readdirSync(path.join(decoded, 'smali/com/yuanlai/external'))) {
-      if (name.startsWith('Voice')) rmIf(path.join(decoded, 'smali/com/yuanlai/external', name));
+    let manifest = fs.readFileSync(mf, 'utf8');
+    if (wechatAppid) {
+      manifest = writeMeta(manifest, 'SDK_WX_APPID', wechatAppid);
+      console.log('      已写入自己的微信 AppID');
     }
-    copyDir(compiled.smali, path.join(decoded, 'smali_classes2'));
-    console.log('      已换上 GME Java 桥');
+    if (withVoice) {
+      manifest = writeVoiceMeta(manifest, voiceAppid, voiceAppkey, http);
+      console.log('      已写入自己的 GME AppID');
+    }
+    fs.writeFileSync(mf, manifest);
 
-    for (const abi of ['arm64-v8a', 'armeabi-v7a']) {
-      const lib = path.join(decoded, 'lib', abi);
-      if (!fs.existsSync(lib)) continue;
-      rmIf(path.join(lib, 'libGCloudVoice.so'));
-      rmIf(path.join(lib, 'libGvoiceNN.so'));
-      for (const so of ['libgmesdk.so', 'libgmefdkaac.so']) {
-        const src = path.join(GME_DIR, 'libs', abi, so);
-        if (fs.existsSync(src)) fs.copyFileSync(src, path.join(lib, so));
+    if (withVoice) {
+      for (const name of fs.readdirSync(path.join(decoded, 'smali/com/yuanlai/external'))) {
+        if (name.startsWith('Voice')) rmIf(path.join(decoded, 'smali/com/yuanlai/external', name));
       }
+      copyDir(compiled.smali, path.join(decoded, 'smali_classes2'));
+      console.log('      已换上 GME Java 桥');
+
+      for (const abi of ['arm64-v8a', 'armeabi-v7a']) {
+        const lib = path.join(decoded, 'lib', abi);
+        if (!fs.existsSync(lib)) continue;
+        rmIf(path.join(lib, 'libGCloudVoice.so'));
+        rmIf(path.join(lib, 'libGvoiceNN.so'));
+        for (const so of ['libgmesdk.so', 'libgmefdkaac.so']) {
+          const src = path.join(GME_DIR, 'libs', abi, so);
+          if (fs.existsSync(src)) fs.copyFileSync(src, path.join(lib, so));
+        }
+      }
+      rmIf(path.join(decoded, 'assets/GCloudVoice'));
+      console.log('      已换上 GME .so，去掉旧 GCloudVoice');
     }
-    rmIf(path.join(decoded, 'assets/GCloudVoice'));
-    console.log('      已换上 GME .so，去掉旧 GCloudVoice');
 
     run('java', ['-jar', APKTOOL, 'b', decoded, '-o', built]);
     fs.copyFileSync(built, apkPath);
   } finally {
-    fs.rmSync(compiled.work, { recursive: true, force: true });
+    if (compiled) fs.rmSync(compiled.work, { recursive: true, force: true });
     fs.rmSync(decoded, { recursive: true, force: true });
     try { fs.unlinkSync(built); } catch { /* */ }
   }
@@ -417,8 +782,11 @@ run('unzip', ['-q', '-o', APK, rel, '-d', stage]);
 
 console.log('2/6 解密并替换地址');
 let js = toJs(fs.readFileSync(path.join(stage, rel))).toString('binary');
-for (const [from, to] of RULES) {
+for (const [from, to, required] of RULES) {
   const n = js.split(from).length - 1;
+  if (required && n !== 1) {
+    throw new Error(`必要的客户端界面补丁匹配到 ${n} 处，预期 1 处：${from}`);
+  }
   if (n) console.log(`      ${from} -> ${to}  (${n} 处)`);
   js = js.split(from).join(to);
 }
@@ -426,6 +794,12 @@ js = js.replace(/https?:\/\/192\.168\.\d+\.\d+:8899/g, (m) => (m === http ? m : 
 js = js.replace(/wss?:\/\/192\.168\.\d+\.\d+:8899/g, (m) => (m === ws ? m : ws));
 if (js.includes('10.0.2.2')) {
   throw new Error('jsc 里还留着 10.0.2.2，真机连不上');
+}
+if (/yuanlai(?:huyu|qipai)\.(?:com|cn|net)/i.test(js)) {
+  throw new Error('jsc 里还留着原公司的服务器地址');
+}
+if (js.includes(u2b('元来'))) {
+  throw new Error('jsc 里还留着用户可见的旧品牌名称');
 }
 if (!js.includes(http)) {
   throw new Error(`jsc 里没有写进局域网地址 ${http}`);
@@ -438,12 +812,12 @@ const out = path.resolve(OUT);
 fs.copyFileSync(APK, out);
 run('zip', ['-q', '-0', '-X', out, rel], stage);
 
-if (VOICE_APPID && VOICE_APPKEY) {
-  console.log('3b/6 换成 GME 并写入自己的 AppID');
-  injectGme(out, VOICE_APPID, VOICE_APPKEY);
-} else {
-  console.log('3b/6 未提供 GME 凭证，语音仍用原厂 GCloudVoice');
-}
+console.log('3b/6 写入包名、应用名称、图标及原生 SDK 配置');
+injectNativeConfig(out, {
+  voiceAppid: VOICE_APPID,
+  voiceAppkey: VOICE_APPKEY,
+  wechatAppid: WECHAT_APPID,
+});
 
 console.log('4/6 删掉旧签名');
 // v1 的三个文件留着会和新签名打架；v2 的签名块 zipalign 会一并丢弃
@@ -461,12 +835,17 @@ fs.renameSync(aligned, out);
 
 console.log('6/6 签名');
 if (!fs.existsSync(KEYSTORE)) {
+  if (WECHAT_APPID) {
+    throw new Error(`微信登录已配置，但签名库不存在：${KEYSTORE}。不能自动生成新签名，否则会与微信开放平台登记值不一致`);
+  }
   run('keytool', ['-genkeypair', '-keystore', KEYSTORE, '-storepass', STOREPASS, '-keypass', STOREPASS,
-    '-alias', 'qjqp', '-keyalg', 'RSA', '-keysize', '2048', '-validity', '10000', '-dname', 'CN=qjqp']);
+    '-alias', KEY_ALIAS, '-keyalg', 'RSA', '-keysize', '2048', '-validity', '10000', '-dname', `CN=${KEY_ALIAS}`]);
   console.log(`      新建签名库 ${KEYSTORE}`);
 }
-run(tool('apksigner'), ['sign', '--ks', KEYSTORE, '--ks-pass', `pass:${STOREPASS}`, '--ks-key-alias', 'qjqp', out]);
-console.log(run(tool('apksigner'), ['verify', '--print-certs', out]).split('\n')[0] || '已验证');
+run(tool('apksigner'), ['sign', '--ks', KEYSTORE, '--ks-pass', `pass:${STOREPASS}`, '--ks-key-alias', KEY_ALIAS, out]);
+const certInfo = run(tool('apksigner'), ['verify', '--print-certs', out]);
+console.log(certInfo.split('\n').find((line) => line.includes('certificate DN')) || '签名已验证');
+console.log(certInfo.split('\n').find((line) => line.includes('MD5 digest')) || '');
 
 fs.rmSync(stage, { recursive: true, force: true });
 console.log(`\n完成：${out}  ${(fs.statSync(out).size / 1048576).toFixed(0)} MB`);

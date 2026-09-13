@@ -6,9 +6,19 @@ const fs = require('fs');
 const path = require('path');
 const { URL } = require('url');
 const { WebSocketServer } = require('ws');
+
+const devVars = path.join(__dirname, '..', '.dev.vars');
+if (process.env.QJQP_LOAD_DEV_VARS !== '0' && fs.existsSync(devVars)) {
+  for (const line of fs.readFileSync(devVars, 'utf8').split('\n')) {
+    const match = line.match(/^(QJQP_WECHAT_APPID|QJQP_WECHAT_APPSECRET|QJQP_ID_HASH_KEY)=(.*)$/);
+    if (match && !process.env[match[1]]) process.env[match[1]] = match[2].trim();
+  }
+}
+
 const store = require('./store');
 const { GameApp } = require('./app');
 const { createVoice } = require('./voice');
+const { authorizeWechat } = require('./wechat');
 
 const voice = createVoice(path.join(path.dirname(store.FILE), 'voice'));
 
@@ -19,10 +29,9 @@ let saveQueue = Promise.resolve();
 let stopping = false;
 
 const queueSave = (data) => {
-  saveQueue = saveQueue
-    .then(() => store.saveAsync(data))
-    .catch((err) => console.error('写存档失败', err));
-  return saveQueue;
+  const write = saveQueue.then(() => store.saveAsync(data));
+  saveQueue = write.catch((err) => console.error('写存档失败', err));
+  return write;
 };
 
 const persistSoon = () => {
@@ -57,7 +66,7 @@ const json = (res, body, status = 200) => {
 
 const logUrl = (url) => {
   const query = new URLSearchParams(url.searchParams);
-  for (const key of ['token', 'access_token', 'authorization']) {
+  for (const key of ['token', 'code', 'deviceId', 'access_token', 'authorization']) {
     if (query.has(key)) query.set(key, '[redacted]');
   }
   const suffix = query.toString();
@@ -80,8 +89,14 @@ const readBody = (req, limit) => new Promise((resolve, reject) => {
   req.on('error', reject);
 });
 
-const server = http.createServer((req, res) => {
-  const url = new URL(req.url, `http://${req.headers.host}`);
+const server = http.createServer(async (req, res) => {
+  let url;
+  try {
+    // 路由只使用路径和查询参数，不依赖客户端提供的 Host。
+    url = new URL(req.url, 'http://localhost');
+  } catch {
+    return json(res, { err_code: 1, err_msg: 'invalid URL' }, 400);
+  }
   console.log(`HTTP ${req.method} ${logUrl(url)}`);
 
   if (url.pathname === '/voice' && req.method === 'POST') {
@@ -106,6 +121,23 @@ const server = http.createServer((req, res) => {
       'Cache-Control': 'public, max-age=1800',
     });
     return fs.createReadStream(file).pipe(res);
+  }
+
+  if (req.method === 'GET' && url.pathname === '/login' && url.searchParams.get('accountType') === 'wx') {
+    try {
+      const requestedAppId = String(url.searchParams.get('appId') || '');
+      const configuredAppId = process.env.QJQP_WECHAT_APPID || '';
+      if (requestedAppId && configuredAppId && requestedAppId !== configuredAppId) {
+        return json(res, { err_code: 4, err_msg: '微信 AppID 不匹配，请更新客户端' }, 400);
+      }
+      const profile = await authorizeWechat(url.searchParams.get('code'));
+      const login = app.loginWechat(profile);
+      console.log(`  微信登录 uid=${login.player.uid}`);
+      return json(res, { err_code: 0, data: { token: login.token } });
+    } catch (err) {
+      console.error(`微信登录失败：${err.message}`);
+      return json(res, { err_code: err.code || 1, err_msg: err.message }, 400);
+    }
   }
 
   const out = app.http(url.pathname, url.searchParams);
@@ -145,6 +177,7 @@ const shutdown = async (why) => {
   stopping = true;
   console.log(`收到 ${why}，落盘后退出`);
   try { await flush(); } catch (err) { console.error(err); }
+  store.close();
   process.exit(0);
 };
 
@@ -153,7 +186,10 @@ process.on('SIGINT', () => { void shutdown('SIGINT'); });
 process.on('uncaughtException', (err) => {
   console.error('uncaughtException', err);
   stopping = true;
-  void flush().finally(() => process.exit(1));
+  void flush().finally(() => {
+    store.close();
+    process.exit(1);
+  });
 });
 process.on('unhandledRejection', (err) => console.error('unhandledRejection', err));
 server.on('error', (err) => console.error('HTTP 监听出错', err));
@@ -163,7 +199,9 @@ try {
   void flush();
   console.log(`从存档恢复 ${app.players.size} 个玩家、${app.tables.size} 个房间  ${store.FILE}`);
 } catch (err) {
-  console.error('读存档失败，空着启动', err);
+  console.error('读存档失败，拒绝空数据启动', err);
+  store.close();
+  process.exit(1);
 }
 
 server.listen(PORT, '0.0.0.0', () => {

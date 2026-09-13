@@ -1,0 +1,29 @@
+{
+  "SubTexture": [
+    {
+      "width": 81,
+      "y": 1,
+      "height": 72,
+      "name": "sanbudai_1",
+      "x": 169
+    },
+    {
+      "width": 82,
+      "y": 1,
+      "height": 82,
+      "name": "sanbudai_3",
+      "x": 1
+    },
+    {
+      "width": 82,
+      "y": 1,
+      "height": 79,
+      "name": "sanbudai_2",
+      "x": 85
+    }
+  ],
+  "width": 256,
+  "height": 128,
+  "name": "sanbudai-ddz",
+  "imagePath": "sanbudai-ddz_tex.png"
+}

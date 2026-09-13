@@ -1,0 +1,44 @@
+{
+  "SubTexture": [
+    {
+      "frameX": -519,
+      "frameHeight": 720,
+      "y": 1,
+      "frameY": -260,
+      "frameWidth": 1280,
+      "width": 724,
+      "height": 200,
+      "name": "右边",
+      "x": 1
+    },
+    {
+      "frameX": -43,
+      "frameHeight": 720,
+      "y": 203,
+      "frameY": -243,
+      "frameWidth": 1280,
+      "width": 711,
+      "height": 200,
+      "name": "左边",
+      "x": 1
+    },
+    {
+      "width": 638,
+      "y": 405,
+      "height": 189,
+      "name": "对局开始",
+      "x": 1
+    },
+    {
+      "width": 326,
+      "y": 405,
+      "height": 326,
+      "name": "外发光",
+      "x": 641
+    }
+  ],
+  "width": 1024,
+  "height": 1024,
+  "name": "kj",
+  "imagePath": "kj_tex.png"
+}

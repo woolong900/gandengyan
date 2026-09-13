@@ -187,6 +187,7 @@ const boot = (n, extra = {}) => {
   round.drawn[0] = 13;
   round.turn = 0;
   t('三张皮子能杠', mahjong.canPiziGang(round.looseTiles(0), pz), true);
+  const wallBefore = round.wall.remain();
   io.sent.length = 0;
   t('皮子杠成功', round.doSelfGang(0, pz, false), null);
   t('朝天笑走暗杠消息', io.sent.some((x) => x.h === 'game_gang' && x.d.view === 2 && x.d.card === pz), true);
@@ -195,10 +196,41 @@ const boot = (n, extra = {}) => {
   const snap = round.snapshot(0);
   t('朝天进碰杠区', snap.info[0].card.ag_card, [pz]);
   t('癞子区没有朝天', snap.info[0].card.hzg_card.includes(pz), false);
+  t('朝天后只移除三张手牌', round.hands[0].length, 11);
+  t('朝天后不补牌', round.drawn[0], null);
+  t('朝天不消耗牌墙', round.wall.remain(), wallBefore);
+  const put = round.hands[0].find((card) => card !== round.laizi);
+  t('朝天后本人可以直接出牌', round.discard(0, put), null);
 }
 
 {
   t('两张皮子能点笑', mahjong.canMingGang([11, 11, 2, 3, 4], 11, 19, 11), true);
+}
+
+{
+  const { round, io } = boot(2);
+  round.pizi = 15;
+  round.laizi = 31;
+  round.hands[0] = [2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 16];
+  round.drawn[0] = 15;
+  round.hands[1] = [15, 15, 1, 2, 4, 5, 7, 8, 11, 13, 16, 18, 29];
+  round.drawn[1] = null;
+  round.turn = 0;
+  round.pending = null;
+  io.sent.length = 0;
+  const wallBefore = round.wall.remain();
+  t('别人打朝天', round.discard(0, 15), null);
+  const offer = io.sent.find((x) => x.to === 1 && x.h === 'game_operator');
+  t('两张朝天只显示朝天按钮', { gang: offer && offer.d.gang, touch: offer && offer.d.touch }, { gang: [15], touch: 0 });
+  const cand = round.pending && round.pending.candidates.find((c) => c.seat === 1);
+  t('朝天候选不再包含碰', cand && cand.ops.peng, false);
+  t('接朝天成功', round.respond(1, 'gang', { card: 15 }), null);
+  t('接朝天只移除手里的两张', round.hands[1].length, 11);
+  t('接朝天拿走河牌', round.discards[0].includes(15), false);
+  t('接朝天不补牌', round.drawn[1], null);
+  t('接朝天不消耗牌墙', round.wall.remain(), wallBefore);
+  t('接朝天后轮到本人', { turn: round.turn, pending: round.pending }, { turn: 1, pending: null });
+  t('接朝天后可以直接出牌', round.discard(1, 1), null);
 }
 
 // ---------------------------------------------------------------- 亮癞之后癞子不当万能
@@ -600,6 +632,12 @@ const boot = (n, extra = {}) => {
   t('恢复后余牌一样', restored.wall.remain(), round.wall.remain());
   t('恢复后庄家手牌一样', restored.hands[0], round.hands[0]);
   t('恢复后能打出刚摸的牌', restored.discard(0, card), null);
+  // 随机手牌可能让对家先收到碰、杠或胡的询问；全部选择过后才会继续摸牌。
+  while (restored.pending && restored.pending.kind === 'discard') {
+    const waiting = restored.waitingSeats();
+    if (!waiting.length) break;
+    restored.respond(waiting[0], 'pass');
+  }
   t('恢复后牌墙还能摸', restored.wall.remain() < round.wall.remain() || restored.drawn[1] != null, true);
 }
 

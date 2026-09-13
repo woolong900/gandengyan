@@ -1,0 +1,15 @@
+{
+  "imagePath": "fj_tex.png",
+  "width": 256,
+  "height": 128,
+  "name": "fj",
+  "SubTexture": [
+    {
+      "width": 230,
+      "y": 1,
+      "height": 84,
+      "name": "fj",
+      "x": 1
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "imagePath": "loading_tex.png",
+  "width": 256,
+  "height": 256,
+  "name": "loading",
+  "SubTexture": [
+    {
+      "width": 133,
+      "y": 1,
+      "height": 133,
+      "name": "loading",
+      "x": 1
+    },
+    {
+      "width": 52,
+      "y": 136,
+      "height": 70,
+      "name": "fa",
+      "x": 1
+    }
+  ]
+}

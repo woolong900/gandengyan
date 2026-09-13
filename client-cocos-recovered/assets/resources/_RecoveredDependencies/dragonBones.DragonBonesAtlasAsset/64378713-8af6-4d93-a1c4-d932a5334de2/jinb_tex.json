@@ -1,0 +1,41 @@
+{
+  "width": 256,
+  "imagePath": "jinb_tex.png",
+  "name": "jinb",
+  "SubTexture": [
+    {
+      "frameY": -2,
+      "y": 126,
+      "frameWidth": 116,
+      "frameHeight": 127,
+      "width": 114,
+      "height": 123,
+      "name": "3",
+      "frameX": -1,
+      "x": 132
+    },
+    {
+      "frameY": -2,
+      "y": 1,
+      "frameWidth": 116,
+      "frameHeight": 127,
+      "width": 114,
+      "height": 123,
+      "name": "2",
+      "frameX": -1,
+      "x": 132
+    },
+    {
+      "frameY": -2,
+      "y": 1,
+      "frameWidth": 129,
+      "frameHeight": 140,
+      "width": 129,
+      "height": 138,
+      "name": "1",
+      "frameX": 0,
+      "x": 1
+    }
+  ],
+  "height": 256
+}

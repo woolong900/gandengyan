@@ -7,7 +7,9 @@ process.env.QJQP_FILLBOTS = '0';
 const { GameApp } = require('../server/app');
 const { protocol } = require('../server/proto/protocol');
 const rules = require('../server/rules');
-const { INVITE_GIVE, INVITE_AMBIGUOUS, mintInviteCode, num } = require('../server/shared');
+const {
+  NEW_PLAYER_CARDS, INVITE_GIVE, INVITE_AMBIGUOUS, mintInviteCode, num,
+} = require('../server/shared');
 
 let pass = 0;
 let fail = 0;
@@ -123,7 +125,7 @@ const boot = () => {
   const { app, login } = boot();
   const a = login('a', 't_inviter');
   const b = login('b', 't_new');
-  t('新用户 0 张房卡', a.login.cardNum, 0);
+  t('新用户赠送 10000 张房卡', a.login.cardNum, NEW_PLAYER_CARDS);
   t('登录就有 5 位大写邀请码', /^[A-Z]{5}$/.test(a.player.inviteCode), true);
   t('邀请码不含 I/O/Z/L', INVITE_AMBIGUOUS.test(a.player.inviteCode), false);
   t('两人邀请码不同', a.player.inviteCode !== b.player.inviteCode, true);
@@ -136,10 +138,10 @@ const boot = () => {
 
   app.onMessage('b', packCs(104, { inviteCode: a.player.inviteCode.toLowerCase() }));
   t('绑定成功', num(last(b.box, 104).res.error), 0);
-  t('邀请人 +1000', a.player.cardNum, INVITE_GIVE);
-  t('新用户 +1000', b.player.cardNum, INVITE_GIVE);
-  t('推了邀请人房卡', last(a.box, 1001) && last(a.box, 1001).card, INVITE_GIVE);
-  t('推了新用户房卡', last(b.box, 1001) && last(b.box, 1001).card, INVITE_GIVE);
+  t('邀请人 +1000', a.player.cardNum, NEW_PLAYER_CARDS + INVITE_GIVE);
+  t('新用户 +1000', b.player.cardNum, NEW_PLAYER_CARDS + INVITE_GIVE);
+  t('推了邀请人房卡', last(a.box, 1001) && last(a.box, 1001).card, NEW_PLAYER_CARDS + INVITE_GIVE);
+  t('推了新用户房卡', last(b.box, 1001) && last(b.box, 1001).card, NEW_PLAYER_CARDS + INVITE_GIVE);
 
   app.onMessage('b', packCs(104, { inviteCode: a.player.inviteCode }));
   t('不能重复绑定', num(last(b.box, 104).res.error), 1);
@@ -158,6 +160,7 @@ const boot = () => {
 {
   const { app, login } = boot();
   const a = login('a', 't_poor');
+  a.player.cardNum = 0;
   const param = rules.buildParam({ 人数: 2, 房费: '房主' });
   app.onMessage('a', packCs(201, {
     gameType: 2, clubId: 0, num: 1, param1: param.param1, param2: param.param2,
@@ -227,6 +230,7 @@ const boot = () => {
 {
   const { app, login } = boot();
   const a = login('a', 't_aa_broke_host');
+  a.player.cardNum = 0;
   const param = rules.buildParam({ 人数: 2, 房费: 'AA' });
   app.onMessage('a', packCs(201, {
     gameType: 2, clubId: 0, num: 2, param1: param.param1, param2: param.param2,
@@ -239,6 +243,7 @@ const boot = () => {
   const a = login('a', 't_aa_ok');
   const b = login('b', 't_aa_broke');
   a.player.cardNum = 5;
+  b.player.cardNum = 0;
   const param = rules.buildParam({ 人数: 2, 房费: 'AA' });
   app.onMessage('a', packCs(201, {
     gameType: 2, clubId: 0, num: 2, param1: param.param1, param2: param.param2,
@@ -254,6 +259,7 @@ const boot = () => {
   const a = login('a', 't_host_ok');
   const b = login('b', 't_guest_broke');
   a.player.cardNum = 10;
+  b.player.cardNum = 0;
   const param = rules.buildParam({ 人数: 2, 房费: '房主' });
   app.onMessage('a', packCs(201, {
     gameType: 2, clubId: 0, num: 1, param1: param.param1, param2: param.param2,

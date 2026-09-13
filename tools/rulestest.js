@@ -347,6 +347,22 @@ console.log('双大胡');
 }
 
 {
+  const { round, log } = table(cfg({ 人数: 3, 双大胡: true }), (r) => {
+    r.laizi = 31;
+    r.pizi = 15;
+    // 朝天已经在前几圈杠出；本次自摸的手牌本身不再含三张朝天。
+    r.melds = [[{ type: 'pizi', card: 15, from: 0 }], [], []];
+    r.hands = [[1, 2, 3, 4, 5, 6, 11, 12, 13, 14], HAND_IGNORE_5.slice(), HAND_IGNORE_5.slice()];
+    r.drawn = [14, null, null];
+    r.turn = 0;
+    r.pending = null;
+  });
+  check('先朝天杠、过几圈后自摸能胡', round.canHu(0), true);
+  round.win(0, 14, null);
+  check('先朝天杠、过几圈后自摸不是双大胡', rules.hasBit(lastOver(log).huType, rules.HU.双大胡), false);
+}
+
+{
   const duidao = [1, 2, 3, 2, 2, 6, 7, 8, 11, 12, 13, 15, 15];
   const seq55 = [1, 2, 3, 6, 7, 8, 11, 12, 13, 13, 14, 15, 15];
   check('对倒朝天可双大胡', mahjong.isShuangDaHu(duidao.concat([15]), 15, 31), true);

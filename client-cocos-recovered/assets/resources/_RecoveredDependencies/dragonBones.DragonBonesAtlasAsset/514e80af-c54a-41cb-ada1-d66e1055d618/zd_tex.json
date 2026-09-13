@@ -1,0 +1,180 @@
+{
+  "SubTexture": [
+    {
+      "frameX": -40,
+      "frameHeight": 281,
+      "y": 226,
+      "frameY": -95,
+      "frameWidth": 305,
+      "width": 193,
+      "height": 176,
+      "name": "bomb_06",
+      "x": 331
+    },
+    {
+      "width": 328,
+      "y": 1,
+      "height": 279,
+      "name": "tm",
+      "x": 1
+    },
+    {
+      "frameX": -60,
+      "frameHeight": 281,
+      "y": 412,
+      "frameY": -65,
+      "frameWidth": 305,
+      "width": 187,
+      "height": 178,
+      "name": "bomb_09",
+      "x": 716
+    },
+    {
+      "frameX": -48,
+      "frameHeight": 281,
+      "y": 1,
+      "frameY": -41,
+      "frameWidth": 305,
+      "width": 203,
+      "height": 223,
+      "name": "bomb_15",
+      "x": 331
+    },
+    {
+      "frameX": -61,
+      "frameHeight": 281,
+      "y": 404,
+      "frameY": -70,
+      "frameWidth": 305,
+      "width": 182,
+      "height": 175,
+      "name": "bomb_08",
+      "x": 219
+    },
+    {
+      "frameX": -67,
+      "frameHeight": 281,
+      "y": 581,
+      "frameY": -98,
+      "frameWidth": 305,
+      "width": 171,
+      "height": 140,
+      "name": "bomb_07",
+      "x": 173
+    },
+    {
+      "frameX": -61,
+      "frameHeight": 281,
+      "y": 219,
+      "frameY": -57,
+      "frameWidth": 305,
+      "width": 178,
+      "height": 193,
+      "name": "bomb_11",
+      "x": 536
+    },
+    {
+      "frameX": -106,
+      "frameHeight": 281,
+      "y": 624,
+      "frameY": -64,
+      "frameWidth": 305,
+      "width": 144,
+      "height": 159,
+      "name": "bomb_02",
+      "x": 1
+    },
+    {
+      "frameX": -51,
+      "frameHeight": 281,
+      "y": 282,
+      "frameY": -76,
+      "frameWidth": 305,
+      "width": 216,
+      "height": 153,
+      "name": "bomb_05",
+      "x": 1
+    },
+    {
+      "frameX": -106,
+      "frameHeight": 281,
+      "y": 414,
+      "frameY": -17,
+      "frameWidth": 305,
+      "width": 141,
+      "height": 206,
+      "name": "bomb_01",
+      "x": 403
+    },
+    {
+      "frameX": -50,
+      "frameHeight": 281,
+      "y": 1,
+      "frameY": -45,
+      "frameWidth": 305,
+      "width": 199,
+      "height": 216,
+      "name": "bomb_14",
+      "x": 536
+    },
+    {
+      "frameX": -107,
+      "frameHeight": 281,
+      "y": 414,
+      "frameY": -126,
+      "frameWidth": 305,
+      "width": 140,
+      "height": 97,
+      "name": "bomb_03",
+      "x": 546
+    },
+    {
+      "frameX": -65,
+      "frameHeight": 281,
+      "y": 437,
+      "frameY": -61,
+      "frameWidth": 305,
+      "width": 170,
+      "height": 185,
+      "name": "bomb_10",
+      "x": 1
+    },
+    {
+      "frameX": -67,
+      "frameHeight": 281,
+      "y": 592,
+      "frameY": -104,
+      "frameWidth": 305,
+      "width": 173,
+      "height": 122,
+      "name": "bomb_04",
+      "x": 546
+    },
+    {
+      "frameX": -54,
+      "frameHeight": 281,
+      "y": 1,
+      "frameY": -50,
+      "frameWidth": 305,
+      "width": 192,
+      "height": 207,
+      "name": "bomb_13",
+      "x": 737
+    },
+    {
+      "frameX": -58,
+      "frameHeight": 281,
+      "y": 210,
+      "frameY": -54,
+      "frameWidth": 305,
+      "width": 183,
+      "height": 200,
+      "name": "bomb_12",
+      "x": 737
+    }
+  ],
+  "width": 1024,
+  "height": 1024,
+  "name": "zd",
+  "imagePath": "zd_tex.png"
+}

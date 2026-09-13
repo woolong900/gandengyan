@@ -2,14 +2,20 @@
   "name": "gandengyan-online",
   "private": true,
   "type": "commonjs",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node tools/serve.js",
-    "test": "node tools/test-cards.js && node tools/test-clubs.js && node tools/test-playback.js && node tools/test-records.js && node tools/test-watch.js && node tools/test-net.js && node tools/test-round.js && node tools/rulestest.js"
+    "backup": "node tools/backup-state.js",
+    "apk:install": "node tools/build-install-apk.js",
+    "test": "node tools/test-cards.js && node tools/test-clubs.js && node tools/test-club-access.js && node tools/test-store.js && node tools/test-http.js && node tools/test-wechat.js && node tools/test-guest-login.js && node tools/test-identity.js && node tools/test-playback.js && node tools/test-records.js && node tools/test-watch.js && node tools/test-net.js && node tools/test-trustee.js && node tools/test-round.js && node tools/rulestest.js"
   },
   "devDependencies": {
     "rollup": "^4.0.0"
   },
   "dependencies": {
+    "better-sqlite3": "^13.0.3",
     "protobufjs": "^8.8.0",
     "ws": "^8.21.3"
   }

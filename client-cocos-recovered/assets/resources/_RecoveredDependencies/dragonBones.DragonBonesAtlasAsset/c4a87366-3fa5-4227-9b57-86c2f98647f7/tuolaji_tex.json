@@ -1,0 +1,65 @@
+{
+  "width": 512,
+  "SubTexture": [
+    {
+      "width": 348,
+      "y": 1,
+      "height": 245,
+      "name": "car",
+      "x": 1
+    },
+    {
+      "width": 134,
+      "y": 1,
+      "height": 134,
+      "name": "l2",
+      "x": 351
+    },
+    {
+      "width": 101,
+      "y": 137,
+      "height": 101,
+      "name": "l1",
+      "x": 351
+    },
+    {
+      "frameX": -1,
+      "frameHeight": 18,
+      "y": 288,
+      "frameY": -1,
+      "frameWidth": 140,
+      "width": 139,
+      "height": 18,
+      "name": "4",
+      "x": 1
+    },
+    {
+      "frameX": -1,
+      "frameHeight": 18,
+      "y": 268,
+      "frameY": -1,
+      "frameWidth": 140,
+      "width": 139,
+      "height": 18,
+      "name": "3",
+      "x": 325
+    },
+    {
+      "width": 373,
+      "y": 248,
+      "height": 18,
+      "name": "2",
+      "x": 1
+    },
+    {
+      "width": 322,
+      "y": 268,
+      "height": 18,
+      "name": "1.jpg",
+      "x": 1
+    }
+  ],
+  "height": 512,
+  "name": "tuolaji",
+  "imagePath": "tuolaji_tex.png"
+}

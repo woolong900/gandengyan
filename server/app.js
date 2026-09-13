@@ -11,15 +11,19 @@ const {
 } = require('./shared');
 const { buildRecord, listFor, keepLatest } = require('./records');
 const { findPlayback, mintPlaybackId } = require('./playback');
+const { identityDigest, maskIdCard, validateIdentity } = require('./identity');
 
 class GameApp {
-  constructor({ persist, now, allowUnregisteredTokens = false } = {}) {
+  constructor({ persist, now, allowUnregisteredTokens = false, identityHashKey } = {}) {
     this.persistFn = persist || (() => {});
     this.nowFn = now || Date.now;
     this.allowUnregisteredTokens = !!allowUnregisteredTokens;
+    this.identityHashKey = String(identityHashKey || process.env.QJQP_ID_HASH_KEY || '');
     this.players = new Map();
     this.playersByUid = new Map();
     this.playersByInviteCode = new Map();
+    this.playersByIdentityHash = new Map();
+    this.playersByGuestDeviceHash = new Map();
     this.tables = new Map();
     this.clubStore = new ClubStore({ now: () => this.now() });
     this.nextUid = 100001;
@@ -131,6 +135,108 @@ class GameApp {
     return { error: 0, what: '' };
   }
 
+  identityInfo(player) {
+    return {
+      realName: player && player.identityVerified ? player.identityNameInitial : '',
+      idCard: player && player.identityVerified ? player.identityIdMasked : '',
+      giveCard: 0,
+    };
+  }
+
+  bindIdentity(player, input) {
+    if (!player || player.bot) return { error: 1, what: '登录状态无效，请重新登录' };
+    if (player.identityVerified) return { error: 1, what: '该账号已经完成实名认证' };
+    if (!this.identityHashKey) return { error: 1, what: '实名认证服务尚未配置，请联系管理员' };
+    const checked = validateIdentity(input, { today: new Date(this.now()) });
+    if (checked.error) return { error: 1, what: checked.error };
+
+    const idHash = identityDigest(this.identityHashKey, 'id-card', checked.idCard);
+    const other = this.playersByIdentityHash.get(idHash);
+    if (other && other.uid !== player.uid) return { error: 1, what: '该身份证已绑定其他账号' };
+
+    player.identityVerified = true;
+    player.identityNameInitial = checked.realName.slice(0, 1);
+    player.identityNameHash = identityDigest(this.identityHashKey, 'real-name', checked.realName);
+    player.identityIdHash = idHash;
+    player.identityIdMasked = maskIdCard(checked.idCard);
+    player.identityVerifiedAt = this.now();
+    player.identityVerificationLevel = 'format';
+    this.playersByIdentityHash.set(idHash, player);
+    this.persist();
+    console.log(`  实名认证 uid=${player.uid} 成功`);
+    return { error: 0, what: '' };
+  }
+
+  loginWechat(profile) {
+    const openid = String(profile && profile.openid || '');
+    const unionid = String(profile && profile.unionid || '');
+    if (!openid) throw new Error('微信身份缺少 openid');
+    let match = null;
+    for (const entry of this.players.entries()) {
+      const player = entry[1];
+      if ((unionid && player.wechatUnionid === unionid) || player.wechatOpenid === openid) {
+        match = entry;
+        break;
+      }
+    }
+
+    let token;
+    let player;
+    if (match) {
+      [token, player] = match;
+    } else {
+      token = `t_${crypto.randomBytes(24).toString('hex')}`;
+      player = emptyPlayer(this.nextUid++);
+      this.players.set(token, player);
+      this.playersByUid.set(player.uid, player);
+    }
+    player.wechatOpenid = openid;
+    player.wechatUnionid = unionid;
+    if (profile.nickname) player.nickname = String(profile.nickname).slice(0, 32);
+    if (profile.avatarUrl) player.avatarUrl = String(profile.avatarUrl);
+    if (Number(profile.sex)) player.sex = Number(profile.sex);
+    this.ensureInviteCode(player);
+    this.persist();
+    return { token, player };
+  }
+
+  guestDeviceHash(deviceId) {
+    const value = String(deviceId || '').trim();
+    if (!/^[a-zA-Z0-9._:-]{8,128}$/.test(value)) return '';
+    return crypto.createHash('sha256').update(`qjqp-guest-device\0${value}`).digest('hex');
+  }
+
+  loginGuest(deviceId, oldToken) {
+    const deviceHash = this.guestDeviceHash(deviceId);
+    const knownToken = deviceHash && this.playersByGuestDeviceHash.get(deviceHash);
+    if (knownToken && this.players.has(knownToken)) {
+      return { token: knownToken, player: this.players.get(knownToken), created: false };
+    }
+
+    const previousToken = String(oldToken || '');
+    if (previousToken && this.players.has(previousToken)) {
+      const player = this.players.get(previousToken);
+      if (!deviceHash || !player.guestDeviceHash || player.guestDeviceHash === deviceHash) {
+        if (deviceHash && !player.guestDeviceHash) {
+          player.guestDeviceHash = deviceHash;
+          this.playersByGuestDeviceHash.set(deviceHash, previousToken);
+          this.persist();
+        }
+        return { token: previousToken, player, created: false };
+      }
+    }
+
+    const uid = this.nextUid++;
+    const token = `t_${crypto.randomBytes(24).toString('hex')}`;
+    const player = emptyPlayer(uid, { guestDeviceHash: deviceHash });
+    this.players.set(token, player);
+    this.playersByUid.set(player.uid, player);
+    if (deviceHash) this.playersByGuestDeviceHash.set(deviceHash, token);
+    this.ensureInviteCode(player);
+    this.persist();
+    return { token, player, created: true };
+  }
+
   fillBotsOn() {
     return process.env.QJQP_FILLBOTS !== '0';
   }
@@ -162,6 +268,17 @@ class GameApp {
         uid: p.uid,
         nickname: p.nickname,
         sex: p.sex,
+        avatarUrl: p.avatarUrl || '',
+        wechatOpenid: p.wechatOpenid || '',
+        wechatUnionid: p.wechatUnionid || '',
+        identityVerified: !!p.identityVerified,
+        identityNameInitial: p.identityNameInitial || '',
+        identityNameHash: p.identityNameHash || '',
+        identityIdHash: p.identityIdHash || '',
+        identityIdMasked: p.identityIdMasked || '',
+        identityVerifiedAt: Number(p.identityVerifiedAt || 0),
+        identityVerificationLevel: p.identityVerificationLevel || '',
+        guestDeviceHash: p.guestDeviceHash || '',
         cardNum: p.cardNum,
         roomId: p.roomId || 0,
         inviteCode: p.inviteCode || '',
@@ -180,6 +297,8 @@ class GameApp {
     this.players.clear();
     this.playersByUid.clear();
     this.playersByInviteCode.clear();
+    this.playersByIdentityHash.clear();
+    this.playersByGuestDeviceHash.clear();
     this.nextUid = data.nextUid || 100001;
     this.nextRoomId = data.nextRoomId || 100000;
     this.records = Array.isArray(data.records) ? data.records : [];
@@ -191,6 +310,10 @@ class GameApp {
       this.players.set(p.token, player);
       this.playersByUid.set(player.uid, player);
       if (player.inviteCode && !player.bot) this.playersByInviteCode.set(player.inviteCode, player);
+      if (player.identityIdHash && !player.bot) this.playersByIdentityHash.set(player.identityIdHash, player);
+      if (player.guestDeviceHash && !player.bot && !this.playersByGuestDeviceHash.has(player.guestDeviceHash)) {
+        this.playersByGuestDeviceHash.set(player.guestDeviceHash, p.token);
+      }
       byUid.set(player.uid, player);
     }
     for (const raw of data.rooms || []) {
@@ -303,6 +426,16 @@ class GameApp {
     };
   }
 
+  clubRoomError(clubId, uid) {
+    if (!clubId) return null;
+    const club = this.clubStore.get(clubId);
+    const member = club && this.clubStore.member(club, uid);
+    if (!club || !member) return '不是俱乐部成员';
+    if (member.freeze) return '你已被俱乐部冻结';
+    if (club.settings.closed) return '俱乐部已关闭';
+    return null;
+  }
+
   ensureClubSchemeTables(club) {
     if (!club) return false;
     let changed = false;
@@ -382,20 +515,17 @@ class GameApp {
     if (pathname === '/login') {
       const accountType = String(query.get('accountType') || 'guest');
       const old = String(query.get('token') || '');
+      if (accountType === 'wx') {
+        return { status: 503, body: { err_code: 3, err_msg: '微信登录需要通过服务器授权接口' } };
+      }
       if (accountType === 'token') {
         if (old && this.players.has(old)) {
           return { status: 200, body: { err_code: 0, data: { token: old } } };
         }
         return { status: 200, body: { err_code: 65, err_msg: '登录时效已过期,请重新登录' } };
       }
-      const uid = this.nextUid++;
-      const token = `t_${crypto.randomBytes(24).toString('hex')}`;
-      const player = emptyPlayer(uid);
-      this.players.set(token, player);
-      this.playersByUid.set(player.uid, player);
-      this.ensureInviteCode(player);
-      this.persist();
-      return { status: 200, body: { err_code: 0, data: { token } } };
+      const login = this.loginGuest(query.get('deviceId'), old);
+      return { status: 200, body: { err_code: 0, data: { token: login.token } } };
     }
     return { status: 404, body: null };
   }
@@ -443,7 +573,7 @@ class GameApp {
         res: { error: 0, what: '' },
         uid: c.player.uid,
         nickname: c.player.nickname,
-        avatarUrl: '',
+        avatarUrl: c.player.avatarUrl || '',
         sex: c.player.sex,
         roomId,
         cardNum: c.player.cardNum,
@@ -453,14 +583,19 @@ class GameApp {
 
     if (proto === 99) return c.send(pack(99, { time: this.now() }));
 
-    if (proto === 101) {
-      return c.send(pack(101, { res: { error: 0, what: '' }, realName: '测试', idCard: '', giveCard: 0 }));
-    }
     if (proto === 105) {
       return c.send(pack(105, { res: { error: 0, what: '' }, mobile: '13800000000', giveCard: 0 }));
     }
 
     if (!c.player) return;
+
+    if (proto === 101) {
+      return c.send(pack(101, { res: { error: 0, what: '' }, ...this.identityInfo(c.player) }));
+    }
+
+    if (proto === 102) {
+      return c.send(pack(102, { res: this.bindIdentity(c.player, msg) }));
+    }
 
     if (proto === 113) {
       const clubs = this.clubStore.listFor(c.player.uid).map((club) => this.clubInfo(club, c.player.uid));
@@ -852,13 +987,8 @@ class GameApp {
       if (invalid) return c.send(pack(201, { res: { error: 1, what: invalid } }));
       const config = rules.parseConfig(param1, param2);
       const clubId = num(msg && msg.clubId);
-      if (clubId) {
-        const club = this.clubStore.get(clubId);
-        const member = club && this.clubStore.member(club, c.player.uid);
-        if (!club || !member) return c.send(pack(201, { res: { error: 1, what: '不是俱乐部成员' } }));
-        if (member.freeze) return c.send(pack(201, { res: { error: 1, what: '你已被俱乐部冻结' } }));
-        if (club.settings.closed) return c.send(pack(201, { res: { error: 1, what: '俱乐部已关闭' } }));
-      }
+      const clubError = this.clubRoomError(clubId, c.player.uid);
+      if (clubError) return c.send(pack(201, { res: { error: 1, what: clubError } }));
       const cost = rules.roomCardCost({ num: roomNum, 人数: config.人数, 房费: config.房费 });
       if (cost.host > 0 && (c.player.cardNum || 0) < cost.host) {
         return c.send(pack(201, { res: { error: 1, what: '房卡不足' } }));
@@ -898,6 +1028,9 @@ class GameApp {
         console.log(`  202 进房 ${roomId} 不存在`);
         return c.send(pack(202, { res: { error: 1, what: '房间不存在' } }));
       }
+      // 入座、观战和重连都按当前权限检查，已有座位不能绕过冻结或移除。
+      const clubError = this.clubRoomError(table.clubId, c.player.uid);
+      if (clubError) return c.send(pack(202, { res: { error: 1, what: clubError } }));
       const seated = table.members.find((m) => m.player.uid === c.player.uid);
       const cost = rules.roomCardCost({
         num: table.num,

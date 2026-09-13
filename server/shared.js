@@ -73,6 +73,9 @@ const playerAction = (room, uid, msghead, body) => {
   }
 };
 
+/** 新建真人账号赠送的初始房卡。机器人创建时会显式传入 0。 */
+const NEW_PLAYER_CARDS = 10000;
+
 /** 绑定邀请码：邀请人、被邀请人都加这么多。充值先关。 */
 const INVITE_GIVE = 1000;
 /** 去掉 I/O/Z/L，免得和 1/0/2 看混。 */
@@ -92,7 +95,18 @@ const emptyPlayer = (uid, extra = {}) => ({
   uid,
   nickname: extra.nickname || `玩家${uid}`,
   sex: extra.sex || 1,
-  cardNum: extra.cardNum == null ? 0 : extra.cardNum,
+  avatarUrl: extra.avatarUrl || '',
+  wechatOpenid: extra.wechatOpenid || '',
+  wechatUnionid: extra.wechatUnionid || '',
+  identityVerified: !!extra.identityVerified,
+  identityNameInitial: extra.identityNameInitial || '',
+  identityNameHash: extra.identityNameHash || '',
+  identityIdHash: extra.identityIdHash || '',
+  identityIdMasked: extra.identityIdMasked || '',
+  identityVerifiedAt: Number(extra.identityVerifiedAt || 0),
+  identityVerificationLevel: extra.identityVerificationLevel || '',
+  guestDeviceHash: extra.guestDeviceHash || '',
+  cardNum: extra.cardNum == null ? NEW_PLAYER_CARDS : extra.cardNum,
   roomId: extra.roomId || 0,
   inviteCode: extra.inviteCode || '',
   invitedBy: extra.invitedBy || '',
@@ -118,6 +132,7 @@ const configBody = () => ({ err_code: '0', data: null });
 
 module.exports = {
   GAME_COUNT_MUL,
+  NEW_PLAYER_CARDS,
   INVITE_GIVE,
   INVITE_LETTERS,
   INVITE_AMBIGUOUS,

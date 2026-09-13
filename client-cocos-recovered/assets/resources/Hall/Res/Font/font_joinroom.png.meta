@@ -1,0 +1,31 @@
+{
+  "ver": "2.2.0",
+  "uuid": "dfed4989-6912-47c7-a63a-8680ea28b89c",
+  "subMetas": {
+    "font_joinroom": {
+      "ver": "1.0.3",
+      "uuid": "24c71543-2260-422c-a9d5-e841c35002cb",
+      "rawTextureUuid": "dfed4989-6912-47c7-a63a-8680ea28b89c",
+      "trimType": "custom",
+      "trimThreshold": 1,
+      "rotated": false,
+      "offsetX": 1.5,
+      "offsetY": 0.5,
+      "trimX": 3,
+      "trimY": 1,
+      "width": 369,
+      "height": 47,
+      "rawWidth": 372,
+      "rawHeight": 50,
+      "borderTop": 0,
+      "borderBottom": 0,
+      "borderLeft": 0,
+      "borderRight": 0,
+      "subMetas": {}
+    }
+  },
+  "type": "texture",
+  "wrapMode": "clamp",
+  "filterMode": "bilinear",
+  "premultiplyAlpha": false
+}

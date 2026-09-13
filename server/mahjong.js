@@ -258,7 +258,7 @@ const canHu = (tiles, laizi, melded = 0, fullMelds = 4) =>
   || (melded === 0 && fullMelds === 4 && canHuQiDui(tiles, laizi));
 
 /**
- * 双大胡：三个朝天必须单独成刻，拿掉这刻后其余牌仍能胡。
+ * 双大胡：胡牌时三个朝天必须仍在手中并单独成刻，拿掉这刻后其余牌仍能胡。
  * 3455 + 5 这种朝天拆进顺子/将的，不算。
  */
 function isShuangDaHu(tiles, pizi, laizi, melded = 0, fullMelds = 4) {

@@ -1,0 +1,9 @@
+{
+  "ver": "1.0.0",
+  "uuid": "7e32da66-ecad-0432-426e-81a3fe7ce429",
+  "isPlugin": false,
+  "loadPluginInWeb": true,
+  "loadPluginInNative": true,
+  "loadPluginInEditor": false,
+  "subMetas": {}
+}
