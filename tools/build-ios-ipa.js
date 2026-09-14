@@ -47,6 +47,23 @@ const run = (command, args, options = {}) => execFileSync(command, args, {
   stdio: options.stdio || ['ignore', 'pipe', 'pipe'],
 });
 
+// 原厂壳在 iOS 系统启动页之上又手动添加了一层 LaunchImage12，
+// 并依赖 JS 在登录组件 start() 中调用 removeLaunchImg 移除。资源迁移后
+// 这个回调可能不能及时执行，导致游戏已运行但启动图一直盖在最上层。
+// 直接让 -[AppController showLaunchScreen] 返回，交由 iOS 系统启动页正常过渡。
+const disableManualLaunchOverlay = (executable) => {
+  const offset = 0xd050;
+  const expected = Buffer.from('e923bb6d', 'hex'); // stp d9, d8, [sp, #-0x50]!
+  const replacement = Buffer.from('c0035fd6', 'hex'); // ret
+  const binary = fs.readFileSync(executable);
+  const actual = binary.subarray(offset, offset + expected.length);
+  if (!actual.equals(expected) && !actual.equals(replacement)) {
+    throw new Error(`启动图层补丁校验失败：0x${offset.toString(16)} 处为 ${actual.toString('hex')}`);
+  }
+  replacement.copy(binary, offset);
+  fs.writeFileSync(executable, binary);
+};
+
 const lanIPv4 = () => {
   const all = [];
   for (const [name, addresses] of Object.entries(os.networkInterfaces())) {
@@ -123,6 +140,7 @@ try {
   if (linked.includes('@executable_path/cike.dylib')) {
     run('install_name_tool', ['-change', '@executable_path/cike.dylib', '/usr/lib/libSystem.B.dylib', executable]);
   }
+  disableManualLaunchOverlay(executable);
   fs.rmSync(path.join(app, 'cike.dylib'), { force: true });
   fs.rmSync(path.join(app, '_CodeSignature'), { recursive: true, force: true });
   fs.rmSync(path.join(app, 'embedded.mobileprovision'), { force: true });
