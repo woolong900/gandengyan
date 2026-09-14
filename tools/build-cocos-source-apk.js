@@ -79,11 +79,29 @@ const project = reusedProject || path.join(stage, 'client');
 console.log(`${reusedProject ? '复用' : '源码'}构建目录：${project}`);
 if (!reusedProject) copyTree(SOURCE, project);
 else {
+  // Reused Creator output is only a build cache. Always refresh editable
+  // recovered modules so source changes cannot silently package stale code.
+  fs.cpSync(
+    path.join(SOURCE, 'assets/Script/Recovered'),
+    path.join(project, 'assets/Script/Recovered'),
+    { recursive: true },
+  );
   fs.mkdirSync(path.join(project, 'recovery-report'), { recursive: true });
   for (const name of ['module-map.json', 'module-graph.json']) {
     fs.copyFileSync(path.join(SOURCE, 'recovery-report', name), path.join(project, 'recovery-report', name));
   }
 }
+
+// Old published SpriteAtlas imports can only be recovered as serialized JSON.
+// If one still has a .plist suffix (for example in a reused Creator cache),
+// remove it before import; the native plist parser expects XML and crashes.
+walk(path.join(project, 'assets'), (file) => {
+  if (!file.endsWith('.plist')) return;
+  const prefix = fs.readFileSync(file).subarray(0, 80).toString('utf8').trimStart();
+  if (!prefix.startsWith('{')) return;
+  fs.rmSync(file, { force: true });
+  fs.rmSync(`${file}.meta`, { force: true });
+});
 
 if (!reusedProject) for (const type of ['cc.EffectAsset', 'cc.Material']) {
   fs.rmSync(path.join(project, 'assets/resources/_RecoveredDependencies', type), { recursive: true, force: true });

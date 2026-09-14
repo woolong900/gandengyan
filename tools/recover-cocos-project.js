@@ -170,6 +170,13 @@ try {
       continue;
     }
 
+    // Published SpriteAtlas imports are serialized JSON, not their original
+    // XML plist source. Individual SpriteFrames are recovered separately, and
+    // these atlas containers are unreferenced, so do not emit invalid plists.
+    if (record.type === 'cc.SpriteAtlas' && record.logical.endsWith('.plist')) {
+      continue;
+    }
+
     const destination = path.join(assetsRoot, record.logical);
     let contents;
     if (IMPORTED_TYPES.has(record.type)) {

@@ -110,6 +110,7 @@ cc.director.getScene().name !== l.default.DDZSceneName && s.default.uiHelper.loa
 }
 c && c(!1);
 } catch (e) {
+cc.error("join room parse error:", e && (e.stack || e.message) || e);
 cc.error(o.json);
 s.default.uiHelper.showTip("加入房间数据错误~");
 c && c(!0);
