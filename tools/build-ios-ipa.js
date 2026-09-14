@@ -204,7 +204,8 @@ try {
     `sdk=d.get('sdk',{})\n` +
     `sdk['SDK_WX_APPID']=sys.argv[5]\n` +
     `sdk['SDK_WX_APPLINK']=sys.argv[6]\n` +
-    `for k in ['SDK_DD_APPID','SDK_MW_APPKEY','SDK_DX_APPID','SDK_SG_APPID','SDK_TD_APPID']: sdk.pop(k,None)\n` +
+    `# 原生壳会无条件读取这些旧 SDK 键；保留空值以关闭功能并避免 NSString(nil) 崩溃。\n` +
+    `for k in ['SDK_DD_APPID','SDK_MW_APPKEY','SDK_DX_APPID','SDK_SG_APPID','SDK_TD_APPID']: sdk[k]=''\n` +
     `if sys.argv[7]: sdk['SDK_VOICE_APPID']=sys.argv[7]\n` +
     `if sys.argv[8]: sdk['SDK_VOICE_APPKEY']=sys.argv[8]\n` +
     `d['sdk']=sdk\n` +
