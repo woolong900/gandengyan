@@ -231,7 +231,7 @@ RULES.push([
 // 实名表单先清理空格并统一身份证末位 X，减少输入错误；服务端仍执行完整校验。
 RULES.push([
   'var t = this.nameLabel.string, o = this.idCardLabel.string;',
-  'var t = this.nameLabel.string.replace(/[\\s\\u00a0]+/g, "").replace(/[•・]/g, "·"), o = this.idCardLabel.string.replace(/\\s+/g, "").toUpperCase();',
+  u2b('var t = this.nameLabel.string.replace(/[\\s\\u00a0]+/g, "").replace(/[•・]/g, "·"), o = this.idCardLabel.string.replace(/\\s+/g, "").toUpperCase();'),
   true,
 ]);
 // 服务端只回传脱敏数据；首次提交仍在本地使用刚输入的原值，两个场景都正确展示。
@@ -846,6 +846,9 @@ if (js.includes(u2b('元来'))) {
 if (!js.includes(http)) {
   throw new Error(`jsc 里没有写进局域网地址 ${http}`);
 }
+// iOS JavaScriptCore 会拒绝加载含非 UTF-8 字节的整个脚本。在这里提前
+// 校验，也防止后续新增中文规则时忘记通过 u2b 转成 UTF-8 字节。
+new TextDecoder('utf-8', { fatal: true }).decode(Buffer.from(js, 'binary'));
 console.log(`      已写入 ${http}  (${js.split(http).length - 1} 处)`);
 fs.writeFileSync(path.join(stage, rel), toJsc(Buffer.from(js, 'binary')));
 

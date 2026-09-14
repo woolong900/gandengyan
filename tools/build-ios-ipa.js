@@ -6,7 +6,7 @@
  * 与 com.haoke.gandengyan 匹配的 provisioning profile。
  *
  * usage: node tools/build-ios-ipa.js [--ipa <原厂.ipa>] [--apk <当前.apk>]
- *   [--host <局域网IP[:端口]>] [--out <输出.ipa>]
+ *   [--host <局域网IP[:端口]>] [--base-url <HTTP(S)服务地址>] [--out <输出.ipa>]
  *   [--identity <Apple签名证书>] [--profile <描述文件>]
  */
 const fs = require('fs');
@@ -91,6 +91,7 @@ const newestPatchedApk = () => {
 
 const BASE_IPA = path.resolve(arg('ipa', path.join(ROOT, 'originals/ios/qjqp-original-ios-1.0.2.ipa')));
 const SOURCE_APK = path.resolve(arg('apk', newestPatchedApk() || ''));
+const COCOS_BASE = arg('cocos-base', 'ios');
 const APP_ID = 'com.haoke.gandengyan';
 const APP_NAME = '潜江干瞪眼';
 const EXECUTABLE_NAME = 'QianjiangGandengyan';
@@ -99,9 +100,16 @@ const SIGN_IDENTITY = arg('identity', '-');
 const PROFILE = arg('profile', null);
 let HOST = arg('host', lanIPv4());
 if (HOST && !/:\d+$/.test(HOST)) HOST = `${HOST}:8899`;
+const rawBaseUrl = arg('base-url', '');
+let HTTP_BASE = rawBaseUrl ? rawBaseUrl.replace(/\/$/, '') : (HOST ? `http://${HOST}` : '');
+if (HTTP_BASE && !/^https?:\/\//.test(HTTP_BASE)) {
+  throw new Error('--base-url 必须以 http:// 或 https:// 开头');
+}
+const WS_BASE = HTTP_BASE.replace(/^http/, 'ws');
 if (!BASE_IPA || !fs.existsSync(BASE_IPA)) throw new Error(`找不到原厂 IPA：${BASE_IPA}`);
-if (!SOURCE_APK || !fs.existsSync(SOURCE_APK)) throw new Error(`找不到当前 Android 包：${SOURCE_APK}`);
-if (!HOST) throw new Error('无法确定局域网地址，请使用 --host 指定');
+if (!['ios', 'android'].includes(COCOS_BASE)) throw new Error('--cocos-base 只能是 ios 或 android');
+if (COCOS_BASE === 'android' && (!SOURCE_APK || !fs.existsSync(SOURCE_APK))) throw new Error(`找不到当前 Android 包：${SOURCE_APK}`);
+if (!HTTP_BASE) throw new Error('无法确定服务地址，请使用 --host 或 --base-url 指定');
 if (SIGN_IDENTITY !== '-' && !PROFILE) throw new Error('正式签名需要同时提供 --identity 和 --profile');
 if (PROFILE && !fs.existsSync(path.resolve(PROFILE))) throw new Error(`找不到描述文件：${PROFILE}`);
 
@@ -116,8 +124,8 @@ fs.mkdirSync(path.dirname(output), { recursive: true });
 const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'qjqp-ios-build-'));
 try {
   console.log(`原厂 IPA：${BASE_IPA}`);
-  console.log(`跨平台资源：${SOURCE_APK}`);
-  console.log(`服务地址：http://${HOST}`);
+  console.log(`Cocos 基线：${COCOS_BASE === 'ios' ? '原厂 iOS 资源' : SOURCE_APK}`);
+  console.log(`服务地址：${HTTP_BASE}`);
   console.log(`输出：${output}`);
 
   console.log('1/7 解开 iOS 基包并规范应用目录');
@@ -146,25 +154,30 @@ try {
   fs.rmSync(path.join(app, 'embedded.mobileprovision'), { force: true });
   if (run('otool', ['-L', executable]).includes('cike.dylib')) throw new Error('没有清除 cike.dylib 加载项');
 
-  console.log('3/7 迁入当前 R234 Cocos 资源');
-  const apkStage = path.join(stage, 'apk');
-  fs.mkdirSync(apkStage);
-  run('unzip', ['-q', '-o', SOURCE_APK, 'assets/src/*', 'assets/res/*', 'assets/branding/*', '-d', apkStage]);
-  const androidAssets = path.join(apkStage, 'assets');
-  for (const name of ['src', 'res', 'branding']) {
-    const source = path.join(androidAssets, name);
-    if (!fs.existsSync(source)) throw new Error(`Android 包缺少 assets/${name}`);
-    fs.rmSync(path.join(app, name), { recursive: true, force: true });
-    fs.cpSync(source, path.join(app, name), { recursive: true });
+  console.log(`3/7 ${COCOS_BASE === 'ios' ? '保留原厂 iOS Cocos 资源' : '迁入当前 Android Cocos 资源'}`);
+  if (COCOS_BASE === 'android') {
+    const apkStage = path.join(stage, 'apk');
+    fs.mkdirSync(apkStage);
+    run('unzip', ['-q', '-o', SOURCE_APK, 'assets/src/*', 'assets/res/*', 'assets/branding/*', '-d', apkStage]);
+    const androidAssets = path.join(apkStage, 'assets');
+    for (const name of ['src', 'res', 'branding']) {
+      const source = path.join(androidAssets, name);
+      if (!fs.existsSync(source)) throw new Error(`Android 包缺少 assets/${name}`);
+      fs.rmSync(path.join(app, name), { recursive: true, force: true });
+      fs.cpSync(source, path.join(app, name), { recursive: true });
+    }
   }
 
   console.log('4/7 应用 iOS 专用脚本桥接');
   const projectJsc = path.join(app, 'src', 'project.jsc');
   let projectJs = toJs(fs.readFileSync(projectJsc)).toString('binary');
+  if (COCOS_BASE === 'android') {
   const guestVisibility = 'this.guestNode.active = v.default.isDebug();';
   const guestVisibilityCount = projectJs.split(guestVisibility).length - 1;
-  if (guestVisibilityCount !== 1) throw new Error(`游客按钮补丁匹配到 ${guestVisibilityCount} 处，预期 1 处`);
-  projectJs = projectJs.replace(guestVisibility, 'this.guestNode.active = true;');
+  if (guestVisibilityCount === 1) projectJs = projectJs.replace(guestVisibility, 'this.guestNode.active = true;');
+  else if (!projectJs.includes('this.guestNode.active = true;')) {
+    throw new Error(`游客按钮补丁匹配到 ${guestVisibilityCount} 处，且当前包未开启游客入口`);
+  }
   const androidGuestBlock = [
     'if (cc.sys.os === cc.sys.OS_ANDROID) try {',
     't.deviceId = jsb.reflection.callStaticMethod("com/yuanlai/external/Utils", "getGuestDeviceId", "()Ljava/lang/String;");',
@@ -182,8 +195,8 @@ try {
   const copyCount = projectJs.split(androidCopy).length - 1;
   if (copyCount !== 1) throw new Error(`邀请码复制补丁匹配到 ${copyCount} 处，预期 1 处`);
   projectJs = projectJs.replace(androidCopy, 'jsb.reflection.callStaticMethod("Utils", "copyText:", l.default.myInviteCode || "");');
-  const http = `http://${HOST}`;
-  const ws = `ws://${HOST}`;
+  const http = HTTP_BASE;
+  const ws = WS_BASE;
   projectJs = projectJs
     .replace(/https?:\/\/192\.168\.\d+\.\d+:8899/g, http)
     .replace(/wss?:\/\/192\.168\.\d+\.\d+:8899/g, ws);
@@ -198,6 +211,69 @@ try {
   ];
   for (const [label, snippet] of requiredUiPatches) {
     if (!projectJs.includes(snippet)) throw new Error(`当前资源未包含“${label}”修改`);
+  }
+  const settingsJsc = path.join(app, 'src', 'settings.jsc');
+  let settingsJs = toJs(fs.readFileSync(settingsJsc)).toString('binary');
+  const androidPlatform = 'platform:"android"';
+  const platformCount = settingsJs.split(androidPlatform).length - 1;
+  if (platformCount !== 1) throw new Error(`Android settings 平台补丁匹配到 ${platformCount} 处，预期 1 处`);
+  settingsJs = settingsJs.replace(androidPlatform, 'platform:"ios"');
+  fs.writeFileSync(settingsJsc, toJsc(Buffer.from(settingsJs, 'binary')));
+  } else {
+    const replaceOnce = (label, from, to) => {
+      const count = projectJs.split(from).length - 1;
+      if (count !== 1) throw new Error(`${label}补丁匹配到 ${count} 处，预期 1 处`);
+      projectJs = projectJs.replace(from, to);
+    };
+
+    replaceOnce('隐藏手机登录', 'this.mobileNode.active = !0;', 'this.mobileNode.active = !1;');
+    replaceOnce('显示游客登录', 'this.guestNode.active = b.default.isDebug();', 'this.guestNode.active = !0;');
+    replaceOnce('隐藏钉钉分享', 'this.ddNode.active = !0;', 'this.ddNode.active = !1;');
+    replaceOnce('隐藏默往分享', 'this.mwNode.active = !0;', 'this.mwNode.active = !1;');
+
+    const guestStart = projectJs.indexOf('t.prototype._guestLogin = function() {');
+    const guestEnd = projectJs.indexOf('t.prototype._tokenLogin = function(e) {', guestStart);
+    if (guestStart < 0 || guestEnd < 0) throw new Error('找不到原厂 iOS 游客登录实现');
+    const stableGuestLogin = `t.prototype._guestLogin = function() {
+var e = this, t = {
+appName: a.default.appName,
+accountType: s.eAccountType.guest,
+code: void 0,
+token: d.default.guestToken.getValue(),
+deviceId: void 0
+};
+if (cc.sys.os === cc.sys.OS_IOS) try {
+t.deviceId = jsb.reflection.callStaticMethod("TalkingDataGA", "getDeviceId");
+} catch (o) {
+cc.error("get guest device id failed:", o);
+}
+l.default.uiHelper.showLoading();
+this._accountSend(t, function(t) {
+e._loginSuccess(t.token, s.eAccountType.guest, function(e) {
+e && l.default.uiHelper.removeLoading();
+});
+}, function(e, t) {
+l.default.uiHelper.removeLoading();
+l.default.uiHelper.showTip(t);
+});
+};
+`;
+    projectJs = projectJs.slice(0, guestStart) + stableGuestLogin + projectJs.slice(guestEnd);
+
+    const http = HTTP_BASE;
+    const ws = WS_BASE;
+    projectJs = projectJs
+      .replace(/https:\/\/(?:test2\.yuanlaihuyu\.com|qj\.yuanlaiqipai\.net)\/version/g, `${http}/version`)
+      .replace(/https:\/\/(?:test2\.yuanlaihuyu\.com|qj\.yuanlaiqipai\.net)\/login/g, `${http}/login`)
+      .replace(/wss:\/\/(?:test2\.yuanlaihuyu\.com|qj\.yuanlaiqipai\.net)\/ws/g, `${ws}/ws`)
+      .replace(/https:\/\/(?:test2\.yuanlaihuyu\.com|qj\.yuanlaiqipai\.net)/g, http);
+    if (!projectJs.includes(`${http}/login`) || !projectJs.includes(`${ws}/ws`)) {
+      throw new Error('原厂 iOS 脚本没有写入本地服务地址');
+    }
+
+    const settingsJsc = path.join(app, 'src', 'settings.jsc');
+    const settingsJs = toJs(fs.readFileSync(settingsJsc)).toString('binary');
+    if (!settingsJs.includes('platform:"ios"')) throw new Error('原厂 iOS settings 平台标记异常');
   }
   fs.writeFileSync(projectJsc, toJsc(Buffer.from(projectJs, 'binary')));
 
@@ -242,6 +318,13 @@ try {
     const height = dimensions.match(/pixelHeight:\s*(\d+)/)?.[1];
     if (!width || !height) throw new Error(`无法读取图标尺寸：${name}`);
     run('sips', ['-z', height, width, iconSource, '--out', target]);
+  }
+  const brandingTarget = path.join(app, 'branding');
+  fs.mkdirSync(brandingTarget, { recursive: true });
+  fs.copyFileSync(path.join(ROOT, 'assets', 'branding', 'login', 'login-logo.png'), path.join(brandingTarget, 'login-logo.png'));
+  if (COCOS_BASE === 'ios') {
+    fs.copyFileSync(path.join(ROOT, 'assets', 'branding', 'login', 'login-background.jpg'),
+      path.join(app, 'res', 'raw-assets', '73', '73c931dd-4abb-4c4c-ab86-37f883c44430.jpg'));
   }
   fs.copyFileSync(path.join(ROOT, 'assets', 'branding', 'startup', 'splash-screen.png'), path.join(app, 'LaunchImage12.png'));
 
