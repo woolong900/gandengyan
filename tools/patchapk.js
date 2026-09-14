@@ -275,6 +275,14 @@ RULES.push([
   u2b('desc: "玩法",\nweight: 1,\nlineCount: 3,\ndefCheck: [ 1 ],\ndetailIds: [ 1, 2, 26 ]'),
   u2b('desc: "玩法",\nweight: 1,\nlineCount: 3,\ndefCheck: [ 2 ],\ndetailIds: [ 1, 2, 26 ]'),
 ]);
+
+// 创房页的 CheckType 原本用 scheduleOnce 延后一帧创建右侧选项，所以弹窗
+// 已经显示时内容区仍是空的。改成立即执行，确保弹窗第一次绘制就有完整选项。
+RULES.push([
+  'this._ids = s;\nthis.scheduleOnce(function() {\nfor (var o = n.layer.width, r = -o / 2, l = o / p, u = 0, d = s.length; u < d; u++) {\nvar f = s[u], h = r + u % p * l, m = 62 * Math.floor(u / p) + 19, y = a.cellStyle(f);\nif (0 === y) {\nvar g = cc.instantiate(n.cellPre);\nn.layer.addChild(g);\ng.x = h;\ng.y = -m;\ng.getComponent(i.default).setData(e, t, f);\n} else if (1 === y) {\ng = cc.instantiate(n.cellStyle1Pre);\nn.layer.addChild(g);\ng.x = h;\ng.y = -m;\ng.getComponent(c.default).setData(e, t, f);\n}\nn._pos.push(cc.v2(h, -m));\n}\nn._updatePos();\n});\n};\nt.prototype._updatePos = function() {',
+  'this._ids = s;\nvar w = this.layer.getComponent(cc.Widget);\nw && w.updateAlignment();\n(function() {\nfor (var o = n.layer.width, r = -o / 2, l = o / p, u = 0, d = s.length; u < d; u++) {\nvar f = s[u], h = r + u % p * l, m = 62 * Math.floor(u / p) + 19, y = a.cellStyle(f);\nif (0 === y) {\nvar g = cc.instantiate(n.cellPre);\nn.layer.addChild(g);\ng.x = h;\ng.y = -m;\ng.getComponent(i.default).setData(e, t, f);\n} else if (1 === y) {\ng = cc.instantiate(n.cellStyle1Pre);\nn.layer.addChild(g);\ng.x = h;\ng.y = -m;\ng.getComponent(c.default).setData(e, t, f);\n}\nn._pos.push(cc.v2(h, -m));\n}\nn._updatePos();\n})();\n};\nt.prototype._updatePos = function() {',
+  true,
+]);
 RULES.push([
   'r.default.inviteCode = t.inviteCode || "";\nr.default.inviteCodeAward = t.giveCard || 0;',
   'r.default.inviteCode = t.inviteCode || "";\nr.default.myInviteCode = t.username || "";\nr.default.inviteCodeAward = t.giveCard || 0;',
