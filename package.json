@@ -8,6 +8,7 @@
   "scripts": {
     "start": "node tools/serve.js",
     "backup": "node tools/backup-state.js",
+    "upstream:check": "node tools/check-upstream-version.js",
     "apk:install": "node tools/build-install-apk.js",
     "apk:source": "node tools/build-cocos-source-apk.js",
     "ipa:build": "node tools/build-ios-ipa.js",

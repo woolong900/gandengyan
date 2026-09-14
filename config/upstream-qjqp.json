@@ -1,0 +1,17 @@
+{
+  "endpoint": "https://qj.yuanlaiqipai.net/version",
+  "platforms": {
+    "ios": {
+      "osType": "qjqp_ios_yuanlai",
+      "packageVersion": "1.0.2",
+      "resourceVersion": 234
+    },
+    "android": {
+      "osType": "qjqp_android_yuanlai",
+      "packageVersion": "1.0.3",
+      "resourceVersion": 234,
+      "packageUrl": "https://issue.yunlang007.com/hotupdate/apk/qjqp-1.0.3-release.apk",
+      "packageMd5": "d94edc05625e727884bc95ce6c5e881f"
+    }
+  }
+}
