@@ -160,6 +160,14 @@ RULES.push([
 
 // 登录页只保留微信（以及显式开启的调试游客入口）。同时禁用旧手机令牌的
 // 自动登录路径，避免用户升级后仍被上个版本保存的登录方式带进游戏。
+// 原厂 AppDunOnOff 和 LoginUpdate 都在场景 start 阶段运行；全新安装时前者
+// 偶尔会先发出 on_off_ok，导致后者错过事件并永远停在“更新检测中”。注册事件
+// 后补一次下一帧调用，并用闭包保证无论事件还是兜底先到都只检查一次。
+RULES.push([
+  'c.default.eventUtils.on("on_off_ok", function() {\ncc.log("on off ok.");\ne.checkFull(3);\n}, this, y.eOffType.OnDestroy);\nthis.initActivityData();',
+  'var onOffHandled = !1, continueUpdate = function() {\nif (onOffHandled) return;\nonOffHandled = !0;\ne.checkFull(3);\n};\nc.default.eventUtils.on("on_off_ok", continueUpdate, this, y.eOffType.OnDestroy);\nthis.scheduleOnce(continueUpdate);\nthis.initActivityData();',
+  true,
+]);
 RULES.push([
   'this.mobileNode.active = !0;',
   'this.mobileNode.active = !1;',
@@ -192,10 +200,10 @@ RULES.push([
   true,
 ]);
 
-// 资源版本号，与 Android 包版本 1.0.5 一起显示为 1.0.5-R258。
+// Android 发布版本仍为 1.0.5，资源版本显示实际的原厂 R234。
 RULES.push([
-  'assertVer: 226,\npackageVer: "1.0.2",',
-  'assertVer: 258,\npackageVer: "1.0.5",',
+  'assertVer: 234,\npackageVer: "1.0.2",',
+  'assertVer: 234,\npackageVer: "1.0.5",',
   true,
 ]);
 
@@ -234,13 +242,13 @@ RULES.push([
 // 朝天笑只有三张皮子。原客户端虽然会在碰杠区按三张绘制，却仍按普通杠
 // 删除手牌：暗朝天删四张、接别人打出的朝天删三张，都会让本地手牌错乱。
 RULES.push([
-  'if (_.subType === i.eGangType.AnGang) y ? m.removeHandCards([ D, D, D, D ], !0) : m.removeHandCards([ a.MJ_BACK_ID, a.MJ_BACK_ID, a.MJ_BACK_ID, a.MJ_BACK_ID ], !0); else if (_.subType === i.eGangType.MingGang) {',
-  'if (_.subType === i.eGangType.AnGang) y ? m.removeHandCards(u.default.gameLogic().is3CardGang(D) ? [ D, D, D ] : [ D, D, D, D ], !0) : m.removeHandCards(u.default.gameLogic().is3CardGang(D) ? [ a.MJ_BACK_ID, a.MJ_BACK_ID, a.MJ_BACK_ID ] : [ a.MJ_BACK_ID, a.MJ_BACK_ID, a.MJ_BACK_ID, a.MJ_BACK_ID ], !0); else if (_.subType === i.eGangType.MingGang) {',
+  'if (_.subType === i.eGangType.AnGang) g ? m.removeHandCards([ D, D, D, D ], !0) : m.removeHandCards([ a.MJ_BACK_ID, a.MJ_BACK_ID, a.MJ_BACK_ID, a.MJ_BACK_ID ], !0); else if (_.subType === i.eGangType.MingGang) {',
+  'if (_.subType === i.eGangType.AnGang) g ? m.removeHandCards(u.default.gameLogic().is3CardGang(D) ? [ D, D, D ] : [ D, D, D, D ], !0) : m.removeHandCards(u.default.gameLogic().is3CardGang(D) ? [ a.MJ_BACK_ID, a.MJ_BACK_ID, a.MJ_BACK_ID ] : [ a.MJ_BACK_ID, a.MJ_BACK_ID, a.MJ_BACK_ID, a.MJ_BACK_ID ], !0); else if (_.subType === i.eGangType.MingGang) {',
   true,
 ]);
 RULES.push([
-  'y ? m.removeHandCards([ D, D, D ], !0) : m.removeHandCards([ a.MJ_BACK_ID, a.MJ_BACK_ID, a.MJ_BACK_ID ], !0);\no();',
-  'y ? m.removeHandCards(u.default.gameLogic().is3CardGang(D) ? [ D, D ] : [ D, D, D ], !0) : m.removeHandCards(u.default.gameLogic().is3CardGang(D) ? [ a.MJ_BACK_ID, a.MJ_BACK_ID ] : [ a.MJ_BACK_ID, a.MJ_BACK_ID, a.MJ_BACK_ID ], !0);\no();',
+  'g ? m.removeHandCards([ D, D, D ], !0) : m.removeHandCards([ a.MJ_BACK_ID, a.MJ_BACK_ID, a.MJ_BACK_ID ], !0);\no();',
+  'g ? m.removeHandCards(u.default.gameLogic().is3CardGang(D) ? [ D, D ] : [ D, D, D ], !0) : m.removeHandCards(u.default.gameLogic().is3CardGang(D) ? [ a.MJ_BACK_ID, a.MJ_BACK_ID ] : [ a.MJ_BACK_ID, a.MJ_BACK_ID, a.MJ_BACK_ID ], !0);\no();',
   true,
 ]);
 RULES.push([
@@ -249,7 +257,7 @@ RULES.push([
 ]);
 // 临时：创房/大厅只露出潜江晃晃。要恢复就把这一段删掉。
 RULES.push([
-  'gameList: [ c.eGameIds.QJHH, c.eGameIds.QJHZ, c.eGameIds.PDKAA, c.eGameIds.DDZ, c.eGameIds.TMHH, c.eGameIds.QJSHZ, c.eGameIds.QJWSKBD ]',
+  'gameList: [ c.eGameIds.QJHH, c.eGameIds.QJHZ, c.eGameIds.PDKAA, c.eGameIds.DDZ, c.eGameIds.TMHH, c.eGameIds.QJSHZ, c.eGameIds.QJWSKBD, c.eGameIds.GD ]',
   'gameList: [ c.eGameIds.QJHH ]',
 ]);
 // 临时：潜江晃晃改名干瞪眼；玩法只留土豪必杠。
@@ -279,8 +287,8 @@ RULES.push([
 // 创房页的 CheckType 原本用 scheduleOnce 延后一帧创建右侧选项，所以弹窗
 // 已经显示时内容区仍是空的。改成立即执行，确保弹窗第一次绘制就有完整选项。
 RULES.push([
-  'this._ids = s;\nthis.scheduleOnce(function() {\nfor (var o = n.layer.width, r = -o / 2, l = o / p, u = 0, d = s.length; u < d; u++) {\nvar f = s[u], h = r + u % p * l, m = 62 * Math.floor(u / p) + 19, y = a.cellStyle(f);\nif (0 === y) {\nvar g = cc.instantiate(n.cellPre);\nn.layer.addChild(g);\ng.x = h;\ng.y = -m;\ng.getComponent(i.default).setData(e, t, f);\n} else if (1 === y) {\ng = cc.instantiate(n.cellStyle1Pre);\nn.layer.addChild(g);\ng.x = h;\ng.y = -m;\ng.getComponent(c.default).setData(e, t, f);\n}\nn._pos.push(cc.v2(h, -m));\n}\nn._updatePos();\n});\n};\nt.prototype._updatePos = function() {',
-  'this._ids = s;\nvar w = this.layer.getComponent(cc.Widget);\nw && w.updateAlignment();\n(function() {\nfor (var o = n.layer.width, r = -o / 2, l = o / p, u = 0, d = s.length; u < d; u++) {\nvar f = s[u], h = r + u % p * l, m = 62 * Math.floor(u / p) + 19, y = a.cellStyle(f);\nif (0 === y) {\nvar g = cc.instantiate(n.cellPre);\nn.layer.addChild(g);\ng.x = h;\ng.y = -m;\ng.getComponent(i.default).setData(e, t, f);\n} else if (1 === y) {\ng = cc.instantiate(n.cellStyle1Pre);\nn.layer.addChild(g);\ng.x = h;\ng.y = -m;\ng.getComponent(c.default).setData(e, t, f);\n}\nn._pos.push(cc.v2(h, -m));\n}\nn._updatePos();\n})();\n};\nt.prototype._updatePos = function() {',
+  'this._ids = s;\nthis.scheduleOnce(function() {\nfor (var o = n.layer.width, r = -o / 2, l = o / p, u = 0, d = s.length; u < d; u++) {\nvar f = s[u], h = r + u % p * l, m = 62 * Math.floor(u / p) + 19, g = a.cellStyle(f);\nif (0 === g) {\nvar y = cc.instantiate(n.cellPre);\nn.layer.addChild(y);\ny.x = h;\ny.y = -m;\ny.getComponent(i.default).setData(e, t, f);\n} else if (1 === g) {\ny = cc.instantiate(n.cellStyle1Pre);\nn.layer.addChild(y);\ny.x = h;\ny.y = -m;\ny.getComponent(c.default).setData(e, t, f);\n}\nn._pos.push(cc.v2(h, -m));\n}\nn._updatePos();\n});\n};\nt.prototype._updatePos = function() {',
+  'this._ids = s;\nvar w = this.layer.getComponent(cc.Widget);\nw && w.updateAlignment();\n(function() {\nfor (var o = n.layer.width, r = -o / 2, l = o / p, u = 0, d = s.length; u < d; u++) {\nvar f = s[u], h = r + u % p * l, m = 62 * Math.floor(u / p) + 19, g = a.cellStyle(f);\nif (0 === g) {\nvar y = cc.instantiate(n.cellPre);\nn.layer.addChild(y);\ny.x = h;\ny.y = -m;\ny.getComponent(i.default).setData(e, t, f);\n} else if (1 === g) {\ny = cc.instantiate(n.cellStyle1Pre);\nn.layer.addChild(y);\ny.x = h;\ny.y = -m;\ny.getComponent(c.default).setData(e, t, f);\n}\nn._pos.push(cc.v2(h, -m));\n}\nn._updatePos();\n})();\n};\nt.prototype._updatePos = function() {',
   true,
 ]);
 RULES.push([
@@ -560,7 +568,7 @@ const applyBranding = (decoded) => {
   const manifestFile = path.join(decoded, 'AndroidManifest.xml');
   let manifest = fs.readFileSync(manifestFile, 'utf8').replaceAll(ORIGINAL_PACKAGE, APP_PACKAGE);
   manifest = manifest.replace(
-    /(<meta-data android:name="APP_DUN_ONOFF_DEBUG_URL" android:value=")[^"]*("\/>)/,
+    /(<meta-data android:name="APP_DUN_ONOFF_(?:DEBUG|RELEASE)_URL" android:value=")[^"]*("\/>)/g,
     `$1${http}$2`,
   );
   if (!manifest.includes(`package="${APP_PACKAGE}"`) || manifest.includes(ORIGINAL_PACKAGE)) {
@@ -695,7 +703,7 @@ const applyBranding = (decoded) => {
   fs.copyFileSync(SPLASH_SOURCE, path.join(decoded, 'res', 'mipmap', 'splash_screen.png'));
   console.log(`      包名 ${ORIGINAL_PACKAGE} -> ${APP_PACKAGE}`);
   console.log(`      应用名称 -> ${APP_NAME}`);
-  console.log('      Android 版本 -> 1.0.5，资源版本 -> R258');
+  console.log('      Android 版本 -> 1.0.5，资源版本 -> R234');
   console.log('      已替换各分辨率应用图标');
   console.log('      已替换登录标题、登录背景和启动画面');
   console.log('      已替换大厅背景和卡通人物');

@@ -637,6 +637,7 @@ console.log('过手碰');
 {
   const { round } = table(cfg({ 人数: 3 }), (r) => {
     r.laizi = 31;
+    r.pizi = 9;
     r.hands = [HAND_PENG_1.slice(), HAND_PENG_1.slice(), HAND_IGNORE_5.slice()];
     r.drawn = [null, 1, null];
     r.turn = 1;
@@ -657,6 +658,7 @@ console.log('过手碰');
 {
   const { round } = table(cfg({ 人数: 3 }), (r) => {
     r.laizi = 31;
+    r.pizi = 9;
     r.hands = [
       [1, 1, 3, 3, 6, 7, 8, 11, 12, 13, 14, 16, 17],
       HAND_IGNORE_5.slice(),
@@ -680,6 +682,7 @@ console.log('过手碰');
 {
   const { round } = table(cfg({ 人数: 3 }), (r) => {
     r.laizi = 31;
+    r.pizi = 9;
     r.hands = [HAND_PENG_1.slice(), HAND_IGNORE_5.slice(), HAND_IGNORE_5.slice()];
     r.drawn = [null, 1, null];
     r.turn = 1;
@@ -699,6 +702,7 @@ console.log('过手碰');
 {
   const { round } = table(cfg({ 人数: 3 }), (r) => {
     r.laizi = 31;
+    r.pizi = 9;
     r.hands = [
       [1, 1, 3, 3, 6, 7, 8, 11, 12, 13, 14, 16, 17],
       HAND_IGNORE_5.slice(),

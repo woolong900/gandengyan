@@ -5,7 +5,7 @@ const path = require('path');
 const { execFileSync, spawnSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
-const CACHE_APK = path.join(__dirname, '.cache', 'qjqp-base.apk');
+const CACHE_APK = path.join(__dirname, '.cache', 'qjqp-base-r234.apk');
 const BASE_PACKAGE = 'com.yuanlai.qjqp';
 const PACKAGE = 'com.haoke.gandengyan';
 const argv = process.argv.slice(2);
