@@ -740,6 +740,7 @@ console.log('过手胡');
 {
   const { round } = table(cfg({ 人数: 3 }), (r) => {
     r.laizi = 31;
+    r.pizi = 20;
     r.hands = [HAND_WAIT_58.slice(), HAND_PENG_8.slice(), HAND_IGNORE_5.slice()];
     r.drawn = [null, 5, null];
     r.turn = 1;
@@ -760,6 +761,7 @@ console.log('过手胡');
 {
   const { round } = table(cfg({ 人数: 3 }), (r) => {
     r.laizi = 31;
+    r.pizi = 20;
     r.hands = [HAND_WAIT_58.slice(), HAND_IGNORE_5.slice(), HAND_IGNORE_5.slice()];
     r.drawn = [null, 5, null];
     r.turn = 1;
@@ -782,6 +784,7 @@ console.log('过手胡');
 {
   const { round, log } = table(cfg({ 人数: 3, 热铳: true }), (r) => {
     r.laizi = 31;
+    r.pizi = 20;
     r.hands = [HAND_WAIT_58.slice(), HAND_IGNORE_5.slice(), [2, 2, 2, 2, 3, 4, 6, 7, 9, 11, 12, 13, 14]];
     r.drawn = [null, 5, 16];
     r.turn = 1;
@@ -807,6 +810,7 @@ console.log('过手胡');
 {
   const { round } = table(cfg({ 人数: 3, 玩法: '土豪必杠', 热铳: true }), (r) => {
     r.laizi = 31;
+    r.pizi = 20;
     r.hands = [HAND_WAIT_58.slice(), HAND_PENG_8.slice(), HAND_IGNORE_5.slice()];
     r.drawn = [null, 5, null];
     r.turn = 1;
@@ -820,6 +824,7 @@ console.log('过手胡');
 {
   const { round, log } = table(cfg({ 人数: 3, 玩法: '土豪必杠', 热铳: true }), (r) => {
     r.laizi = 31;
+    r.pizi = 20;
     r.hands = [
       HAND_WAIT_58.slice(),
       [9, 9, 9, 9, 3, 4, 6, 7, 11, 12, 13, 14, 16],
