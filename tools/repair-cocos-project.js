@@ -41,6 +41,7 @@ let changedMetas = 0;
 let renamedScripts = 0;
 let changedSerializedAssets = 0;
 let normalizedTextureMetas = 0;
+let migratedCanvases = 0;
 
 // Creator 2.4 treats a numeric JavaScript filename as a bundle id and cannot
 // resolve relative requires to it. Give those recovered library modules a
@@ -110,6 +111,34 @@ const migrateSerializedUuids = (value) => {
   }
   return changed;
 };
+const migrateCanvasWidgets = (value) => {
+  if (!value || typeof value !== 'object') return false;
+  let changed = false;
+  if (value.__type__ === 'cc.Node' && value._name === 'Canvas' && Array.isArray(value._components)) {
+    const canvas = value._components.find((component) => component && component.__type__ === 'cc.Canvas');
+    const widget = value._components.find((component) => component && component.__type__ === 'cc.Widget');
+    if (canvas && !widget) {
+      const resolution = canvas._designResolution || {};
+      value._components.push({
+        __type__: 'cc.Widget',
+        node: canvas.node,
+        _alignFlags: 45,
+        _left: 0,
+        _right: 0,
+        _top: 0,
+        _bottom: 0,
+        _originalWidth: Number(resolution.width) || 1280,
+        _originalHeight: Number(resolution.height) || 720,
+      });
+      migratedCanvases += 1;
+      changed = true;
+    }
+  }
+  for (const child of Array.isArray(value) ? value : Object.values(value)) {
+    if (migrateCanvasWidgets(child)) changed = true;
+  }
+  return changed;
+};
 const visitSerializedAssets = (folder) => {
   for (const entry of fs.readdirSync(folder, { withFileTypes: true })) {
     const file = path.join(folder, entry.name);
@@ -117,7 +146,9 @@ const visitSerializedAssets = (folder) => {
     else if (/\.(fire|prefab|anim)$/.test(entry.name)) {
       try {
         const data = JSON.parse(fs.readFileSync(file, 'utf8'));
-        if (migrateSerializedUuids(data)) {
+        const uuidChanged = migrateSerializedUuids(data);
+        const canvasChanged = migrateCanvasWidgets(data);
+        if (uuidChanged || canvasChanged) {
           fs.writeFileSync(file, `${JSON.stringify(data, null, 2)}\n`);
           changedSerializedAssets += 1;
         }
@@ -168,4 +199,4 @@ for (const [encoded, entry] of Object.entries(settings.rawAssets.assets || {})) 
 const mapPath = path.join(REPORT, 'spriteframe-paths.json');
 fs.writeFileSync(mapPath, `${JSON.stringify(spriteFrames, null, 2)}\n`);
 execFileSync('python3', [path.join(__dirname, 'migrate-cocos-spriteframes.py'), PROJECT, mapPath], { stdio: 'inherit' });
-console.log(`脚本依赖已修复 ${changedScripts} 个，数字模块已重命名 ${renamedScripts} 个，组件 UUID 已修复 ${changedMetas} 个，场景引用已迁移 ${changedSerializedAssets} 个，纹理 Meta 已规范化 ${normalizedTextureMetas} 个。`);
+console.log(`脚本依赖已修复 ${changedScripts} 个，数字模块已重命名 ${renamedScripts} 个，组件 UUID 已修复 ${changedMetas} 个，场景引用已迁移 ${changedSerializedAssets} 个，Canvas 已迁移 ${migratedCanvases} 个，纹理 Meta 已规范化 ${normalizedTextureMetas} 个。`);
