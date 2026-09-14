@@ -98,6 +98,8 @@ const HALL_BACKGROUND_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 
 const HALL_CHARACTER_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'hall', 'hall-character.png');
 const CLUB_BACKGROUND_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'club', 'club-background.png');
 const CLUB_CHARACTER_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'club', 'club-character-empty.png');
+const TABLE_BACKGROUND_2D_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'table', 'table-background-2d.jpg');
+const TABLE_BACKGROUND_3D_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'table', 'table-background-3d.jpg');
 const SPLASH_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'startup', 'splash-screen.png');
 const LEGACY_CLEANUP_DIR = path.join(__dirname, '..', 'assets', 'branding', 'legacy-cleanup');
 const APKTOOL = process.env.APKTOOL || '/tmp/apktool.jar';
@@ -673,6 +675,8 @@ const applyBranding = (decoded) => {
   if (!fs.existsSync(HALL_CHARACTER_SOURCE)) throw new Error(`缺少大厅人物图：${HALL_CHARACTER_SOURCE}`);
   if (!fs.existsSync(CLUB_BACKGROUND_SOURCE)) throw new Error(`缺少俱乐部背景图：${CLUB_BACKGROUND_SOURCE}`);
   if (!fs.existsSync(CLUB_CHARACTER_SOURCE)) throw new Error(`缺少俱乐部人物占位图：${CLUB_CHARACTER_SOURCE}`);
+  if (!fs.existsSync(TABLE_BACKGROUND_2D_SOURCE)) throw new Error(`缺少 2D 牌桌背景图：${TABLE_BACKGROUND_2D_SOURCE}`);
+  if (!fs.existsSync(TABLE_BACKGROUND_3D_SOURCE)) throw new Error(`缺少 3D 牌桌背景图：${TABLE_BACKGROUND_3D_SOURCE}`);
   if (!fs.existsSync(SPLASH_SOURCE)) throw new Error(`缺少启动画面：${SPLASH_SOURCE}`);
   const loginLogoTarget = path.join(decoded, 'assets', 'branding', 'login-logo.png');
   fs.mkdirSync(path.dirname(loginLogoTarget), { recursive: true });
@@ -697,6 +701,14 @@ const applyBranding = (decoded) => {
     CLUB_CHARACTER_SOURCE,
     path.join(decoded, 'assets', 'res', 'raw-assets', '89', '896e3506-6fa6-4a3c-864b-f632f44c2f96.png'),
   );
+  writeEncryptedAsset(
+    TABLE_BACKGROUND_2D_SOURCE,
+    path.join(decoded, 'assets', 'res', 'raw-assets', '65', '6528fb79-db94-4c58-88e8-ff1b0a184491.jpg'),
+  );
+  writeEncryptedAsset(
+    TABLE_BACKGROUND_3D_SOURCE,
+    path.join(decoded, 'assets', 'res', 'raw-assets', '0e', '0ed69516-3023-4cb0-947a-abd9aab04b9f.jpg'),
+  );
   sanitizeCocosText(decoded);
   replaceLegacyArtwork(decoded);
   disableLegacyHotUpdate(decoded);
@@ -708,6 +720,7 @@ const applyBranding = (decoded) => {
   console.log('      已替换登录标题、登录背景和启动画面');
   console.log('      已替换大厅背景和卡通人物');
   console.log('      已替换创建俱乐部页面背景和人物');
+  console.log('      已替换 2D / 3D 牌桌背景花纹');
   console.log('      已移除用户可见的旧品牌名称、公告和客服信息');
   console.log('      协议页面已改为待补充真实运营主体的内部测试提示');
   console.log('      已禁用不再使用的钉钉 SDK 启动初始化');
