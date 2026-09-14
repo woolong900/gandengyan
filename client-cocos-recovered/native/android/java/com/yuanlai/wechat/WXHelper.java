@@ -14,17 +14,27 @@ import com.tencent.mm.opensdk.openapi.IWXAPI;
 import com.tencent.mm.opensdk.openapi.WXAPIFactory;
 import org.cocos2dx.lib.Cocos2dxActivity;
 import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 
 public final class WXHelper {
     private static final WXHelper INSTANCE = new WXHelper();
     private IWXAPI api;
     public static WXHelper getInstance() { return INSTANCE; }
     private Activity activity() { return (Activity) Cocos2dxActivity.getContext(); }
+    private String appId() {
+        try {
+            Object value = activity().getPackageManager()
+                    .getApplicationInfo(activity().getPackageName(), android.content.pm.PackageManager.GET_META_DATA)
+                    .metaData.get("SDK_WX_APPID");
+            return value == null ? "" : String.valueOf(value);
+        } catch (Exception ignored) { return ""; }
+    }
 
     public synchronized void init() {
         if (api != null) return;
-        api = WXAPIFactory.createWXAPI(activity().getApplicationContext(), "wx71fea3b8e75b232b", true);
-        api.registerApp("wx71fea3b8e75b232b");
+        String id = appId();
+        api = WXAPIFactory.createWXAPI(activity().getApplicationContext(), id, true);
+        api.registerApp(id);
     }
     public IWXAPI api() { init(); return api; }
     public boolean isInstalled() { return api().isWXAppInstalled(); }
@@ -49,9 +59,29 @@ public final class WXHelper {
         WXMediaMessage message = new WXMediaMessage(); message.mediaObject = object; message.description = text;
         return send(message, scene);
     }
-    public boolean shareWebpage(int scene, String url, String title, String text) {
+    private byte[] thumbnail(String path) {
+        Bitmap bitmap = null;
+        try {
+            bitmap = BitmapFactory.decodeFile(path);
+            if (bitmap == null && path != null && !path.isEmpty()) {
+                String asset = path.replaceFirst("^assets/", "").replaceFirst("^/", "");
+                try (InputStream input = activity().getAssets().open(asset)) {
+                    bitmap = BitmapFactory.decodeStream(input);
+                }
+            }
+            if (bitmap == null) return null;
+            Bitmap thumb = Bitmap.createScaledBitmap(bitmap, 120, 120, true);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            thumb.compress(Bitmap.CompressFormat.JPEG, 70, out);
+            thumb.recycle();
+            return out.toByteArray();
+        } catch (Exception ignored) { return null; }
+        finally { if (bitmap != null && !bitmap.isRecycled()) bitmap.recycle(); }
+    }
+    public boolean shareWebpage(int scene, String url, String title, String text, String imgPath) {
         WXWebpageObject object = new WXWebpageObject(); object.webpageUrl = url;
         WXMediaMessage message = new WXMediaMessage(object); message.title = title; message.description = text;
+        message.thumbData = thumbnail(imgPath);
         return send(message, scene);
     }
     public boolean shareImage(int scene, String path) {

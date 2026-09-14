@@ -14,6 +14,7 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { toJs, toJsc } = require('./jsc');
+const u2b = (value) => Buffer.from(value, 'utf8').toString('binary');
 
 const ROOT = path.join(__dirname, '..');
 const argv = process.argv.slice(2);
@@ -96,6 +97,17 @@ const APP_ID = 'com.haoke.gandengyan';
 const APP_NAME = '潜江干瞪眼';
 const EXECUTABLE_NAME = 'QianjiangGandengyan';
 const WECHAT_APPID = process.env.QJQP_WECHAT_APPID || 'wx71fea3b8e75b232b';
+const normalizeWechatAppLink = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  let parsed;
+  try { parsed = new URL(raw); } catch { throw new Error('QJQP_WECHAT_APPLINK 不是有效 URL'); }
+  if (parsed.protocol !== 'https:') throw new Error('QJQP_WECHAT_APPLINK 必须使用 https://');
+  if (parsed.search || parsed.hash) throw new Error('QJQP_WECHAT_APPLINK 不能包含查询参数或锚点');
+  if (!parsed.pathname.endsWith('/')) parsed.pathname += '/';
+  return parsed.toString();
+};
+const WECHAT_APPLINK = normalizeWechatAppLink(process.env.QJQP_WECHAT_APPLINK);
 const SIGN_IDENTITY = arg('identity', '-');
 const PROFILE = arg('profile', null);
 let HOST = arg('host', lanIPv4());
@@ -112,6 +124,7 @@ if (COCOS_BASE === 'android' && (!SOURCE_APK || !fs.existsSync(SOURCE_APK))) thr
 if (!HTTP_BASE) throw new Error('无法确定服务地址，请使用 --host 或 --base-url 指定');
 if (SIGN_IDENTITY !== '-' && !PROFILE) throw new Error('正式签名需要同时提供 --identity 和 --profile');
 if (PROFILE && !fs.existsSync(path.resolve(PROFILE))) throw new Error(`找不到描述文件：${PROFILE}`);
+if (!/^wx[0-9a-zA-Z]{16}$/.test(WECHAT_APPID)) throw new Error('微信 AppID 格式错误，应为 wx 加 16 位字母或数字');
 
 const stamp = () => {
   const now = new Date();
@@ -275,6 +288,30 @@ l.default.uiHelper.showTip(t);
     const settingsJs = toJs(fs.readFileSync(settingsJsc)).toString('binary');
     if (!settingsJs.includes('platform:"ios"')) throw new Error('原厂 iOS settings 平台标记异常');
   }
+  const wxLoginStart = 't.prototype._wxLogin = function() {\nvar e = this, t = {';
+  const wxLoginGuard = u2b('t.prototype._wxLogin = function() {\n' +
+    'if (!v.default.sdkInfo("SDK_WX_APPID")) return l.default.uiHelper.showTip("微信登录尚未配置 AppID");\n' +
+    'if (cc.sys.os === cc.sys.OS_IOS && !v.default.sdkInfo("SDK_WX_APPLINK")) return l.default.uiHelper.showTip("iOS 微信登录需先配置 Universal Link");\n' +
+    'var e = this, t = {');
+  if (!projectJs.includes('t.prototype._wxLogin = function() {\nif (!v.default.sdkInfo("SDK_WX_APPID"))')) {
+    const count = projectJs.split(wxLoginStart).length - 1;
+    if (count !== 1) throw new Error(`iOS 微信配置提示补丁匹配到 ${count} 处，预期 1 处`);
+    projectJs = projectJs.replace(wxLoginStart, wxLoginGuard);
+  }
+  const wxFriendStart = u2b('t.prototype.onClickShareWxFriend = function() {\nif (!s.default.isInstallWX()) return l.default.uiHelper.showTip("您尚未安装微信客户端！");\n');
+  const wxFriendGuard = wxFriendStart + u2b('if (cc.sys.os === cc.sys.OS_IOS && !d.default.sdkInfo("SDK_WX_APPLINK")) return l.default.uiHelper.showTip("iOS 微信分享需先配置 Universal Link");\n');
+  if (!projectJs.includes(wxFriendGuard)) {
+    const friendCount = projectJs.split(wxFriendStart).length - 1;
+    if (friendCount !== 1) throw new Error(`iOS 微信分享配置提示补丁匹配到 ${friendCount} 处，预期 1 处`);
+    projectJs = projectJs.replace(wxFriendStart, wxFriendGuard);
+  }
+  const wxCircleStart = u2b('t.prototype.onClickShareWxCircle = function() {\nif (!s.default.isInstallWX()) return l.default.uiHelper.showTip("您尚未安装微信客户端！");\n');
+  const wxCircleGuard = wxCircleStart + u2b('if (cc.sys.os === cc.sys.OS_IOS && !d.default.sdkInfo("SDK_WX_APPLINK")) return l.default.uiHelper.showTip("iOS 微信分享需先配置 Universal Link");\n');
+  if (!projectJs.includes(wxCircleGuard)) {
+    const circleCount = projectJs.split(wxCircleStart).length - 1;
+    if (circleCount !== 1) throw new Error(`iOS 微信朋友圈配置提示补丁匹配到 ${circleCount} 处，预期 1 处`);
+    projectJs = projectJs.replace(wxCircleStart, wxCircleGuard);
+  }
   fs.writeFileSync(projectJsc, toJsc(Buffer.from(projectJs, 'binary')));
 
   console.log('5/7 写入应用信息、微信配置、图标和启动图');
@@ -308,7 +345,7 @@ l.default.uiHelper.showTip(t);
     `  icon.pop('CFBundleIconName',None)\n` +
     `with open(p,'wb') as f: plistlib.dump(d,f,fmt=plistlib.FMT_BINARY,sort_keys=False)\n`);
   run('python3', [plistScript, path.join(app, 'Info.plist'), EXECUTABLE_NAME, APP_ID, APP_NAME, WECHAT_APPID,
-    process.env.QJQP_WECHAT_APPLINK || '', process.env.QJQP_VOICE_APPID || '', process.env.QJQP_VOICE_APPKEY || '']);
+    WECHAT_APPLINK, process.env.QJQP_VOICE_APPID || '', process.env.QJQP_VOICE_APPKEY || '']);
 
   const iconSource = path.join(ROOT, 'assets', 'branding', 'icon.png');
   for (const name of fs.readdirSync(app).filter((name) => /^AppIcon.*\.png$/.test(name))) {
@@ -335,13 +372,18 @@ l.default.uiHelper.showTip(t);
     fs.copyFileSync(profile, path.join(app, 'embedded.mobileprovision'));
     const decodedProfile = path.join(stage, 'profile.plist');
     run('security', ['cms', '-D', '-i', profile], { stdio: ['ignore', fs.openSync(decodedProfile, 'w'), 'pipe'] });
+    const profileEntitlements = JSON.parse(run('plutil', ['-extract', 'Entitlements', 'json', '-o', '-', decodedProfile]));
+    if (WECHAT_APPLINK) {
+      if (!Object.prototype.hasOwnProperty.call(profileEntitlements, 'com.apple.developer.associated-domains')) {
+        throw new Error('当前描述文件没有 Associated Domains 权限，无法启用 iOS 微信 Universal Link');
+      }
+      profileEntitlements['com.apple.developer.associated-domains'] = [
+        `applinks:${new URL(WECHAT_APPLINK).hostname}`,
+      ];
+    }
     entitlements = path.join(stage, 'entitlements.plist');
-    const entitlementScript = path.join(stage, 'profile-entitlements.py');
-    fs.writeFileSync(entitlementScript, `import plistlib,sys\n` +
-      `p=plistlib.load(open(sys.argv[1],'rb'))\n` +
-      `e=p.get('Entitlements',{})\n` +
-      `plistlib.dump(e,open(sys.argv[2],'wb'),fmt=plistlib.FMT_XML)\n`);
-    run('python3', [entitlementScript, decodedProfile, entitlements]);
+    fs.writeFileSync(entitlements, JSON.stringify(profileEntitlements));
+    run('plutil', ['-convert', 'xml1', entitlements]);
   }
   const signArgs = ['--force', '--deep', '--sign', SIGN_IDENTITY, '--timestamp=none'];
   if (entitlements) signArgs.push('--entitlements', entitlements);
@@ -363,6 +405,7 @@ l.default.uiHelper.showTip(t);
   console.log(`完成：${output}`);
   console.log(`应用：${displayName} ${bundleId} ${version} (${build})`);
   console.log(`签名：${SIGN_IDENTITY === '-' ? 'ad-hoc（需正式签名后安装）' : SIGN_IDENTITY}`);
+  console.log(`微信：${WECHAT_APPLINK ? `AppID + Universal Link (${WECHAT_APPLINK})` : 'AppID 已写入，iOS Universal Link 待配置'}`);
   console.log(`大小：${(fs.statSync(output).size / 1048576).toFixed(1)} MB`);
 } finally {
   fs.rmSync(stage, { recursive: true, force: true });

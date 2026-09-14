@@ -65,8 +65,12 @@ this.ddNode.active = !1;
 this.mwNode.active = !1;
 };
 t.prototype.share = function(e, t) {
+var k = function(e) {
+e === c.eExCallBackMsg.fail && l.default.uiHelper.showTip("微信分享失败，请检查微信或网络");
+};
 if (this._shareUIType === i.ShareHall) {
 var o = function(o) {
+o === c.eExCallBackMsg.fail && l.default.uiHelper.showTip("微信分享失败，请检查微信或网络");
 e === c.eAccountType.wechat && t === c.eShareScene.Circle && p.default.shareForCard(function(e, t) {
 t || e && e.giveCardNum && l.default.eventUtils.emit(f.default.ui_share_wxcircle_end);
 });
@@ -78,8 +82,8 @@ var r = jsb.fileUtils.getSearchPaths()[0] || "", a = r + n;
 r && r.search("__data__") >= 0 && jsb.fileUtils.isFileExist(a) ? s.default.shareImgAbs(e, t, a, o) : s.default.shareImg(e, t, n, o);
 } else s.default.shareImg(e, t, n, o);
 } else if (e === c.eAccountType.wechat && t === c.eShareScene.Friend || e === c.eAccountType.dingding || e === c.eAccountType.mowang) {
-var m = "最好玩的游戏", y = "最正宗的玩法", g = d.default.downloadUrl({});
-cc.sys.isNative && s.default.shareWebPage(e, t, y, m, this.iconPath(), g);
+var m = "潜江本地玩法，约上好友一起玩", y = "潜江干瞪眼", g = d.default.downloadUrl({});
+cc.sys.isNative && s.default.shareWebPage(e, t, y, m, this.iconPath(), g, k);
 }
 }
 if (this._shareUIType === i.ShareGameInvite) {
@@ -87,7 +91,7 @@ m = h.default.getInstance().shareText(), y = h.default.getInstance().shareTitle(
 g = d.default.downloadUrl({
 roomId: u.default.roomId
 });
-e === c.eAccountType.xianLiao ? s.default.shareGame(e, t, y, m, this.iconPath(), "" + u.default.roomId, " ") : s.default.shareWebPage(e, t, y, m, this.iconPath(), g);
+e === c.eAccountType.xianLiao ? s.default.shareGame(e, t, y, m, this.iconPath(), "" + u.default.roomId, " ") : s.default.shareWebPage(e, t, y, m, this.iconPath(), g, k);
 }
 this._shareUIType === i.ShareCaptureImage && s.default.shareImgAbs(e, t, this._captureImgPath);
 if (this._shareUIType === i.ShareTotalEndUrl) {
@@ -100,7 +104,7 @@ _ += u.default.players.getByUid(D).name;
 C < b - 1 && (_ += "、");
 }
 _ += " 点击查看详情";
-s.default.shareWebPage(e, t, y, _, this.iconPath(), g);
+s.default.shareWebPage(e, t, y, _, this.iconPath(), g, k);
 }
 l.default.uiHelper.remove(this);
 };
@@ -108,9 +112,13 @@ t.prototype.onClickShareXianLiao = function() {
 s.default.isInstallXianLiao() ? this.share(c.eAccountType.xianLiao, c.eShareScene.Friend) : l.default.uiHelper.showTip("您尚未安装闲聊客户端！");
 };
 t.prototype.onClickShareWxFriend = function() {
+if (!s.default.isInstallWX()) return l.default.uiHelper.showTip("您尚未安装微信客户端！");
+if (cc.sys.os === cc.sys.OS_IOS && !d.default.sdkInfo("SDK_WX_APPLINK")) return l.default.uiHelper.showTip("iOS 微信分享需先配置 Universal Link");
 this.share(c.eAccountType.wechat, c.eShareScene.Friend);
 };
 t.prototype.onClickShareWxCircle = function() {
+if (!s.default.isInstallWX()) return l.default.uiHelper.showTip("您尚未安装微信客户端！");
+if (cc.sys.os === cc.sys.OS_IOS && !d.default.sdkInfo("SDK_WX_APPLINK")) return l.default.uiHelper.showTip("iOS 微信分享需先配置 Universal Link");
 this.share(c.eAccountType.wechat, c.eShareScene.Circle);
 };
 t.prototype.onClickShareDingTalk = function() {

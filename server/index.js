@@ -10,7 +10,7 @@ const { WebSocketServer } = require('ws');
 const devVars = path.join(__dirname, '..', '.dev.vars');
 if (process.env.QJQP_LOAD_DEV_VARS !== '0' && fs.existsSync(devVars)) {
   for (const line of fs.readFileSync(devVars, 'utf8').split('\n')) {
-    const match = line.match(/^(QJQP_WECHAT_APPID|QJQP_WECHAT_APPSECRET|QJQP_ID_HASH_KEY)=(.*)$/);
+    const match = line.match(/^(QJQP_WECHAT_APPID|QJQP_WECHAT_APPSECRET|QJQP_ID_HASH_KEY|QJQP_APPLE_TEAM_ID|QJQP_PUBLIC_BASE_URL)=(.*)$/);
     if (match && !process.env[match[1]]) process.env[match[1]] = match[2].trim();
   }
 }
@@ -23,6 +23,8 @@ const { authorizeWechat } = require('./wechat');
 const voice = createVoice(path.join(path.dirname(store.FILE), 'voice'));
 
 const PORT = Number(process.env.PORT) || 8080;
+const APP_BUNDLE_ID = 'com.haoke.gandengyan';
+const APPLE_TEAM_ID = process.env.QJQP_APPLE_TEAM_ID || '4CSMM3394C';
 
 let saveTimer = null;
 let saveQueue = Promise.resolve();
@@ -64,6 +66,49 @@ const json = (res, body, status = 200) => {
   res.end(s);
 };
 
+const html = (res, body, status = 200) => {
+  res.writeHead(status, {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Content-Length': Buffer.byteLength(body),
+    'Cache-Control': 'public, max-age=300',
+    'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'",
+    'X-Content-Type-Options': 'nosniff',
+  });
+  res.end(body);
+};
+
+const escapeHtml = (value) => String(value || '')
+  .replaceAll('&', '&amp;')
+  .replaceAll('<', '&lt;')
+  .replaceAll('>', '&gt;')
+  .replaceAll('"', '&quot;')
+  .replaceAll("'", '&#39;');
+
+const publicOrigin = (req) => {
+  const configured = String(process.env.QJQP_PUBLIC_BASE_URL || '').replace(/\/$/, '');
+  if (configured) return configured;
+  const forwarded = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+  const protocol = forwarded === 'https' ? 'https' : (req.socket.encrypted ? 'https' : 'http');
+  const host = String(req.headers.host || `127.0.0.1:${PORT}`).replace(/[\r\n]/g, '');
+  return `${protocol}://${host}`;
+};
+
+const sharePage = (roomId) => {
+  const room = /^\d{4,10}$/.test(String(roomId || '')) ? String(roomId) : '';
+  const roomText = room ? `<p class="room">房间号 <strong>${escapeHtml(room)}</strong></p>` : '';
+  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>潜江干瞪眼</title><style>body{margin:0;background:#f7f1e4;color:#4b2d18;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}.card{box-sizing:border-box;max-width:560px;margin:12vh auto;padding:40px 28px;text-align:center;background:#fffaf0;border:1px solid #ead5b5;border-radius:22px;box-shadow:0 14px 40px #6d3e1920}h1{margin:0 0 18px;color:#9b3f20;font-size:32px}.room{font-size:22px}.room strong{font-size:38px;letter-spacing:3px;color:#d2692e}p{line-height:1.7}.tip{color:#765b47}</style></head><body><main class="card"><h1>潜江干瞪眼</h1>${roomText}<p>打开游戏${room ? '，在大厅输入上面的房间号' : ''}即可开始游戏。</p><p class="tip">来自好友的微信分享</p></main></body></html>`;
+};
+
+const aasa = () => ({
+  applinks: {
+    apps: [],
+    details: [{
+      appID: `${APPLE_TEAM_ID}.${APP_BUNDLE_ID}`,
+      paths: ['/wechat/*'],
+    }],
+  },
+});
+
 const logUrl = (url) => {
   const query = new URLSearchParams(url.searchParams);
   for (const key of ['token', 'code', 'deviceId', 'access_token', 'authorization']) {
@@ -98,6 +143,32 @@ const server = http.createServer(async (req, res) => {
     return json(res, { err_code: 1, err_msg: 'invalid URL' }, 400);
   }
   console.log(`HTTP ${req.method} ${logUrl(url)}`);
+
+  // Apple 要求 AASA 用 HTTPS 直接返回，不允许重定向。微信 iOS SDK
+  // 使用同一个 /wechat/ 前缀完成 Universal Link 校验和回调。
+  if (req.method === 'GET' && (url.pathname === '/apple-app-site-association'
+      || url.pathname === '/.well-known/apple-app-site-association')) {
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    return json(res, aasa());
+  }
+  if (req.method === 'GET' && (url.pathname === '/wechat' || url.pathname.startsWith('/wechat/'))) {
+    return html(res, sharePage(url.searchParams.get('roomId')));
+  }
+
+  // 返回当前可公网访问的域名，避免微信分享继续指向原厂地址。
+  if (req.method === 'GET' && url.pathname === '/v1/forwardconfig') {
+    const data = { primary: { type: 'qj', url: publicOrigin(req) } };
+    return json(res, { err_code: '0', data: JSON.stringify(data) });
+  }
+  if (req.method === 'GET' && url.pathname === '/v1/donamerecord') {
+    return json(res, { err_code: '0', data: null });
+  }
+  if (req.method === 'GET' && url.pathname === '/download/ylhy-activity') {
+    return html(res, sharePage(url.searchParams.get('roomId')));
+  }
+  if (req.method === 'GET' && url.pathname === '/download/record') {
+    return html(res, sharePage(''));
+  }
 
   if (url.pathname === '/voice' && req.method === 'POST') {
     const ip = req.socket.remoteAddress || '';

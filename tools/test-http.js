@@ -40,6 +40,21 @@ const request = (port, target, host = `127.0.0.1:${port}`) => new Promise((resol
   req.on('error', reject);
 });
 
+const requestText = (port, target, headers = {}) => new Promise((resolve, reject) => {
+  const req = http.get({ hostname: '127.0.0.1', port, path: target, headers, agent: false }, (res) => {
+    const chunks = [];
+    res.on('data', (chunk) => chunks.push(chunk));
+    res.on('error', reject);
+    res.on('end', () => resolve({
+      status: res.statusCode,
+      headers: res.headers,
+      text: Buffer.concat(chunks).toString(),
+    }));
+  });
+  req.setTimeout(3000, () => req.destroy(new Error('HTTP 请求超时')));
+  req.on('error', reject);
+});
+
 const wsEvent = (ws, event, action) => new Promise((resolve, reject) => {
   const cleanup = () => {
     clearTimeout(timer);
@@ -109,6 +124,16 @@ const main = async () => {
     ws.on('error', () => {}); // 未等待事件时也不让清理期间的错误变成未捕获异常
     await wsEvent(ws, 'open');
     t('正常 HTTP 可用', (await request(port, '/version')).status, 200);
+    const aasa = await requestText(port, '/.well-known/apple-app-site-association');
+    t('AASA 配置可访问', aasa.status, 200);
+    t('AASA 使用 JSON 类型', aasa.headers['content-type'], 'application/json; charset=utf-8');
+    t('AASA 包含 iOS App ID', JSON.parse(aasa.text).applinks.details[0].appID, '4CSMM3394C.com.haoke.gandengyan');
+    const forward = await request(port, '/v1/forwardconfig?key=ym', 'share.example.test');
+    t('分享域名配置可用', forward.body.err_code, '0');
+    t('分享域名使用当前服务', JSON.parse(forward.body.data).primary.url, `http://share.example.test`);
+    const share = await requestText(port, '/download/ylhy-activity?roomId=100037');
+    t('微信分享落地页可访问', share.status, 200);
+    t('微信分享落地页显示房间号', share.text.includes('100037'), true);
     t('原连接心跳正常', await heartbeat(ws), true);
     t('异常 Host 不影响路径解析', (await request(port, '/version', '[')).status, 200);
     t('IPv6 Host 仍可正常访问', (await request(port, '/version', '[::1]')).status, 200);

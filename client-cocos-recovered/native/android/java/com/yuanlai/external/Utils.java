@@ -72,9 +72,11 @@ public final class Utils {
         try {
             JSONObject o=new JSONObject(json); int scene=o.optInt("scene",0); String method=o.optString("method"); boolean ok;
             if ("shareText".equals(method)) ok=WXHelper.getInstance().shareText(scene,o.optString("text"));
-            else if ("shareWebpage".equals(method)||"shareGame".equals(method)) ok=WXHelper.getInstance().shareWebpage(scene,o.optString("url"),o.optString("title"),o.optString("text"));
+            else if ("shareWebpage".equals(method)||"shareGame".equals(method)) ok=WXHelper.getInstance().shareWebpage(scene,o.optString("url"),o.optString("title"),o.optString("text"),o.optString("imgPath"));
             else ok=WXHelper.getInstance().shareImage(scene,o.optString("imgPath"));
-            Bridge.onAction("Utils","share",ok?"success":"fail"); return ok?"ok":"fail";
+            // sendReq=true 只表示已成功拉起微信，最终结果由 WXEntryActivity 回调。
+            if (!ok) Bridge.onAction("Utils","share","fail");
+            return ok?"ok":"fail";
         } catch(Exception e) { Bridge.onAction("Utils","share","fail"); return "fail"; }
     }
 }

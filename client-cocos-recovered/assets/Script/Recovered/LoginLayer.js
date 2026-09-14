@@ -135,6 +135,8 @@ l.default.uiHelper.showTip(t);
 });
 };
 t.prototype._wxLogin = function() {
+if (!v.default.sdkInfo("SDK_WX_APPID")) return l.default.uiHelper.showTip("微信登录尚未配置 AppID");
+if (cc.sys.os === cc.sys.OS_IOS && !v.default.sdkInfo("SDK_WX_APPLINK")) return l.default.uiHelper.showTip("iOS 微信登录需先配置 Universal Link");
 var e = this, t = {
 appName: a.default.appName,
 accountType: "wx",
@@ -146,7 +148,7 @@ if (o) {
 l.default.uiHelper.showLoading();
 this._tokenLogin(o);
 } else c.default.login(s.eAccountType.wechat, function(o, n) {
-if (o === s.eExCallBackMsg.cancel || o === s.eExCallBackMsg.fail) l.default.uiHelper.showTip("登录失败~"); else {
+if (o === s.eExCallBackMsg.cancel) l.default.uiHelper.showTip("已取消微信登录"); else if (o === s.eExCallBackMsg.fail) l.default.uiHelper.showTip("微信登录失败，请检查微信配置"); else {
 t.code = n;
 l.default.uiHelper.showLoading();
 e._accountSend(t, function(t) {

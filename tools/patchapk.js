@@ -69,6 +69,7 @@ const lanIPv4 = () => {
 const APK = arg('apk');
 const LAN = lanIPv4();
 let HOST = arg('host');
+const TLS = argv.includes('--tls');
 if (HOST && /^10\.0\.2\.2(?::|$)/.test(HOST)) {
   if (!LAN) {
     console.error('不能打 10.0.2.2，真机连不上，也找不到局域网 IP');
@@ -78,8 +79,8 @@ if (HOST && /^10\.0\.2\.2(?::|$)/.test(HOST)) {
   HOST = `${LAN}:8899`;
 }
 if (!HOST) HOST = LAN ? `${LAN}:8899` : '';
-if (HOST && !/:\d+$/.test(HOST)) HOST = `${HOST}:8899`;
-const TLS = argv.includes('--tls');
+// HTTPS 公网域名默认走443；局域网 IP 才补本地服务端的 8899。
+if (HOST && !/:\d+$/.test(HOST) && (!TLS || /^(?:\d{1,3}\.){3}\d{1,3}$/.test(HOST))) HOST = `${HOST}:8899`;
 const OUT = arg('out', APK && APK.replace(/\.apk$/, '-patched.apk'));
 const SDK = process.env.ANDROID_SDK_ROOT || '/opt/homebrew/share/android-commandlinetools';
 const KEYSTORE = arg('keystore', path.join(os.homedir(), '.android-qjqp.keystore'));
@@ -102,7 +103,8 @@ const TABLE_BACKGROUND_2D_SOURCE = path.join(__dirname, '..', 'assets', 'brandin
 const TABLE_BACKGROUND_3D_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'table', 'table-background-3d.jpg');
 const SPLASH_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'startup', 'splash-screen.png');
 const LEGACY_CLEANUP_DIR = path.join(__dirname, '..', 'assets', 'branding', 'legacy-cleanup');
-const APKTOOL = process.env.APKTOOL || '/tmp/apktool.jar';
+const APKTOOL = process.env.APKTOOL
+  || (fs.existsSync('/tmp/apktool.jar') ? '/tmp/apktool.jar' : '/opt/homebrew/bin/apktool');
 const GME_URL = process.env.GME_SDK_URL
   || 'https://dl.gmertc.com/gme/GME2.9.17/Android/GME_android_audio_sdk_2.9.17.9e947c95.zip';
 const GME_DIR = process.env.GME_SDK || '/tmp/gme-sdk';
@@ -178,6 +180,56 @@ RULES.push([
 RULES.push([
   'e === s.eAccountType.mobile && d.default.mobileToken.getValue() && this._mobileLogin(null);',
   '',
+  true,
+]);
+
+// 微信配置不完整时在客户端给出可操作提示，避免 iOS SDK
+// 因 Universal Link 为空而无回调。授权取消和真正失败也分开提示。
+RULES.push([
+  't.prototype._wxLogin = function() {\nvar e = this, t = {',
+  u2b('t.prototype._wxLogin = function() {\nif (!v.default.sdkInfo("SDK_WX_APPID")) return l.default.uiHelper.showTip("微信登录尚未配置 AppID");\nif (cc.sys.os === cc.sys.OS_IOS && !v.default.sdkInfo("SDK_WX_APPLINK")) return l.default.uiHelper.showTip("iOS 微信登录需先配置 Universal Link");\nvar e = this, t = {'),
+  true,
+]);
+RULES.push([
+  u2b('if (o === s.eExCallBackMsg.cancel || o === s.eExCallBackMsg.fail) l.default.uiHelper.showTip("登录失败~"); else {'),
+  u2b('if (o === s.eExCallBackMsg.cancel) l.default.uiHelper.showTip("已取消微信登录"); else if (o === s.eExCallBackMsg.fail) l.default.uiHelper.showTip("微信登录失败，请检查微信配置"); else {'),
+  true,
+]);
+
+// 分享标题使用当前品牌，并把原生 SDK 的失败回调显示给用户。
+RULES.push([
+  't.prototype.share = function(e, t) {\nif (this._shareUIType === i.ShareHall) {',
+  u2b('t.prototype.share = function(e, t) {\nvar k = function(e) {\ne === c.eExCallBackMsg.fail && l.default.uiHelper.showTip("微信分享失败，请检查微信或网络");\n};\nif (this._shareUIType === i.ShareHall) {'),
+  true,
+]);
+RULES.push([
+  'var o = function(o) {\ne === c.eAccountType.wechat',
+  u2b('var o = function(o) {\no === c.eExCallBackMsg.fail && l.default.uiHelper.showTip("微信分享失败，请检查微信或网络");\ne === c.eAccountType.wechat'),
+  true,
+]);
+RULES.push([
+  u2b('var m = "最好玩的游戏", g = "最正宗的玩法", y = d.default.downloadUrl({});\ncc.sys.isNative && s.default.shareWebPage(e, t, g, m, this.iconPath(), y);'),
+  u2b('var m = "潜江本地玩法，约上好友一起玩", g = "潜江干瞪眼", y = d.default.downloadUrl({});\ncc.sys.isNative && s.default.shareWebPage(e, t, g, m, this.iconPath(), y, k);'),
+  true,
+]);
+RULES.push([
+  'e === c.eAccountType.xianLiao ? s.default.shareGame(e, t, g, m, this.iconPath(), "" + u.default.roomId, " ") : s.default.shareWebPage(e, t, g, m, this.iconPath(), y);',
+  'e === c.eAccountType.xianLiao ? s.default.shareGame(e, t, g, m, this.iconPath(), "" + u.default.roomId, " ") : s.default.shareWebPage(e, t, g, m, this.iconPath(), y, k);',
+  true,
+]);
+RULES.push([
+  's.default.shareWebPage(e, t, g, _, this.iconPath(), y);',
+  's.default.shareWebPage(e, t, g, _, this.iconPath(), y, k);',
+  true,
+]);
+RULES.push([
+  't.prototype.onClickShareWxFriend = function() {\nthis.share(c.eAccountType.wechat, c.eShareScene.Friend);',
+  u2b('t.prototype.onClickShareWxFriend = function() {\nif (!s.default.isInstallWX()) return l.default.uiHelper.showTip("您尚未安装微信客户端！");\nif (cc.sys.os === cc.sys.OS_IOS && !d.default.sdkInfo("SDK_WX_APPLINK")) return l.default.uiHelper.showTip("iOS 微信分享需先配置 Universal Link");\nthis.share(c.eAccountType.wechat, c.eShareScene.Friend);'),
+  true,
+]);
+RULES.push([
+  't.prototype.onClickShareWxCircle = function() {\nthis.share(c.eAccountType.wechat, c.eShareScene.Circle);',
+  u2b('t.prototype.onClickShareWxCircle = function() {\nif (!s.default.isInstallWX()) return l.default.uiHelper.showTip("您尚未安装微信客户端！");\nif (cc.sys.os === cc.sys.OS_IOS && !d.default.sdkInfo("SDK_WX_APPLINK")) return l.default.uiHelper.showTip("iOS 微信分享需先配置 Universal Link");\nthis.share(c.eAccountType.wechat, c.eShareScene.Circle);'),
   true,
 ]);
 
@@ -370,6 +422,9 @@ RULES.push([
 ]);
 
 const run = (cmd, args, cwd) => execFileSync(cmd, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] }).toString();
+const runApktool = (args) => APKTOOL.endsWith('.jar')
+  ? run('java', ['-jar', APKTOOL, ...args])
+  : run(APKTOOL, args);
 const tool = (name) => {
   const dir = path.join(SDK, 'build-tools');
   const ver = fs.readdirSync(dir).sort().pop();
@@ -451,7 +506,7 @@ const compileGmeVoiceSmali = () => {
   const miniApk = path.join(work, 'mini.apk');
   run('zip', ['-q', '-0', '-X', miniApk, 'classes.dex'], dexDir);
   const smaliOut = path.join(work, 'smali');
-  run('java', ['-jar', APKTOOL, 'd', '-f', '-o', smaliOut, miniApk]);
+  runApktool(['d', '-f', '-o', smaliOut, miniApk]);
   return { work, smali: path.join(smaliOut, 'smali') };
 };
 
@@ -763,7 +818,7 @@ const writeVoiceMeta = (xml, appid, appkey, httpBase) => {
 const injectNativeConfig = (apkPath, { voiceAppid, voiceAppkey, wechatAppid }) => {
   const withVoice = !!(voiceAppid && voiceAppkey);
   if (!fs.existsSync(APKTOOL)) {
-    throw new Error('没有 apktool.jar，无法写入原生 SDK 配置（APKTOOL=/tmp/apktool.jar）');
+    throw new Error(`没有可用的 apktool，无法写入原生 SDK 配置（APKTOOL=${APKTOOL}）`);
   }
   if (withVoice && !fs.existsSync(ANDROID_JAR)) {
     throw new Error(`没有 android.jar：${ANDROID_JAR}`);
@@ -772,7 +827,7 @@ const injectNativeConfig = (apkPath, { voiceAppid, voiceAppkey, wechatAppid }) =
   const decoded = fs.mkdtempSync(path.join(os.tmpdir(), 'qjqp-nativeapk-'));
   const built = `${apkPath}.native.apk`;
   try {
-    run('java', ['-jar', APKTOOL, 'd', '-f', apkPath, '-o', decoded]);
+    runApktool(['d', '-f', apkPath, '-o', decoded]);
     applyBranding(decoded);
     const mf = path.join(decoded, 'AndroidManifest.xml');
     let manifest = fs.readFileSync(mf, 'utf8');
@@ -807,7 +862,7 @@ const injectNativeConfig = (apkPath, { voiceAppid, voiceAppkey, wechatAppid }) =
       console.log('      已换上 GME .so，去掉旧 GCloudVoice');
     }
 
-    run('java', ['-jar', APKTOOL, 'b', decoded, '-o', built]);
+    runApktool(['b', decoded, '-o', built]);
     fs.copyFileSync(built, apkPath);
   } finally {
     if (compiled) fs.rmSync(compiled.work, { recursive: true, force: true });
