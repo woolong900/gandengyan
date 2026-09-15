@@ -14,6 +14,12 @@ const { findPlayback, mintPlaybackId } = require('./playback');
 const { identityDigest, maskIdCard, validateIdentity } = require('./identity');
 const { assignAvatarIfMissing } = require('./avatars');
 
+const FIRST_PLAYER_UID = 285633;
+const ROOM_ID_MIN = 100000;
+const ROOM_ID_MAX = 1000000;
+const BOT_UID_MIN = 800000000;
+const BOT_UID_MAX = 900000000;
+
 class GameApp {
   constructor({ persist, now, onRecord, allowUnregisteredTokens = false, identityHashKey } = {}) {
     this.persistFn = persist || (() => {});
@@ -29,7 +35,7 @@ class GameApp {
     this.tables = new Map();
     this.economySettings = { clubJoinBonus: 200, inviteBindBonus: INVITE_GIVE };
     this.clubStore = new ClubStore({ now: () => this.now(), memberBonus: () => this.economySettings.clubJoinBonus });
-    this.nextUid = 100001;
+    this.nextUid = FIRST_PLAYER_UID;
     this.nextRoomId = 100000;
     this.conns = new Map();
     this.timeouts = new Map();
@@ -51,6 +57,28 @@ class GameApp {
 
   playerByUid(uid) {
     return this.playersByUid.get(Number(uid)) || null;
+  }
+
+  mintPlayerUid() {
+    while (this.playersByUid.has(this.nextUid)) this.nextUid += 1;
+    return this.nextUid++;
+  }
+
+  mintRoomId() {
+    const capacity = ROOM_ID_MAX - ROOM_ID_MIN;
+    if (this.tables.size >= capacity) throw new Error('房号已用尽');
+    const start = crypto.randomInt(ROOM_ID_MIN, ROOM_ID_MAX);
+    if (!this.tables.has(start)) return start;
+    for (let i = 0; i < 32; i++) {
+      const candidate = crypto.randomInt(ROOM_ID_MIN, ROOM_ID_MAX);
+      if (!this.tables.has(candidate)) return candidate;
+    }
+    // 随机抽样连续碰撞时，从随机起点扫描剩余号码，保证有空号就能分配。
+    for (let offset = 1; offset < capacity; offset++) {
+      const candidate = ROOM_ID_MIN + (start - ROOM_ID_MIN + offset) % capacity;
+      if (!this.tables.has(candidate)) return candidate;
+    }
+    throw new Error('房号已用尽');
   }
 
   notifyInbox(uid) {
@@ -318,7 +346,7 @@ class GameApp {
       if (player.disabled) throw new Error('账号已停用，请联系管理员');
     } else {
       token = `t_${crypto.randomBytes(24).toString('hex')}`;
-      player = emptyPlayer(this.nextUid++, { createdAt: this.now() });
+      player = emptyPlayer(this.mintPlayerUid(), { createdAt: this.now() });
       this.players.set(token, player);
       this.playersByUid.set(player.uid, player);
     }
@@ -368,7 +396,7 @@ class GameApp {
       }
     }
 
-    const uid = this.nextUid++;
+    const uid = this.mintPlayerUid();
     const token = `t_${crypto.randomBytes(24).toString('hex')}`;
     const player = emptyPlayer(uid, { guestDeviceHash: deviceHash, createdAt: this.now(), lastLoginAt: this.now() });
     assignAvatarIfMissing(player);
@@ -385,7 +413,9 @@ class GameApp {
   }
 
   mintBot(site, roomId) {
-    const uid = this.nextUid++;
+    let uid;
+    do { uid = crypto.randomInt(BOT_UID_MIN, BOT_UID_MAX); }
+    while (this.playersByUid.has(uid));
     const token = `t_bot_${uid}`;
     const player = emptyPlayer(uid, { nickname: `陪玩${site}`, roomId, bot: true, cardNum: 0 });
     this.players.set(token, player);
@@ -450,7 +480,7 @@ class GameApp {
     this.playersByInviteCode.clear();
     this.playersByIdentityHash.clear();
     this.playersByGuestDeviceHash.clear();
-    this.nextUid = data.nextUid || 100001;
+    this.nextUid = Math.max(FIRST_PLAYER_UID, Number(data.nextUid) || 0);
     this.nextRoomId = data.nextRoomId || 100000;
     this.records = Array.isArray(data.records) ? data.records : [];
     this.operatorMessages = Array.isArray(data.operatorMessages) ? data.operatorMessages.filter((message) => (
@@ -483,6 +513,7 @@ class GameApp {
       if (assignAvatarIfMissing(player)) missingAvatars++;
       this.players.set(p.token, player);
       this.playersByUid.set(player.uid, player);
+      if (!player.bot && player.uid >= this.nextUid) this.nextUid = player.uid + 1;
       if (player.inviteCode && !player.bot) this.playersByInviteCode.set(player.inviteCode, player);
       if (player.identityIdHash && !player.bot) this.playersByIdentityHash.set(player.identityIdHash, player);
       if (player.guestDeviceHash && !player.bot && !this.playersByGuestDeviceHash.has(player.guestDeviceHash)) {
@@ -633,7 +664,7 @@ class GameApp {
         && table.members.length === 0
       ));
       if (exists) continue;
-      const roomId = this.nextRoomId++;
+      const roomId = this.mintRoomId();
       const table = new Table({
         roomId,
         gameType: scheme.gameType,
@@ -751,7 +782,7 @@ class GameApp {
             res: { error: 65, what: '登录凭证无效，请重新登录' },
           }));
         }
-        const uid = this.nextUid++;
+        const uid = this.mintPlayerUid();
         const newbie = emptyPlayer(uid);
         assignAvatarIfMissing(newbie);
         this.players.set(msg.token, newbie);
@@ -1282,7 +1313,7 @@ class GameApp {
       if (!clubId && cost.each > 0 && (c.player.cardNum || 0) < cost.each) {
         return c.send(pack(201, { res: { error: 1, what: '房卡不足' } }));
       }
-      const roomId = this.nextRoomId++;
+      const roomId = this.mintRoomId();
       const meta = {
         roomId,
         gameType,

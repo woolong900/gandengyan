@@ -11,7 +11,7 @@ const FILE = process.env.QJQP_DB || path.join(DATA_DIR, 'state.sqlite');
 const LEGACY_FILE = process.env.QJQP_STATE || path.join(DATA_DIR, 'state.json');
 
 const empty = () => ({
-  nextUid: 100001,
+  nextUid: 285633,
   nextRoomId: 100000,
   nextOperatorMessageId: 1000000000,
   players: [],
