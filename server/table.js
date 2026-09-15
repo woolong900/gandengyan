@@ -218,12 +218,16 @@ class Table {
     for (const m of this.members) this.host.cancel(`kick-${m.player.uid}`);
   }
 
-  dissolve(reason = 0, { totalAlreadySent = false, notifyExit = true } = {}) {
+  dissolve(reason = 0, { totalAlreadySent = false, notifyExit = null } = {}) {
     if (this.closed) return;
     this.closed = true;
     this.clearAllTimers();
-    if (!totalAlreadySent && (this.step > 0 || this.round)) this.sendTotalEnd(false);
-    if (notifyExit) this.broadcast('exitroom', { reason });
+    const hasSettlement = totalAlreadySent || this.step > 0 || !!this.round;
+    if (!totalAlreadySent && hasSettlement) this.sendTotalEnd(false);
+    // 已开局的房间保留总结算画面，由玩家自己返回；未开局仍直接退出。
+    if (notifyExit === true || (notifyExit === null && !hasSettlement)) {
+      this.broadcast('exitroom', { reason });
+    }
     for (const m of this.members) {
       m.player.roomId = 0;
       this.host.onUidRoom(m.player.uid, 0);

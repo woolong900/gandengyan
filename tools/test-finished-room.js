@@ -20,6 +20,11 @@ const request = (proto, msg) => {
 };
 const response = (frame) => protocol[frame.readUInt32BE(0)].sc.decode(frame.subarray(12));
 const lastResponse = (sent, proto) => response(sent.findLast((frame) => frame.readUInt32BE(0) === proto));
+const pushes = (sent) => sent.filter((frame) => frame.readUInt32BE(0) === 999)
+  .map((frame) => {
+    const envelope = JSON.parse(response(frame).json);
+    return { head: envelope.msghead, data: JSON.parse(envelope.msgdata) };
+  });
 
 const fixture = ({ finished = true } = {}) => {
   const app = new GameApp({ persist: () => {}, now: () => 1000 });
@@ -84,8 +89,7 @@ const fixture = ({ finished = true } = {}) => {
   const { app, player, old, sent } = fixture();
   old.recordSaved = false;
   old.makeIo().over({ winner: 0, stat: [{}, {}], scores: [10, -10] });
-  const heads = sent.filter((frame) => frame.readUInt32BE(0) === 999)
-    .map((frame) => JSON.parse(response(frame).json).msghead);
+  const heads = pushes(sent).map((item) => item.head);
   assert.equal(heads.includes('game_bye'), true);
   assert.equal(heads.includes('exitroom'), false);
   assert.equal(app.tables.has(old.roomId), false);
@@ -93,4 +97,27 @@ const fixture = ({ finished = true } = {}) => {
   assert.equal(player.roomId, 0);
   assert.equal(app.records.length, 1);
 }
-console.log('已结算房间即时解散并保留结算画面，入新桌、陪玩空桌清理和重启恢复均通过');
+{
+  const { app, player, old, sent } = fixture({ finished: false });
+  old.step = 1;
+  old.recordSaved = false;
+  const json = JSON.stringify({ msghead: 'dissmissroom', msgdata: '{}' });
+  app.onMessage('phone', request(200, { json }));
+  const messages = pushes(sent);
+  assert.equal(messages.find((item) => item.head === 'game_bye').data.normal_end, false);
+  assert.equal(messages.some((item) => item.head === 'exitroom'), false);
+  assert.equal(app.tables.has(old.roomId), false);
+  assert.equal(player.roomId, 0);
+  assert.equal(app.records.length, 1);
+}
+{
+  const { app, old, sent } = fixture({ finished: false });
+  old.step = 0;
+  const json = JSON.stringify({ msghead: 'dissmissroom', msgdata: '{}' });
+  app.onMessage('phone', request(200, { json }));
+  const heads = pushes(sent).map((item) => item.head);
+  assert.equal(heads.includes('game_bye'), false);
+  assert.equal(heads.includes('exitroom'), true);
+  assert.equal(app.tables.has(old.roomId), false);
+}
+console.log('已结算、未结算解散均保留结算画面；未开局直接退出；房间关联即时清理');
