@@ -170,8 +170,11 @@ class Table {
           if (m.bot) table.broadcast('game_ready', { uid: m.player.uid, site: m.site });
         }
         table.host.log(`  [房${table.roomId}] 第 ${table.step}/${maxStep(table)} 局结束`);
-        if (table.step >= maxStep(table)) table.sendTotalEnd();
-        table.host.persist();
+        if (table.step >= maxStep(table)) {
+          table.sendTotalEnd();
+          // 房间立即释放；客户端保留已收到的结算画面，玩家手动返回大厅。
+          table.dissolve(0, { totalAlreadySent: true, notifyExit: false });
+        } else table.host.persist();
       },
     };
   }
@@ -215,12 +218,12 @@ class Table {
     for (const m of this.members) this.host.cancel(`kick-${m.player.uid}`);
   }
 
-  dissolve(reason = 0) {
+  dissolve(reason = 0, { totalAlreadySent = false, notifyExit = true } = {}) {
     if (this.closed) return;
     this.closed = true;
     this.clearAllTimers();
-    if (this.step > 0 || this.round) this.sendTotalEnd(false);
-    this.broadcast('exitroom', { reason });
+    if (!totalAlreadySent && (this.step > 0 || this.round)) this.sendTotalEnd(false);
+    if (notifyExit) this.broadcast('exitroom', { reason });
     for (const m of this.members) {
       m.player.roomId = 0;
       this.host.onUidRoom(m.player.uid, 0);

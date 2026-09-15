@@ -80,4 +80,17 @@ const fixture = ({ finished = true } = {}) => {
   assert.equal(restored.tables.has(old.roomId), false);
   assert.equal(restored.playerByUid(player.uid).roomId, 0);
 }
-console.log('已结算房间释放、未结算拦截、陪玩空桌清理和重启恢复均通过');
+{
+  const { app, player, old, sent } = fixture();
+  old.recordSaved = false;
+  old.makeIo().over({ winner: 0, stat: [{}, {}], scores: [10, -10] });
+  const heads = sent.filter((frame) => frame.readUInt32BE(0) === 999)
+    .map((frame) => JSON.parse(response(frame).json).msghead);
+  assert.equal(heads.includes('game_bye'), true);
+  assert.equal(heads.includes('exitroom'), false);
+  assert.equal(app.tables.has(old.roomId), false);
+  assert.equal(app.uidRoom.has(player.uid), false);
+  assert.equal(player.roomId, 0);
+  assert.equal(app.records.length, 1);
+}
+console.log('已结算房间即时解散并保留结算画面，入新桌、陪玩空桌清理和重启恢复均通过');
