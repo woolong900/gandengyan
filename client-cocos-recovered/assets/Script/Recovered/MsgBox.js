@@ -46,7 +46,7 @@ this._show(e, t, null, null, !1, !1, o, n, r, i);
 };
 e.prototype.customExitRoom = function() {
 var e = "是否离开房间？";
-i.default.isFangZhu() && (e = "是否解散房间？");
+i.default.isFangZhu() && !(i.default.belongClub > 0 && i.default.curStep() === 0 && i.default.isGameFree()) && (e = "是否解散房间？");
 var t = function() {
 r.default.gameMsgBase().dismissRoom(!0, function(e, t) {
 t ? r.default.uiHelper.showTip("网络请求失败，请稍后重试～") : 0 === e.error || (e.what ? r.default.uiHelper.showTip(e.what) : r.default.uiHelper.showTip("退出失败~"));

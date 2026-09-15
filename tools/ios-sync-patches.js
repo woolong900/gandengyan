@@ -29,6 +29,19 @@ const applyIosSyncPatches = (input) => {
 
   source = replaceOnce(
     source,
+    '俱乐部未开局只显示退出',
+    '} else if (d.default.isFangZhu()) {\nthis.btnExit.active = !1;\nthis.btnDissolve.active = !0;',
+    '} else if (d.default.isFangZhu() && !(d.default.belongClub > 0 && d.default.curStep() === 0 && d.default.isGameFree())) {\nthis.btnExit.active = !1;\nthis.btnDissolve.active = !0;',
+  );
+  source = replaceOnce(
+    source,
+    '俱乐部未开局退出文案',
+    u2b('i.default.isFangZhu() && (e = "是否解散房间？");'),
+    u2b('i.default.isFangZhu() && !(i.default.belongClub > 0 && i.default.curStep() === 0 && i.default.isGameFree()) && (e = "是否解散房间？");'),
+  );
+
+  source = replaceOnce(
+    source,
     '隐藏大厅手机认证按钮',
     'this.node.getChildByName("BtnBuyCard").active = !a.default.isReivew;',
     'var mobileBtn = this.node.getChildByName("BtnMobile");\nmobileBtn && (mobileBtn.active = !1);\nthis.node.getChildByName("BtnBuyCard").active = !a.default.isReivew;',

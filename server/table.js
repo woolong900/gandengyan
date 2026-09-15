@@ -340,6 +340,26 @@ class Table {
   }
 
   handleDismiss(uid, agree) {
+    if (agree && this.clubId && !this.round && this.step < 1) {
+      const member = this.members.find((m) => m.player.uid === uid && !m.view);
+      if (!member) return;
+      this.members = this.members.filter((m) => m !== member);
+      member.player.roomId = 0;
+      this.host.onUidRoom(uid, 0);
+      this.host.cancel(`kick-${uid}`);
+      this.cancelTurn(member);
+      this.sendTo(member, push('exitroom', { reason: 0 }));
+      if (this.hostUid === uid) {
+        const nextHost = this.seats().find((m) => !m.bot);
+        this.hostUid = nextHost ? nextHost.player.uid : 0;
+      }
+      if (this.members.every((m) => m.bot || m.view)) this.dissolve();
+      else {
+        this.broadcast('roominfo', roomInfo(this));
+        this.host.persist();
+      }
+      return;
+    }
     if (!agree) {
       this.dismiss = null;
       this.host.cancel('dismiss');

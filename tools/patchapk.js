@@ -180,6 +180,17 @@ RULES.push([
     + 'this.activityRoot.getChildByName("Btn0").removeFromParent();',
   true,
 ]);
+// 俱乐部自动桌的首位入座者会临时成为房主；未开局时只允许退出或返回。
+RULES.push([
+  '} else if (d.default.isFangZhu()) {\nthis.btnExit.active = !1;\nthis.btnDissolve.active = !0;',
+  '} else if (d.default.isFangZhu() && !(d.default.belongClub > 0 && d.default.curStep() === 0 && d.default.isGameFree())) {\nthis.btnExit.active = !1;\nthis.btnDissolve.active = !0;',
+  true,
+]);
+RULES.push([
+  u2b('i.default.isFangZhu() && (e = "是否解散房间？");'),
+  u2b('i.default.isFangZhu() && !(i.default.belongClub > 0 && i.default.curStep() === 0 && i.default.isGameFree()) && (e = "是否解散房间？");'),
+  true,
+]);
 // 战绩截图的“玩法”显示的是本项目保留的玩法名，而不是原厂游戏名。
 RULES.push([
   u2b('d = "玩法：" + o + "  " + n;'),

@@ -103,7 +103,7 @@ var e = d.default.players.getByUid(u.default.uid);
 e && e.isManager ? this.btnForceDestroy.active = !0 : this.btnForceDestroy.active = !1;
 this.btnDissolve.active = !1;
 this.btnExit.active = !0;
-} else if (d.default.isFangZhu()) {
+} else if (d.default.isFangZhu() && !(d.default.belongClub > 0 && d.default.curStep() === 0 && d.default.isGameFree())) {
 this.btnExit.active = !1;
 this.btnDissolve.active = !0;
 } else {
