@@ -298,19 +298,29 @@ l.default.uiHelper.showTip(t);
     if (count !== 1) throw new Error(`iOS 微信配置提示补丁匹配到 ${count} 处，预期 1 处`);
     projectJs = projectJs.replace(wxLoginStart, wxLoginGuard);
   }
-  const wxFriendStart = u2b('t.prototype.onClickShareWxFriend = function() {\nif (!s.default.isInstallWX()) return l.default.uiHelper.showTip("您尚未安装微信客户端！");\n');
-  const wxFriendGuard = wxFriendStart + u2b('if (cc.sys.os === cc.sys.OS_IOS && !d.default.sdkInfo("SDK_WX_APPLINK")) return l.default.uiHelper.showTip("iOS 微信分享需先配置 Universal Link");\n');
+  const wxFriendFunction = 't.prototype.onClickShareWxFriend = function() {\n';
+  const wxInstallGuard = u2b('if (!s.default.isInstallWX()) return l.default.uiHelper.showTip("您尚未安装微信客户端！");\n');
+  const wxShareConfigGuard = u2b('if (cc.sys.os === cc.sys.OS_IOS && !d.default.sdkInfo("SDK_WX_APPLINK")) return l.default.uiHelper.showTip("iOS 微信分享需先配置 Universal Link");\n');
+  const wxFriendStart = wxFriendFunction + wxInstallGuard;
+  const wxFriendGuard = wxFriendStart + wxShareConfigGuard;
   if (!projectJs.includes(wxFriendGuard)) {
-    const friendCount = projectJs.split(wxFriendStart).length - 1;
+    const friendStart = projectJs.includes(wxFriendStart) ? wxFriendStart : wxFriendFunction;
+    const friendGuard = projectJs.includes(wxFriendStart)
+      ? wxFriendGuard : wxFriendFunction + wxInstallGuard + wxShareConfigGuard;
+    const friendCount = projectJs.split(friendStart).length - 1;
     if (friendCount !== 1) throw new Error(`iOS 微信分享配置提示补丁匹配到 ${friendCount} 处，预期 1 处`);
-    projectJs = projectJs.replace(wxFriendStart, wxFriendGuard);
+    projectJs = projectJs.replace(friendStart, friendGuard);
   }
-  const wxCircleStart = u2b('t.prototype.onClickShareWxCircle = function() {\nif (!s.default.isInstallWX()) return l.default.uiHelper.showTip("您尚未安装微信客户端！");\n');
-  const wxCircleGuard = wxCircleStart + u2b('if (cc.sys.os === cc.sys.OS_IOS && !d.default.sdkInfo("SDK_WX_APPLINK")) return l.default.uiHelper.showTip("iOS 微信分享需先配置 Universal Link");\n');
+  const wxCircleFunction = 't.prototype.onClickShareWxCircle = function() {\n';
+  const wxCircleStart = wxCircleFunction + wxInstallGuard;
+  const wxCircleGuard = wxCircleStart + wxShareConfigGuard;
   if (!projectJs.includes(wxCircleGuard)) {
-    const circleCount = projectJs.split(wxCircleStart).length - 1;
+    const circleStart = projectJs.includes(wxCircleStart) ? wxCircleStart : wxCircleFunction;
+    const circleGuard = projectJs.includes(wxCircleStart)
+      ? wxCircleGuard : wxCircleFunction + wxInstallGuard + wxShareConfigGuard;
+    const circleCount = projectJs.split(circleStart).length - 1;
     if (circleCount !== 1) throw new Error(`iOS 微信朋友圈配置提示补丁匹配到 ${circleCount} 处，预期 1 处`);
-    projectJs = projectJs.replace(wxCircleStart, wxCircleGuard);
+    projectJs = projectJs.replace(circleStart, circleGuard);
   }
   fs.writeFileSync(projectJsc, toJsc(Buffer.from(projectJs, 'binary')));
 
