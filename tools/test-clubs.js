@@ -116,6 +116,18 @@ app.onMessage('a', packCs(151, { id: schemeId, status: true }));
 t('方案自动开关', Number(last(boxes.a, 151).res.error), 0);
 app.onMessage('a', packCs(122, { clubId }));
 t('开启方案生成空桌', last(boxes.a, 122).rooms.length, 1);
+const autoRoomId = Number(last(boxes.a, 122).rooms[0].id);
+app.onMessage('a', packCs(202, { roomId: autoRoomId }));
+t('进入自动桌成功', Number(last(boxes.a, 202).res.error), 0);
+const autoSnapshot = JSON.parse(JSON.parse(last(boxes.a, 202).json).msgdata).room;
+t('牌桌快照携带俱乐部 ID', Number(autoSnapshot.club_id), clubId);
+const autoTables = [...app.tables.values()].filter((table) => table.clubId === clubId && Number(table.schemeId) === schemeId);
+t('有人入座立即补一张空桌', [autoTables.length, autoTables.filter((table) => table.seats().length === 0).length], [2, 1]);
+app.onMessage('a', packCs(122, { clubId }));
+t('俱乐部桌子列表能看到补建空桌', last(boxes.a, 122).rooms.length, 2);
+app.onMessage('a', packCs(202, { roomId: autoRoomId }));
+t('重连同一桌不会重复补桌', [...app.tables.values()].filter((table) => table.clubId === clubId && Number(table.schemeId) === schemeId).length, 2);
+app.tables.get(autoRoomId).dissolve();
 app.onMessage('a', packCs(152, { id: schemeId }));
 t('删除俱乐部方案', Number(last(boxes.a, 152).res.error), 0);
 
@@ -131,6 +143,8 @@ app.onMessage('a', packCs(201, {
 const roomId = Number(last(boxes.a, 201).roomId);
 t('俱乐部建房成功', Number(last(boxes.a, 201).res.error), 0);
 app.onMessage('a', packCs(202, { roomId }));
+const manualSnapshot = JSON.parse(JSON.parse(last(boxes.a, 202).json).msgdata).room;
+t('手动创建的俱乐部房间也携带俱乐部 ID', Number(manualSnapshot.club_id), clubId);
 app.onMessage('a', packCs(133, { clubId, userId: b.uid, status: 0 }));
 t('解冻后允许成员入房', Number(last(boxes.a, 133).res.error), 0);
 app.onMessage('b', packCs(202, { roomId }));

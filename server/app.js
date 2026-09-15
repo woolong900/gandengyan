@@ -483,6 +483,7 @@ class GameApp {
       if (!scheme.auto) continue;
       const exists = [...this.tables.values()].some((table) => (
         !table.closed && table.clubId === club.id && Number(table.schemeId) === Number(scheme.id)
+        && table.seats().length === 0
       ));
       if (exists) continue;
       const roomId = this.nextRoomId++;
@@ -1085,6 +1086,10 @@ class GameApp {
       const joined = table.join(c.player, connId);
       if (joined.error) return c.send(pack(202, { res: { error: 1, what: joined.error } }));
       this.maybeFillBots(table);
+      if (table.clubId && table.schemeId) {
+        const club = this.clubStore.get(table.clubId);
+        if (club && this.ensureClubSchemeTables(club)) this.persist();
+      }
       c.roomId = roomId;
       const payload = JSON.stringify({ room: roomInfo(table), game: joined.game || {} });
       c.send(pack(202, {
