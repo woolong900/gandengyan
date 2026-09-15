@@ -64,6 +64,10 @@ class Table {
     return this.members.filter((m) => m.view);
   }
 
+  hasOnlineHuman() {
+    return this.members.some((m) => !m.bot && m.online);
+  }
+
   canSit() {
     return !this.round && this.seats().length < this.config.人数;
   }
@@ -402,6 +406,7 @@ class Table {
     if (!this.hostUid && mine && !mine.view) this.hostUid = player.uid;
     player.roomId = this.roomId;
     this.host.onUidRoom(player.uid, this.roomId);
+    if (!mine.bot) this.host.cancel('empty');
     const how = rejoining ? '重连' : mine.view ? '观战' : '进房';
     this.host.log(`  202 ${how} ${this.roomId}，在座 ${this.seats().length} 观战 ${this.watchers().length}`);
 
@@ -438,6 +443,23 @@ class Table {
     if (notify) this.sendTo(mine, push('exitroom', { reason: 0 }));
     this.broadcast('roominfo', roomInfo(this));
     this.host.persist();
+  }
+
+  releaseFinishedPlayer(uid) {
+    if (this.round || this.step < maxStep(this)) return false;
+    const member = this.members.find((m) => m.player.uid === uid);
+    if (!member) return false;
+    this.members = this.members.filter((m) => m !== member);
+    member.player.roomId = 0;
+    this.host.onUidRoom(uid, 0);
+    this.host.cancel(`kick-${uid}`);
+    this.cancelTurn(member);
+    if (this.members.every((m) => m.bot)) this.dissolve();
+    else {
+      this.broadcast('roominfo', roomInfo(this));
+      this.host.persist();
+    }
+    return true;
   }
 
   chatFor(member, uid, body) {
@@ -488,7 +510,7 @@ class Table {
     const kickSec = this.round ? 0 : (this.config.踢人 || 0);
     if (kickSec > 0) {
       this.host.schedule(`kick-${uid}`, this.host.now() + kickSec * 1000);
-    } else if (this.seats().every((m) => !m.online) && !this.round && this.step === 0) {
+    } else if (!this.hasOnlineHuman() && !this.round) {
       this.host.schedule('empty', this.host.now() + 60000);
     }
     this.host.persist();
@@ -502,7 +524,7 @@ class Table {
       return;
     }
     if (name === 'empty') {
-      if (this.seats().every((m) => !m.online)) this.dissolve();
+      if (!this.hasOnlineHuman() && !this.round) this.dissolve();
       return;
     }
     if (name.startsWith('kick-')) {
@@ -516,6 +538,9 @@ class Table {
       if (this.seats().length === 0) this.dissolve();
       else {
         this.broadcast('roominfo', roomInfo(this));
+        if (!this.hasOnlineHuman() && !this.round) {
+          this.host.schedule('empty', this.host.now() + 60000);
+        }
         this.host.persist();
       }
       return;
@@ -627,7 +652,11 @@ class Table {
       if (left > 0) this.host.schedule('dismiss', this.host.now() + left);
       else this.dissolve();
     }
+    if (this.closed) return;
     if (this.round && !this.round.over) this.armTurns();
+    else if (this.members.some((m) => !m.bot) && !this.hasOnlineHuman()) {
+      this.host.schedule('empty', this.host.now() + 60000);
+    }
   }
 
   dump() {

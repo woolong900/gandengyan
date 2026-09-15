@@ -47,6 +47,36 @@ class GameApp {
     return this.playersByUid.get(Number(uid)) || null;
   }
 
+  clearRoomLink(uid) {
+    this.uidRoom.delete(uid);
+    const player = this.playerByUid(uid);
+    if (player) player.roomId = 0;
+    for (const c of this.conns.values()) {
+      if (c.player && c.player.uid === uid) c.roomId = 0;
+    }
+  }
+
+  activeRoomForRequest(c, targetRoomId = 0) {
+    const uid = c.player.uid;
+    const roomId = this.uidRoom.get(uid) || c.player.roomId || 0;
+    if (!roomId) return 0;
+    const table = this.tables.get(roomId);
+    if (!table || table.closed) {
+      this.clearRoomLink(uid);
+      this.persist();
+      return 0;
+    }
+    if (roomId === targetRoomId) return roomId;
+    if (!table.members.some((m) => m.player.uid === uid)) {
+      this.clearRoomLink(uid);
+      if (!table.members.length) table.dissolve();
+      else this.persist();
+      return 0;
+    }
+    if (table.releaseFinishedPlayer(uid)) return 0;
+    return roomId;
+  }
+
   notifyCard(player) {
     if (!player || player.bot) return;
     const buf = pack(1001, { card: player.cardNum || 0, gold: 0 });
@@ -322,8 +352,20 @@ class GameApp {
       if (!table.members.length || table.closed) continue;
       this.tables.set(table.roomId, table);
       for (const m of table.members) this.uidRoom.set(m.player.uid, table.roomId);
-      table.rearmTimers();
     }
+    for (const table of [...this.tables.values()]) {
+      // 重启后真人均为离线；已完成的牌局无需继续占着房号。
+      if (!table.round && table.step >= maxStep(table)) table.dissolve();
+      else table.rearmTimers();
+    }
+    let staleLinks = 0;
+    for (const player of this.playersByUid.values()) {
+      if (player.roomId && !this.uidRoom.has(player.uid)) {
+        player.roomId = 0;
+        staleLinks += 1;
+      }
+    }
+    if (staleLinks) this.persist();
   }
 
   tableHost(roomId) {
@@ -342,17 +384,15 @@ class GameApp {
       now: () => app.now(),
       log: (line) => console.log(line),
       onDissolved: () => {
+        for (const [uid, rid] of app.uidRoom) {
+          if (rid === roomId) app.clearRoomLink(uid);
+        }
         app.tables.delete(roomId);
         app.persist();
       },
       onUidRoom: (uid, rid) => {
         if (rid) app.uidRoom.set(uid, rid);
-        else {
-          app.uidRoom.delete(uid);
-          for (const c of app.conns.values()) {
-            if (c.player && c.player.uid === uid) c.roomId = 0;
-          }
-        }
+        else app.clearRoomLink(uid);
       },
     };
   }
@@ -973,7 +1013,7 @@ class GameApp {
     }
 
     if (proto === 201) {
-      const existingRoomId = this.uidRoom.get(c.player.uid) || c.player.roomId || 0;
+      const existingRoomId = this.activeRoomForRequest(c);
       if (existingRoomId) {
         return c.send(pack(201, { res: { error: 1, what: '已经在房间里' } }));
       }
@@ -1019,7 +1059,7 @@ class GameApp {
 
     if (proto === 202) {
       const roomId = num(msg.roomId);
-      const existingRoomId = this.uidRoom.get(c.player.uid) || c.player.roomId || 0;
+      const existingRoomId = this.activeRoomForRequest(c, roomId);
       if (existingRoomId && existingRoomId !== roomId) {
         return c.send(pack(202, { res: { error: 1, what: '已经在其他房间里' } }));
       }
