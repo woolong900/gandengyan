@@ -7,7 +7,7 @@
  *
  * usage: node tools/build-ios-ipa.js [--ipa <原厂.ipa>] [--apk <当前.apk>]
  *   [--host <局域网IP[:端口]>] [--base-url <HTTP(S)服务地址>] [--out <输出.ipa>]
- *   [--identity <Apple签名证书>] [--profile <描述文件>]
+ *   [--identity <Apple签名证书>] [--profile <描述文件>] [--without-wechat-applink]
  */
 const fs = require('fs');
 const os = require('os');
@@ -228,7 +228,11 @@ const normalizeWechatAppLink = (value) => {
   if (!parsed.pathname.endsWith('/')) parsed.pathname += '/';
   return parsed.toString();
 };
-const WECHAT_APPLINK = normalizeWechatAppLink(process.env.QJQP_WECHAT_APPLINK);
+// Personal Team 描述文件没有 Associated Domains 权限。允许构建真机调试包时
+// 明确关闭 Universal Link，避免修改或删除开发者本机的 .dev.vars。
+const WECHAT_APPLINK = argv.includes('--without-wechat-applink')
+  ? ''
+  : normalizeWechatAppLink(process.env.QJQP_WECHAT_APPLINK);
 const SIGN_IDENTITY = arg('identity', '-');
 const PROFILE = arg('profile', null);
 let HOST = arg('host', lanIPv4());

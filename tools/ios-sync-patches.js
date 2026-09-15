@@ -55,7 +55,6 @@ const applyIosSyncPatches = (input) => {
     'assertVer: 234,\npackageVer: "1.0.5",',
   );
 
-  source = replaceOnce(source, '游戏名称', u2b('name: "潜江晃晃"'), u2b('name: "干瞪眼"'));
   source = replaceOnce(
     source,
     '隐藏潜江癞晃玩法',
@@ -64,9 +63,21 @@ const applyIosSyncPatches = (input) => {
   );
   source = replaceOnce(
     source,
-    '默认土豪必杠',
+    '土豪必杠玩法改名干瞪眼',
+    u2b('desc: "土豪必杠",\nreject: [ 1, 2 ]'),
+    u2b('desc: "干瞪眼",\nreject: [ 1, 2 ]'),
+  );
+  source = replaceOnce(
+    source,
+    '玩法只保留干瞪眼',
     u2b('desc: "玩法",\nweight: 1,\nlineCount: 3,\ndefCheck: [ 1 ],\ndetailIds: [ 1, 2 ]'),
-    u2b('desc: "玩法",\nweight: 1,\nlineCount: 3,\ndefCheck: [ 2 ],\ndetailIds: [ 1, 2 ]'),
+    u2b('desc: "玩法",\nweight: 1,\nlineCount: 3,\ndefCheck: [ 2 ],\ndetailIds: [ 2 ]'),
+  );
+  source = replaceOnce(
+    source,
+    '已保存的旧玩法自动迁移',
+    'this.index = e.index;\nthis._storageData = i.default.clone(e);',
+    'this.index = e.index;\nthis._storageData = i.default.clone(e);\nif (this.index === l.eGameIds.QJHH && this._storageData.ids) {\nfor (var q = this._storageData.ids.length - 1; q >= 0; q--) if (1 === this._storageData.ids[q]) this._storageData.ids[q] = 2;\nthis._storageData.ids = this._storageData.ids.filter(function(e, t, o) { return o.indexOf(e) === t; });\n}',
   );
   source = replaceAll(
     source,

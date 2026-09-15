@@ -329,15 +329,22 @@ RULES.push([
   'gameList: [ c.eGameIds.QJHH, c.eGameIds.QJHZ, c.eGameIds.PDKAA, c.eGameIds.DDZ, c.eGameIds.TMHH, c.eGameIds.QJSHZ, c.eGameIds.QJWSKBD, c.eGameIds.GD ]',
   'gameList: [ c.eGameIds.QJHH ]',
 ]);
-// 临时：潜江晃晃改名干瞪眼；玩法只留土豪必杠。
-RULES.push([u2b('name: "潜江晃晃"'), u2b('name: "干瞪眼"')]);
+// 大厅游戏名保持“潜江晃晃”；只保留原“土豪必杠”规则，
+// 对玩家将这个唯一玩法显示为“干瞪眼”。
 RULES.push([
   u2b('desc: "潜江癞晃",\nreject: [ 1, 2, 26 ]'),
   u2b('desc: "潜江癞晃",\nreject: [ 1, 2, 26 ],\nisHide: !0'),
+  true,
+]);
+RULES.push([
+  u2b('desc: "土豪必杠",\nreject: [ 1, 2, 26 ]'),
+  u2b('desc: "干瞪眼",\nreject: [ 1, 2, 26 ]'),
+  true,
 ]);
 RULES.push([
   u2b('desc: "堆癞子",\nreject: [ 1, 2, 26 ]'),
   u2b('desc: "堆癞子",\nreject: [ 1, 2, 26 ],\nisHide: !0'),
+  true,
 ]);
 // 暂时关掉语音房：实时麦走腾讯 GME，先只留按住说话。
 RULES.push([
@@ -350,7 +357,8 @@ RULES.push([
 ]);
 RULES.push([
   u2b('desc: "玩法",\nweight: 1,\nlineCount: 3,\ndefCheck: [ 1 ],\ndetailIds: [ 1, 2, 26 ]'),
-  u2b('desc: "玩法",\nweight: 1,\nlineCount: 3,\ndefCheck: [ 2 ],\ndetailIds: [ 1, 2, 26 ]'),
+  u2b('desc: "玩法",\nweight: 1,\nlineCount: 3,\ndefCheck: [ 2 ],\ndetailIds: [ 2 ]'),
+  true,
 ]);
 
 // 创房页的 CheckType 原本用 scheduleOnce 延后一帧创建右侧选项，所以弹窗
