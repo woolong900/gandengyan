@@ -723,6 +723,23 @@ class GameApp {
       return c.send(pack(123, { res: { error: 0, what: '' } }));
     }
 
+    if (proto === 157) {
+      const table = this.tables.get(num(msg && msg.id));
+      const club = table && this.clubStore.get(table.clubId);
+      if (!table || table.closed || !club || !this.clubStore.isAdmin(club, c.player.uid)) {
+        return c.send(pack(157, { res: { error: 1, what: '没有踢人权限' } }));
+      }
+      const targetUid = Number(String(msg && msg.userCode || '').trim());
+      if (!Number.isSafeInteger(targetUid) || targetUid <= 0) {
+        return c.send(pack(157, { res: { error: 1, what: '玩家编号无效' } }));
+      }
+      if (targetUid === c.player.uid) {
+        return c.send(pack(157, { res: { error: 1, what: '不能踢出自己' } }));
+      }
+      const result = table.kickMember(targetUid);
+      return c.send(pack(157, { res: { error: result.error ? 1 : 0, what: result.error || '' } }));
+    }
+
     if (proto === 124) {
       const club = this.clubStore.get(num(msg && msg.clubId));
       if (!club || !this.clubStore.member(club, c.player.uid)) {

@@ -454,6 +454,25 @@ class Table {
     this.host.persist();
   }
 
+  kickMember(uid) {
+    if (this.round || this.step > 0) return { error: '牌局进行中不能踢人' };
+    const member = this.members.find((m) => m.player.uid === uid);
+    if (!member || member.bot) return { error: '玩家不在房间里' };
+    this.members = this.members.filter((m) => m !== member);
+    member.player.roomId = 0;
+    this.host.onUidRoom(uid, 0);
+    this.host.cancel(`kick-${uid}`);
+    this.cancelTurn(member);
+    this.sendTo(member, push('exitroom', { reason: 2 }));
+    this.host.log(`  [房${this.roomId}] 管理员踢出 ${uid}`);
+    if (this.members.every((m) => m.bot || m.view)) this.dissolve();
+    else {
+      this.broadcast('roominfo', roomInfo(this));
+      this.host.persist();
+    }
+    return { error: null };
+  }
+
   releaseFinishedPlayer(uid) {
     if (this.round || this.step < maxStep(this)) return false;
     const member = this.members.find((m) => m.player.uid === uid);

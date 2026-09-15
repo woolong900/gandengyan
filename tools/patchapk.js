@@ -262,6 +262,39 @@ RULES.push([
   't.prototype.getAgentInfo = function() {\nvar e = this;\nf.default.clubAgentInfo(function(t, o) {\nif (o) ; else {\na.default.isAgent = t.code.length > 0;\ne.headerBg.active = !a.default.isAgent;\ne.headerBg01.active = a.default.isAgent;\ne.btnAgent.active = a.default.isAgent;\n}\n}, !0);\n};',
   true,
 ]);
+// 房间详情只给管理员显示其他玩家的踢人按钮。proto157 的业务错误也必须
+// 按失败处理；成功后立即刷新桌子列表，避免头像继续显示旧缓存。
+RULES.push([
+  'this.kickNode.active = r.permissionAdmin();',
+  'this.kickNode.active = r.permissionAdmin() && Number(e) !== Number(c.default.uid);',
+  true,
+]);
+RULES.push([
+  u2b(`t.prototype.kickOut = function() {
+i.default.clickBtn();
+f.default.clubRoomMemberKickout(this._roomId, this._uid + "", function(e, t) {
+t ? p.default.uiHelper.showTip("踢人失败～") : p.default.uiHelper.showTip("玩家已被踢出！");
+});
+};`),
+  u2b(`t.prototype.kickOut = function() {
+i.default.clickBtn();
+if (Number(this._uid) === Number(c.default.uid)) return p.default.uiHelper.showTip("不能踢出自己");
+f.default.clubRoomMemberKickout(this._roomId, this._uid + "", function(e, t) {
+t || !e || !e.res || 0 !== e.res.error ? p.default.uiHelper.showTip(e && e.res && e.res.what || "踢人失败～") : (p.default.uiHelper.showTip("玩家已被踢出！"), f.default.getClubTableInfo(d.default.focus, function() {}, !0));
+});
+};`),
+  true,
+]);
+RULES.push([
+  's.default.eventUtils.on(l.default.data_club_table_update, function(t, o) {\no.o.id == e._index && (e._uiDirty = !0);\n}, this, c.eOffType.OnDestroy);',
+  's.default.eventUtils.on(l.default.data_club_table_update, function(t, o) {\no.o.id == e._index && (e._uiDirty = !0);\n}, this, c.eOffType.OnDestroy);\ns.default.eventUtils.on(l.default.data_club_table_scheme_update, function() {\ne._uiDirty = !0;\n}, this, c.eOffType.OnDestroy);',
+  true,
+]);
+RULES.push([
+  'var e = a.default.getCurClubData(), t = e.tableList().get(this._index), o = t.config();',
+  'var e = a.default.getCurClubData(), t = e && e.tableList().get(this._index);\nif (!t) return s.default.uiHelper.remove(this);\nvar o = t.config();',
+  true,
+]);
 RULES.push([
   'this.mobileNode.active = !0;',
   'this.mobileNode.active = !1;',

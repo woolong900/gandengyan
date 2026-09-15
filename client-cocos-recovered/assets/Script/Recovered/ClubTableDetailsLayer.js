@@ -50,13 +50,18 @@ s.default.uiHelper.showTip("该房间已被解散～");
 s.default.eventUtils.on(l.default.data_club_table_update, function(t, o) {
 o.o.id == e._index && (e._uiDirty = !0);
 }, this, c.eOffType.OnDestroy);
+s.default.eventUtils.on(l.default.data_club_table_scheme_update, function() {
+e._uiDirty = !0;
+}, this, c.eOffType.OnDestroy);
 };
 t.prototype.setData = function(e) {
 this._index = e;
 this._updateUI();
 };
 t.prototype._updateUI = function() {
-var e = a.default.getCurClubData(), t = e.tableList().get(this._index), o = t.config();
+var e = a.default.getCurClubData(), t = e && e.tableList().get(this._index);
+if (!t) return s.default.uiHelper.remove(this);
+var o = t.config();
 this.roomInfoLabel.string = s.default.gameLogic(o.index).allRuleDesc(o, "/");
 for (var n = o.peopleCount(), r = t.isGameing(), i = 0, l = this.members.length; i < l; i++) {
 var c = this.members[i];

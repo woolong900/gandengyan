@@ -54,7 +54,7 @@ this.noPlayerNode.active = !1;
 this.nameLabel.string = l.default.clip(n.nickname, 6);
 this.avatar.url = n.avatarUrl;
 var r = s.default.getCurClubData().memberList().get(c.default.uid);
-this.kickNode.active = r.permissionAdmin();
+this.kickNode.active = r.permissionAdmin() && Number(e) !== Number(c.default.uid);
 r.permissionAdmin() ? this.idLabel.string = n.uid + "" : this.idLabel.string = l.default.hideString(n.uid + "");
 this.onlineNode.active = n.onLine || !1;
 this.offlineNode.active = !this.onlineNode.active;
@@ -70,8 +70,9 @@ o && (this.kickNode.active = !1);
 };
 t.prototype.kickOut = function() {
 i.default.clickBtn();
+if (Number(this._uid) === Number(c.default.uid)) return p.default.uiHelper.showTip("不能踢出自己");
 f.default.clubRoomMemberKickout(this._roomId, this._uid + "", function(e, t) {
-t ? p.default.uiHelper.showTip("踢人失败～") : p.default.uiHelper.showTip("玩家已被踢出！");
+t || !e || !e.res || 0 !== e.res.error ? p.default.uiHelper.showTip(e && e.res && e.res.what || "踢人失败～") : (p.default.uiHelper.showTip("玩家已被踢出！"), f.default.getClubTableInfo(d.default.focus, function() {}, !0));
 });
 };
 t.prototype.join = function() {
