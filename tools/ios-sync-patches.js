@@ -79,6 +79,12 @@ const applyIosSyncPatches = (input) => {
     'this.index = e.index;\nthis._storageData = i.default.clone(e);',
     'this.index = e.index;\nthis._storageData = i.default.clone(e);\nif (this.index === l.eGameIds.QJHH && this._storageData.ids) {\nfor (var q = this._storageData.ids.length - 1; q >= 0; q--) if (1 === this._storageData.ids[q]) this._storageData.ids[q] = 2;\nthis._storageData.ids = this._storageData.ids.filter(function(e, t, o) { return o.indexOf(e) === t; });\n}',
   );
+  source = replaceOnce(
+    source,
+    '创建俱乐部后进入俱乐部场景',
+    '0 === t.error ? c.default.focus = e :',
+    '0 === t.error ? (c.default.focus = e, cc.director.getScene().name !== u.default.ClubSceneName && s.default.uiHelper.loadScene(u.default.ClubSceneName)) :',
+  );
   source = replaceAll(
     source,
     '隐藏语音房选项',
