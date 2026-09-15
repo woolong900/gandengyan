@@ -76,6 +76,17 @@ const run = async () => {
     check('牌局列表使用历史归档', (await request('/records')).body.total, 1);
     check('历史归档按玩家 ID 查询', (await request(`/records?q=${player.uid}`)).body.total, 1);
     check('俱乐部列表可读', (await request('/clubs')).body.items[0].id, club.id);
+    check('俱乐部余额可读', (await request(`/clubs/${club.id}`)).body.balanceCard, 0);
+    check('奖励默认设置可读', (await request('/economy')).body, { clubJoinBonus: 200, inviteBindBonus: 1000 });
+    check('非法奖励设置被拒绝', (await request('/economy', 'PUT', { clubJoinBonus: -1 })).status, 400);
+    check('奖励设置可更新', (await request('/economy', 'PUT',
+      { clubJoinBonus: 300, inviteBindBonus: 75 })).body, { clubJoinBonus: 300, inviteBindBonus: 75 });
+    check('俱乐部房卡不可扣成负数', (await request(`/clubs/${club.id}/cards`, 'POST',
+      { delta: -1, reason: '测试扣费记录' })).status, 400);
+    check('俱乐部房卡可调整', (await request(`/clubs/${club.id}/cards`, 'POST',
+      { delta: 500, reason: '测试充值记录' })).body.after, 500);
+    check('数据面板显示俱乐部房卡', (await request('/dashboard')).body.totals.clubCards, 500);
+    check('奖励设置写入 SQLite', store.load().economySettings.inviteBindBonus, 75);
     check('通知可发布', (await request('/messages', 'POST', { title: '测试', content: '后台测试通知' })).status, 201);
     check('大厅公告可更新', (await request('/notices', 'PUT', { hallMarquee: '新公告' })).body.hallMarquee, '新公告');
     check('房间解散接口清理房间', (await request('/rooms/100000/dissolve', 'POST', { reason: '测试异常房间' })).status, 200);

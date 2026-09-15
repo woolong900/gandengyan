@@ -5,6 +5,7 @@
 process.env.QJQP_FILLBOTS = '0';
 
 const { GameApp } = require('../server/app');
+const { Table } = require('../server/table');
 const { protocol } = require('../server/proto/protocol');
 const rules = require('../server/rules');
 const {
@@ -310,6 +311,89 @@ const boot = () => {
   t('旧存档房卡保留', old.cardNum, 100);
   t('旧存档邀请码保留', old.inviteCode, 'ABCDE');
   t('旧存档绑定码保留', old.invitedBy, 'VWXYZ');
+}
+
+{
+  const { app, login } = boot();
+  const owner = login('owner', 't_club_owner');
+  const member = login('member', 't_club_member');
+  const invited = login('invited', 't_club_invited');
+  owner.player.cardNum = 0;
+  member.player.cardNum = 0;
+  invited.player.cardNum = 0;
+  const { club } = app.clubStore.create(owner.player.uid, '房卡测试俱乐部');
+  t('创建俱乐部时不把部长算作新加入成员', club.balanceCard, 0);
+
+  app.onMessage('member', packCs(117, { code: club.code }));
+  const applicationId = num(club.applications[0].id);
+  app.onMessage('owner', packCs(138, { id: applicationId }));
+  t('审核通过首位新成员给俱乐部200张', club.balanceCard, 200);
+  t('入会赠送不进入玩家账户', member.player.cardNum, 0);
+  app.onMessage('member', packCs(115, { id: club.id }));
+  app.onMessage('owner', packCs(141, { clubId: club.id, userId: member.player.uid }));
+  const rejoinInvite = club.invites.find((item) => item.toUid === member.player.uid);
+  app.onMessage('member', packCs(119, { id: rejoinInvite.id }));
+  t('同一成员重新加入不再领取房卡', club.balanceCard, 200);
+
+  app.economySettings.clubJoinBonus = 300;
+  app.onMessage('owner', packCs(141, { clubId: club.id, userId: invited.player.uid }));
+  const firstInvite = club.invites.find((item) => item.toUid === invited.player.uid);
+  app.onMessage('invited', packCs(119, { id: firstInvite.id }));
+  t('接受邀请的新成员按新设置领取房卡', club.balanceCard, 500);
+  t('新成员奖励没有误加给玩家', invited.player.cardNum, 0);
+
+  app.economySettings.inviteBindBonus = 75;
+  app.onMessage('invited', packCs(103, null));
+  t('客户端邀请码页面看到后台设置数量', last(invited.box, 103).giveCard, 75);
+  app.onMessage('invited', packCs(104, { inviteCode: owner.player.inviteCode }));
+  t('邀请码绑定按设置奖励双方', [owner.player.cardNum, invited.player.cardNum], [75, 75]);
+  app.onMessage('invited', packCs(104, { inviteCode: owner.player.inviteCode }));
+  t('再次绑定不重复送房卡', [owner.player.cardNum, invited.player.cardNum], [75, 75]);
+
+  owner.player.cardNum = 0;
+  const aa = rules.buildParam({ 人数: 2, 房费: 'AA' });
+  app.onMessage('owner', packCs(201, { gameType: 2, clubId: club.id, num: 2,
+    param1: aa.param1, param2: aa.param2 }));
+  t('玩家0张也可用俱乐部余额建房', num(last(owner.box, 201).res.error), 0);
+  const roomId = num(last(owner.box, 201).roomId);
+  app.onMessage('owner', packCs(202, { roomId }));
+  app.onMessage('member', packCs(202, { roomId }));
+  t('玩家0张也可在俱乐部AA房入座', num(last(member.box, 202).res.error), 0);
+  const room = app.tables.get(roomId);
+  t('俱乐部房首次开局成功', room.startGame(), null);
+  t('16局2人整桌从俱乐部扣4张', club.balanceCard, 496);
+  t('俱乐部房不扣玩家房卡', [owner.player.cardNum, member.player.cardNum], [0, 0]);
+  t('重复扣费调用不再扣卡', [room.takeRoomCards(), club.balanceCard, room.cardCharges.length], [null, 496, 1]);
+
+  const restored = new GameApp({ persist: () => {}, now: () => 1, allowUnregisteredTokens: true });
+  restored.restore(app.dump());
+  t('奖励设置恢复后保留', restored.economySettings, { clubJoinBonus: 300, inviteBindBonus: 75 });
+  t('俱乐部余额和已奖励成员恢复后保留',
+    [restored.clubStore.get(club.id).balanceCard, restored.clubStore.get(club.id).rewardedMemberUids.length],
+    [496, 3]);
+  const oldSnapshot = app.dump();
+  delete oldSnapshot.clubs.clubs[0].rewardedMemberUids;
+  const migrated = new GameApp({ persist: () => {}, now: () => 1, allowUnregisteredTokens: true });
+  migrated.restore(oldSnapshot);
+  t('旧俱乐部存档把现有成员视为已入会', migrated.clubStore.get(club.id).rewardedMemberUids.length, 3);
+}
+
+{
+  const { app, login } = boot();
+  const owner = login('owner', 't_empty_club_owner');
+  const { club } = app.clubStore.create(owner.player.uid, '空余额俱乐部');
+  const param = rules.buildParam({ 人数: 2, 房费: '房主' });
+  app.onMessage('owner', packCs(201, { gameType: 2, clubId: club.id, num: 1,
+    param1: param.param1, param2: param.param2 }));
+  t('俱乐部没卡时不能手动建房', last(owner.box, 201).res.what, '俱乐部房卡不足');
+  t('余额不足建房不占房号', app.tables.size, 0);
+  const automatic = new Table({ roomId: 100000, gameType: 2, clubId: club.id, num: 1,
+    param1: param.param1, param2: param.param2, host: owner.player.uid,
+    config: rules.parseConfig(param.param1, param.param2) }, app.tableHost(100000));
+  app.tables.set(automatic.roomId, automatic);
+  automatic.join(owner.player, 'owner');
+  t('空余额自动桌不能开局', automatic.startGame(), '俱乐部房卡不足');
+  t('开局失败不扣卡不推进局数', [club.balanceCard, automatic.step, automatic.cardCharges.length], [0, 0, 0]);
 }
 
 console.log(`\n${pass} 过 / ${fail} 挂`);

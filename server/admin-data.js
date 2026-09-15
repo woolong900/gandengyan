@@ -1,5 +1,6 @@
 const rules = require('./rules');
 const { maxStep } = require('./shared');
+const { MAX_CLUB_CARDS } = require('./clubs');
 const chinaDay = (time) => new Date(Number(time) + 8 * 3600000).toISOString().slice(0, 10);
 
 const fail = (error, status = 400) => ({ error, status });
@@ -36,6 +37,7 @@ class AdminData {
         recordsArchived: history ? history.total : this.app.records.length,
         messages: this.app.operatorMessages.filter((message) => message.expiresAt > this.app.now()).length,
         roomCards: players.reduce((sum, player) => sum + Number(player.cardNum || 0), 0),
+        clubCards: [...this.app.clubStore.clubs.values()].reduce((sum, club) => sum + Number(club.balanceCard || 0), 0),
         newPlayersToday: players.filter((player) => player.createdAt && chinaDay(player.createdAt) === today).length },
       chart,
       recentRooms: rooms.slice(-8).reverse().map((table) => this.roomSummary(table)),
@@ -184,6 +186,7 @@ class AdminData {
     const items = [...this.app.clubStore.clubs.values()].filter((club) => !q || String(club.id).includes(q)
       || club.name.toLowerCase().includes(q)).sort((a, b) => b.id - a.id).map((club) => ({
         id: club.id, name: club.name, ownerUid: club.ownerUid, closed: !!club.settings.closed,
+        balanceCard: Number(club.balanceCard || 0),
         members: club.members.length, schemes: club.schemes.length, rooms: [...this.app.tables.values()]
           .filter((table) => !table.closed && table.clubId === club.id).length,
       }));
@@ -194,7 +197,7 @@ class AdminData {
     const club = this.app.clubStore.get(id);
     if (!club) return fail('俱乐部不存在', 404);
     return { id: club.id, name: club.name, code: club.code, ownerUid: club.ownerUid,
-      announcement: club.announcement, settings: club.settings,
+      announcement: club.announcement, settings: club.settings, balanceCard: Number(club.balanceCard || 0),
       members: club.members.map((member) => ({ uid: member.uid, role: member.role, frozen: !!member.freeze,
         nickname: (this.app.playerByUid(member.uid) || {}).nickname || `玩家${member.uid}` })),
       schemes: club.schemes.map((scheme) => ({ id: scheme.id, name: scheme.name, auto: !!scheme.auto,
@@ -218,6 +221,38 @@ class AdminData {
     if (body.closed != null) club.settings.closed = body.closed;
     this.app.persist();
     return { id: club.id, announcement: club.announcement, closed: club.settings.closed };
+  }
+
+  adjustClubCards(id, body) {
+    const club = this.app.clubStore.get(id);
+    if (!club) return fail('俱乐部不存在', 404);
+    const delta = Number(body.delta);
+    const reason = String(body.reason || '').trim();
+    if (!Number.isSafeInteger(delta) || !delta || Math.abs(delta) > 1000000) return fail('调整数量须为1至100万的整数');
+    if (reason.length < 3 || reason.length > 100) return fail('请填写3至100字的调整原因');
+    const before = Number(club.balanceCard || 0);
+    if (before + delta < 0) return fail('俱乐部房卡余额不足');
+    if (!Number.isSafeInteger(before + delta) || before + delta > MAX_CLUB_CARDS) {
+      return fail('俱乐部房卡余额超出客户端支持范围');
+    }
+    const after = this.app.changeClubCards(club.id, delta, `后台：${reason}`);
+    this.app.persist();
+    return { clubId: club.id, delta, before, after, reason };
+  }
+
+  updateEconomy(body) {
+    const keys = { clubJoinBonus: '俱乐部新成员奖励', inviteBindBonus: '邀请码绑定奖励' };
+    const next = { ...this.app.economySettings };
+    for (const [key, label] of Object.entries(keys)) {
+      if (body[key] == null) continue;
+      if (!Number.isSafeInteger(body[key]) || body[key] < 0 || body[key] > 1000000) {
+        return fail(`${label}须为0至100万的整数`);
+      }
+      next[key] = body[key];
+    }
+    this.app.economySettings = next;
+    this.app.persist();
+    return next;
   }
 
   updateNotices(body) {

@@ -286,6 +286,16 @@ class Table {
       人数: this.config.人数,
       房费: this.config.房费,
     });
+    if (this.clubId) {
+      const amount = cost.host || cost.each * this.config.人数;
+      const balance = this.host.clubCardBalance(this.clubId);
+      if (balance == null || balance < amount) return '俱乐部房卡不足';
+      if (this.host.changeClubCards(this.clubId, -amount, `房间 ${this.roomId} 首局扣费`) == null) {
+        return '俱乐部房卡不足';
+      }
+      this.cardCharges.push({ clubId: this.clubId, amount });
+      return null;
+    }
     if (cost.host > 0) {
       const host = this.members.find((m) => m.player.uid === this.hostUid);
       if (!host || (host.player.cardNum || 0) < cost.host) return '房卡不足';

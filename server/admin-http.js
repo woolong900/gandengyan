@@ -120,6 +120,7 @@ const createAdminHttp = ({ app, store, flush, authFile, publicBaseUrl = '' }) =>
       else if (/^\/clubs\/\d+$/.test(pathname)) result = data.club(pathname.split('/').pop());
       else if (pathname === '/messages') result = { messages: app.operatorMessages.slice().reverse() };
       else if (pathname === '/notices') result = app.publicNotices;
+      else if (pathname === '/economy') result = app.economySettings;
       else if (pathname === '/audit') result = { entries: store.listAudit(query.limit) };
       else if (pathname === '/system') result = { sqliteFile: store.FILE,
         recordsArchived: store.recordHistoryStats(0).total, recordsRetained: app.records.length,
@@ -144,12 +145,16 @@ const createAdminHttp = ({ app, store, flush, authFile, publicBaseUrl = '' }) =>
       target = pathname.split('/')[2]; action = 'room.dissolve'; result = data.dissolveRoom(target, body);
     } else if (req.method === 'POST' && /^\/clubs\/\d+\/settings$/.test(pathname)) {
       target = pathname.split('/')[2]; action = 'club.settings'; result = data.updateClub(target, body);
+    } else if (req.method === 'POST' && /^\/clubs\/\d+\/cards$/.test(pathname)) {
+      target = pathname.split('/')[2]; action = 'club.cards'; result = data.adjustClubCards(target, body);
     } else if (req.method === 'POST' && pathname === '/messages') {
       action = 'message.create'; result = app.createOperatorMessage(body); target = result.message && result.message.id;
     } else if (req.method === 'DELETE' && /^\/messages\/\d+$/.test(pathname)) {
       target = pathname.split('/')[2]; action = 'message.delete'; result = app.deleteOperatorMessage(Number(target));
     } else if (req.method === 'PUT' && pathname === '/notices') {
       target = '大厅'; action = 'notice.update'; result = data.updateNotices(body);
+    } else if (req.method === 'PUT' && pathname === '/economy') {
+      target = '全局房卡奖励'; action = 'economy.update'; result = data.updateEconomy(body);
     } else if (req.method === 'POST' && pathname === '/backup') {
       const filename = path.join(path.dirname(store.FILE), 'backups', `admin-${new Date().toISOString().replace(/[:.]/g, '-')}.sqlite`);
       await flush();

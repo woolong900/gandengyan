@@ -5,7 +5,7 @@ const { pack, unpack, hasRes, protocol } = require('./net');
 const crypto = require('crypto');
 const { Table } = require('./table');
 const rules = require('./rules');
-const { ClubStore, MASTER, ADMIN, PLAYER } = require('./clubs');
+const { ClubStore, MASTER, ADMIN, PLAYER, MAX_CLUB_CARDS } = require('./clubs');
 const {
   num, maxStep, roomInfo, versionBody, configBody, emptyPlayer, INVITE_GIVE, INVITE_AMBIGUOUS, mintInviteCode,
 } = require('./shared');
@@ -27,7 +27,8 @@ class GameApp {
     this.playersByIdentityHash = new Map();
     this.playersByGuestDeviceHash = new Map();
     this.tables = new Map();
-    this.clubStore = new ClubStore({ now: () => this.now() });
+    this.economySettings = { clubJoinBonus: 200, inviteBindBonus: INVITE_GIVE };
+    this.clubStore = new ClubStore({ now: () => this.now(), memberBonus: () => this.economySettings.clubJoinBonus });
     this.nextUid = 100001;
     this.nextRoomId = 100000;
     this.conns = new Map();
@@ -174,6 +175,21 @@ class GameApp {
     return player.cardNum;
   }
 
+  clubCardBalance(clubId) {
+    const club = this.clubStore.get(clubId);
+    return club ? Number(club.balanceCard || 0) : null;
+  }
+
+  changeClubCards(clubId, delta, reason) {
+    const club = this.clubStore.get(clubId);
+    if (!club || !Number.isSafeInteger(delta)) return null;
+    const before = Number(club.balanceCard || 0);
+    if (!Number.isSafeInteger(before + delta) || before + delta < 0 || before + delta > MAX_CLUB_CARDS) return null;
+    club.balanceCard = before + delta;
+    console.log(`  俱乐部房卡 clubId=${club.id} ${delta > 0 ? '+' : ''}${delta} -> ${club.balanceCard}${reason ? ` ${reason}` : ''}`);
+    return club.balanceCard;
+  }
+
   mintPlaybackId(roomId, step) {
     this.playbackSeq = (this.playbackSeq || 0) + 1;
     return mintPlaybackId(roomId, step, this.playbackSeq);
@@ -239,9 +255,13 @@ class GameApp {
     if (raw === player.inviteCode) return { error: 1, what: '不能绑定自己的邀请码' };
     const inviter = this.playerByInviteCode(raw);
     if (!inviter || inviter.bot) return { error: 1, what: '邀请码不存在' };
+    const bonus = this.economySettings.inviteBindBonus;
+    if ((inviter.cardNum || 0) + bonus > 2147483647 || (player.cardNum || 0) + bonus > 2147483647) {
+      return { error: 1, what: '房卡余额超出客户端支持范围' };
+    }
     player.invitedBy = raw;
-    this.changeCards(inviter.uid, INVITE_GIVE, '邀请新用户');
-    this.changeCards(player.uid, INVITE_GIVE, '绑定邀请码');
+    this.changeCards(inviter.uid, bonus, '邀请新用户');
+    this.changeCards(player.uid, bonus, '绑定邀请码');
     this.persist();
     return { error: 0, what: '' };
   }
@@ -417,6 +437,7 @@ class GameApp {
       operatorMessages: this.operatorMessages,
       nextOperatorMessageId: this.nextOperatorMessageId,
       publicNotices: this.publicNotices,
+      economySettings: this.economySettings,
       playbackSeq: this.playbackSeq || 0,
       clubs: this.clubStore.dump(),
     };
@@ -445,6 +466,13 @@ class GameApp {
       hallMarquee: String(notices.hallMarquee || ''),
       serviceWechat: String(notices.serviceWechat || ''),
       serviceQQ: String(notices.serviceQQ || ''),
+    };
+    const economy = data.economySettings && typeof data.economySettings === 'object' ? data.economySettings : {};
+    this.economySettings = {
+      clubJoinBonus: Number.isSafeInteger(economy.clubJoinBonus) && economy.clubJoinBonus >= 0
+        ? economy.clubJoinBonus : 200,
+      inviteBindBonus: Number.isSafeInteger(economy.inviteBindBonus) && economy.inviteBindBonus >= 0
+        ? economy.inviteBindBonus : INVITE_GIVE,
     };
     this.playbackSeq = data.playbackSeq || 0;
     this.clubStore.restore(data.clubs);
@@ -496,6 +524,8 @@ class GameApp {
       saveRecord: (table) => app.saveRecord(table),
       mintPlaybackId: (roomId, step) => app.mintPlaybackId(roomId, step),
       changeCards: (uid, delta, reason) => app.changeCards(uid, delta, reason),
+      clubCardBalance: (clubId) => app.clubCardBalance(clubId),
+      changeClubCards: (clubId, delta, reason) => app.changeClubCards(clubId, delta, reason),
       schedule: (name, dueAt) => app.schedule(`${roomId}:${name}`, dueAt),
       cancel: (name) => app.cancel(`${roomId}:${name}`),
       now: () => app.now(),
@@ -1007,7 +1037,7 @@ class GameApp {
         username: mine,
         inviteCode: c.player.invitedBy || '',
         mobile: '',
-        giveCard: INVITE_GIVE,
+        giveCard: this.economySettings.inviteBindBonus,
       }));
     }
 
@@ -1243,10 +1273,13 @@ class GameApp {
       const clubError = this.clubRoomError(clubId, c.player.uid);
       if (clubError) return c.send(pack(201, { res: { error: 1, what: clubError } }));
       const cost = rules.roomCardCost({ num: roomNum, 人数: config.人数, 房费: config.房费 });
-      if (cost.host > 0 && (c.player.cardNum || 0) < cost.host) {
+      if (clubId && this.clubCardBalance(clubId) < (cost.host || cost.each * config.人数)) {
+        return c.send(pack(201, { res: { error: 1, what: '俱乐部房卡不足' } }));
+      }
+      if (!clubId && cost.host > 0 && (c.player.cardNum || 0) < cost.host) {
         return c.send(pack(201, { res: { error: 1, what: '房卡不足' } }));
       }
-      if (cost.each > 0 && (c.player.cardNum || 0) < cost.each) {
+      if (!clubId && cost.each > 0 && (c.player.cardNum || 0) < cost.each) {
         return c.send(pack(201, { res: { error: 1, what: '房卡不足' } }));
       }
       const roomId = this.nextRoomId++;
@@ -1292,7 +1325,7 @@ class GameApp {
       });
       // AA 等要自己付钱的，坐下前先看够不够；观战不扣、房主支付也不查入座的人
       const willSit = seated ? !seated.view : table.canSit();
-      if (!seated && willSit && cost.each > 0 && (c.player.cardNum || 0) < cost.each) {
+      if (!table.clubId && !seated && willSit && cost.each > 0 && (c.player.cardNum || 0) < cost.each) {
         return c.send(pack(202, { res: { error: 1, what: '房卡不足' } }));
       }
       const joined = table.join(c.player, connId);

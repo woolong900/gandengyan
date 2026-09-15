@@ -6,10 +6,14 @@ const MASTER = 3;
 const ADMIN = 2;
 const PLAYER = 1;
 const MAX_USERS = 500;
+const DEFAULT_JOIN_BONUS = 200;
+// 协议中的 balanceCard 是 int32，超过此值客户端会显示成负数。
+const MAX_CLUB_CARDS = 2147483647;
 
 class ClubStore {
-  constructor({ now } = {}) {
+  constructor({ now, memberBonus } = {}) {
     this.now = now || Date.now;
+    this.memberBonus = memberBonus || (() => DEFAULT_JOIN_BONUS);
     this.nextId = 100000;
     this.nextOpId = 1;
     this.clubs = new Map();
@@ -34,6 +38,7 @@ class ClubStore {
       announcement: '',
       maxUsers: MAX_USERS,
       balanceCard: 0,
+      rewardedMemberUids: [Number(ownerUid)],
       settings: {
         emptyRoomLast: true,
         roomInvite: false,
@@ -71,6 +76,21 @@ class ClubStore {
     return club.members.find((m) => Number(m.uid) === Number(uid)) || null;
   }
 
+  joinMember(club, uid) {
+    const memberUid = Number(uid);
+    if (this.member(club, memberUid)) return { joined: false, awarded: 0 };
+    const awarded = club.rewardedMemberUids.includes(memberUid) ? 0 : this.memberBonus();
+    const balance = Number(club.balanceCard || 0);
+    if (!Number.isSafeInteger(awarded) || awarded < 0 || !Number.isSafeInteger(balance + awarded)
+      || balance + awarded > MAX_CLUB_CARDS) {
+      return { error: '俱乐部房卡余额无效' };
+    }
+    club.members.push({ uid: memberUid, role: PLAYER, freeze: 0, remark: '', joinTime: this.time() });
+    if (!club.rewardedMemberUids.includes(memberUid)) club.rewardedMemberUids.push(memberUid);
+    club.balanceCard = balance + awarded;
+    return { joined: true, awarded };
+  }
+
   role(club, uid) {
     const member = this.member(club, uid);
     return member ? member.role : 0;
@@ -102,12 +122,11 @@ class ClubStore {
     const { club, application } = found;
     if (!this.isAdmin(club, actorUid)) return { error: '没有管理权限' };
     if (club.members.length >= club.maxUsers) return { error: '俱乐部人数已满' };
-    if (!this.member(club, application.uid)) {
-      club.members.push({ uid: application.uid, role: PLAYER, freeze: 0, remark: '', joinTime: this.time() });
-    }
+    const joined = this.joinMember(club, application.uid);
+    if (joined.error) return joined;
     club.applications = club.applications.filter((a) => a.id !== application.id);
     club.invites = club.invites.filter((invite) => Number(invite.toUid) !== Number(application.uid));
-    return { club, uid: application.uid };
+    return { club, uid: application.uid, ...joined };
   }
 
   reject(actorUid, applicationId) {
@@ -240,9 +259,10 @@ class ClubStore {
     if (!found || Number(found.invite.toUid) !== Number(uid)) return { error: '邀请不存在' };
     const { club, invite } = found;
     if (club.members.length >= club.maxUsers) return { error: '俱乐部人数已满' };
-    if (!this.member(club, uid)) club.members.push({ uid: Number(uid), role: PLAYER, freeze: 0, remark: '', joinTime: this.time() });
+    const joined = this.joinMember(club, uid);
+    if (joined.error) return joined;
     club.invites = club.invites.filter((i) => i.id !== invite.id);
-    return { club };
+    return { club, ...joined };
   }
 
   ignoreInvite(uid, inviteId) {
@@ -272,6 +292,11 @@ class ClubStore {
       ...club,
       id: Number(club.id),
       ownerUid: Number(club.ownerUid),
+      balanceCard: Number(club.balanceCard || 0),
+      rewardedMemberUids: [...new Set([
+        ...(Array.isArray(club.rewardedMemberUids) ? club.rewardedMemberUids : []),
+        ...(Array.isArray(club.members) ? club.members.map((member) => member.uid) : []),
+      ].map(Number).filter((uid) => Number.isSafeInteger(uid) && uid > 0))],
       members: Array.isArray(club.members) ? club.members : [],
       applications: Array.isArray(club.applications) ? club.applications : [],
       invites: Array.isArray(club.invites) ? club.invites : [],
@@ -280,4 +305,4 @@ class ClubStore {
   }
 }
 
-module.exports = { ClubStore, MASTER, ADMIN, PLAYER, MAX_USERS };
+module.exports = { ClubStore, MASTER, ADMIN, PLAYER, MAX_USERS, MAX_CLUB_CARDS };

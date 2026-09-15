@@ -2,7 +2,7 @@
   'use strict';
   var state = { csrf: '', view: 'dashboard', page: 1, q: '', loading: false };
   var labels = { dashboard: '数据面板', players: '玩家管理', rooms: '房间管理', records: '牌局管理',
-    clubs: '俱乐部管理', messages: '通知管理', notices: '大厅公告', audit: '操作日志', system: '备份与系统' };
+    clubs: '俱乐部管理', economy: '房卡与奖励', messages: '通知管理', notices: '大厅公告', audit: '操作日志', system: '备份与系统' };
   var content = document.getElementById('content');
   var modal = document.getElementById('modal');
   var modalCard = document.getElementById('modal-card');
@@ -85,6 +85,7 @@
       else if (view === 'rooms') renderRooms(data);
       else if (view === 'records') renderRecords(data);
       else if (view === 'clubs') renderClubs(data);
+      else if (view === 'economy') renderEconomy(data);
       else if (view === 'messages') renderMessages(data);
       else if (view === 'notices') renderNotices(data);
       else if (view === 'audit') renderAudit(data);
@@ -103,6 +104,7 @@
       ['俱乐部', t.clubs, '当前俱乐部总数', ''], ['今日新玩家', t.newPlayersToday, '今日注册', ''],
       ['归档牌局', t.recordsArchived, '上线后持续保存', ''], ['运营通知', t.messages, '有效及未过期消息', ''],
       ['玩家房卡总额', number(t.roomCards), '所有玩家当前余额', ''],
+      ['俱乐部房卡总额', number(t.clubCards), '所有俱乐部当前余额', ''],
     ];
     var cards = metrics.map(function (item) { return '<div class="metric"><span class="label">' + item[0] +
       '</span><strong class="' + item[3] + '">' + item[1] + '</strong><span class="hint">' + item[2] +
@@ -170,13 +172,21 @@
   function renderClubs(data) {
     var rows = data.items.map(function (club) { return '<tr><td class="mono">' + club.id +
       '</td><td>' + short(club.name, 20) + '</td><td>' + club.ownerUid + '</td><td>' +
-      club.members + '</td><td>' + club.rooms + '</td><td>' +
+      club.members + '</td><td>' + number(club.balanceCard) + '</td><td>' + club.rooms + '</td><td>' +
       badge(club.closed ? '已关闭' : '正常', club.closed ? 'red' : 'green') + '</td><td>' +
-      button('club-detail', '查看', club.id) + '</td></tr>'; });
-    content.innerHTML = intro('俱乐部管理', '查看部长、成员、玩法和房间；可设置公告与营业状态。') +
+      button('club-detail', '查看', club.id) + ' ' + button('club-cards', '调整房卡', club.id) + '</td></tr>'; });
+    content.innerHTML = intro('俱乐部管理', '查看部长、成员、玩法、房间和俱乐部房卡；可设置公告与营业状态。') +
       '<section class="card"><div class="toolbar">' + search('俱乐部 ID 或名称') +
       '<span class="muted">共 ' + number(data.total) + ' 个俱乐部</span></div>' +
-      table(['俱乐部 ID', '名称', '部长 ID', '成员', '房间', '状态', '操作'], rows) + pager(data) + '</section>';
+      table(['俱乐部 ID', '名称', '部长 ID', '成员', '房卡', '房间', '状态', '操作'], rows) + pager(data) + '</section>';
+  }
+  function renderEconomy(data) {
+    content.innerHTML = intro('房卡与奖励', '设置以后发生的奖励。绑定邀请码时，邀请人和被邀请人各领取一次；首次加入俱乐部时，房卡计入俱乐部余额。') +
+      '<section class="card"><form id="economy-form"><div class="form-grid">' +
+      field('新成员首次加入俱乐部赠送房卡', '<input name="clubJoinBonus" type="number" min="0" max="1000000" step="1" value="' + escape(data.clubJoinBonus) + '" required>') +
+      field('绑定邀请码双方各赠送房卡', '<input name="inviteBindBonus" type="number" min="0" max="1000000" step="1" value="' + escape(data.inviteBindBonus) + '" required>') +
+      '</div><p class="note">设置为 0 可关闭对应奖励；已经发放的房卡不回收。俱乐部房卡可在“俱乐部管理”中单独调整。</p>' +
+      '<button class="button primary" type="submit">保存奖励设置</button></form></section>';
   }
   function renderMessages(data) {
     var rows = data.messages.map(function (message) { return '<tr><td class="mono">' + message.id +
@@ -280,12 +290,14 @@
     openModal('俱乐部 #' + club.id, '<div class="detail-grid">' +
       detail('名称', club.name) + detail('部长 ID', club.ownerUid) +
       detail('成员数', club.members.length) + detail('玩法数', club.schemes.length) +
+      detail('俱乐部房卡', number(club.balanceCard)) +
       '</div><h4>成员（最多显示 60 位）</h4>' + table(['玩家 ID', '昵称', '身份', '状态'], members) +
       '<h4>设置</h4><form id="club-form" data-target="' + club.id + '">' +
       field('俱乐部公告', '<textarea name="announcement" maxlength="200">' + escape(club.announcement) + '</textarea>') +
       field('营业状态', '<select name="closed"><option value="false"' + (!club.settings.closed ? ' selected' : '') +
         '>正常</option><option value="true"' + (club.settings.closed ? ' selected' : '') +
-        '>关闭</option></select>') + '<button class="button primary" type="submit">保存设置</button></form>');
+        '>关闭</option></select>') + '<button class="button primary" type="submit">保存设置</button></form>' +
+      '<p class="button-row">' + button('club-cards', '调整俱乐部房卡', club.id, 'primary') + '</p>');
   }
   function actionForm(title, formId, uid, fields, submitLabel, style) {
     openModal(title, '<form id="' + formId + '" data-target="' + escape(uid) + '">' + fields +
@@ -307,6 +319,12 @@
       if (action === 'room-detail') return detailRoom(target);
       if (action === 'record-detail') return detailRecord(target);
       if (action === 'club-detail') return detailClub(target);
+      if (action === 'club-cards') {
+        actionForm('调整俱乐部房卡 · #' + target, 'club-cards-form', target,
+          field('调整数量（增加填正数，扣除填负数）', '<input name="delta" type="number" min="-1000000" max="1000000" required>') +
+          field('操作原因', '<textarea name="reason" minlength="3" maxlength="100" required></textarea>'), '确认调整');
+        return;
+      }
       if (action === 'player-cards') {
         actionForm('调整房卡 · 玩家 #' + target, 'cards-form', target,
           field('调整数量（增加填正数，扣除填负数）', '<input name="delta" type="number" min="-1000000" max="1000000" required>') +
@@ -355,6 +373,11 @@
       if (form.id === 'notices-form') {
         await api('/notices', 'PUT', values); toast('大厅公告已更新'); render(); return;
       }
+      if (form.id === 'economy-form') {
+        await api('/economy', 'PUT', { clubJoinBonus: Number(values.clubJoinBonus),
+          inviteBindBonus: Number(values.inviteBindBonus) });
+        toast('奖励设置已更新'); render(); return;
+      }
       if (form.id === 'password-form') {
         await api('/password', 'POST', values); state.csrf = ''; toast('密码已更新，请重新登录'); showLogin(); return;
       }
@@ -363,6 +386,11 @@
         var result = await api('/players/' + target + '/cards', 'POST',
           { delta: Number(values.delta), reason: values.reason });
         toast('房卡调整成功，当前余额 ' + number(result.after)); closeModal(); render(); return;
+      }
+      if (form.id === 'club-cards-form') {
+        var clubCards = await api('/clubs/' + target + '/cards', 'POST',
+          { delta: Number(values.delta), reason: values.reason });
+        toast('俱乐部房卡调整成功，当前余额 ' + number(clubCards.after)); closeModal(); render(); return;
       }
       if (form.id === 'status-form') {
         await api('/players/' + target + '/status', 'POST',
