@@ -621,10 +621,19 @@ const replaceLegacyArtwork = (decoded) => {
   for (const [sourceName, targetParts] of Object.entries(assets)) {
     const source = path.join(LEGACY_CLEANUP_DIR, sourceName);
     if (!fs.existsSync(source)) throw new Error(`缺少旧品牌替换素材：${source}`);
-    writeEncryptedAsset(
-      source,
-      path.join(decoded, 'assets', 'res', 'raw-assets', ...targetParts),
-    );
+    const target = path.join(decoded, 'assets', 'res', 'raw-assets', ...targetParts);
+    const original = fs.readFileSync(target);
+    // 原厂有两张明文 JPG；微信原生分享会直接用 BitmapFactory 读取其中的缩略图。
+    // 替换时沿用原资源格式，否则解码返回 null 并导致分享闪退。
+    if (original.subarray(0, 2).equals(Buffer.from([0xff, 0xd8]))) {
+      const replacement = fs.readFileSync(source);
+      if (!replacement.subarray(0, 2).equals(Buffer.from([0xff, 0xd8]))) {
+        throw new Error(`明文 JPG 替换素材格式不正确：${source}`);
+      }
+      fs.copyFileSync(source, target);
+    } else {
+      writeEncryptedAsset(source, target);
+    }
   }
   console.log(`      已替换旧品牌图片 ${Object.keys(assets).length} 张`);
 };
