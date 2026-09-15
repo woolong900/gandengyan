@@ -96,7 +96,7 @@ e.headerBg.active = !0;
 e.headerBg01.active = !1;
 e.btnAgent.active = !1;
 }
-});
+}, !0);
 };
 t.prototype.toAgent = function() {
 var e = b.default.agentPlatformUrl(a.default.token);

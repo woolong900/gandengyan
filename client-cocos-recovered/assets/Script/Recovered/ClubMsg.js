@@ -249,20 +249,33 @@ t && t(o, null);
 }, o);
 };
 e.prototype.getClubData = function(e, t) {
-var o = this, n = function(e, o) {
+var o = this, n = 3, i = !1, s = null, l = function(e, o) {
+if (i) return;
+if (o) {
+i = !0;
 r.default.uiHelper.removeLoading();
-t && t(e, o);
-};
-r.default.uiHelper.showLoading();
-this.getClubMemberInfo(e, function(t, r) {
-r ? n(null, r) : 0 === t.res.error ? o.getClubTableInfo(e, function(t, r) {
-if (r) n(null, r); else if (0 === t.res.error) {
-a.default.focus = e;
-o.getSchemeList(e, function(e, t) {
-t ? n(null, t) : n(e.res, null);
-}, !0);
+t && t(null, o);
+} else if (!e || !e.res || 0 !== e.res.error) {
+i = !0;
+r.default.uiHelper.removeLoading();
+t && t(e && e.res || null, null);
+} else if (0 === --n) {
+i = !0;
+a.default.focus = u;
+r.default.uiHelper.removeLoading();
+t && t(s.res, null);
 }
-}, !0) : n(t.res, null);
+}, u = e;
+r.default.uiHelper.showLoading();
+o.getClubMemberInfo(e, function(e, t) {
+l(e, t);
+}, !0);
+o.getClubTableInfo(e, function(e, t) {
+l(e, t);
+}, !0);
+o.getSchemeList(e, function(e, t) {
+s = e;
+l(e, t);
 }, !0);
 };
 e.prototype.getIsolateList = function(e, t, o) {
@@ -562,10 +575,11 @@ n.default.sendMsg(152, o, function(e, o, n) {
 n ? t(null, n) : t(e, null);
 }, !1);
 };
-e.prototype.clubAgentInfo = function(e) {
+e.prototype.clubAgentInfo = function(e, t) {
+void 0 === t && (t = !1);
 n.default.sendMsg(153, null, function(t, o, n) {
 n ? e(null, n) : e(t, null);
-}, !1);
+}, t);
 };
 e.prototype.getInviteList = function(e) {
 n.default.sendMsg(154, {}, function(t, o, n) {

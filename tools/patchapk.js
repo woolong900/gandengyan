@@ -199,6 +199,69 @@ RULES.push([
   'var onOffHandled = !1, continueUpdate = function() {\nif (onOffHandled) return;\nonOffHandled = !0;\ne.checkFull(3);\n};\nc.default.eventUtils.on("on_off_ok", continueUpdate, this, y.eOffType.OnDestroy);\nthis.scheduleOnce(continueUpdate);\nthis.initActivityData();',
   true,
 ]);
+// 进入俱乐部时成员、桌子和玩法列表互不依赖。原厂串行等待三个 WS 往返，
+// 在公网下会把约三倍 RTT 叠加到同一个“加载中”；并行发送后只等待最慢的一项。
+RULES.push([
+  `e.prototype.getClubData = function(e, t) {
+var o = this, n = function(e, o) {
+r.default.uiHelper.removeLoading();
+t && t(e, o);
+};
+r.default.uiHelper.showLoading();
+this.getClubMemberInfo(e, function(t, r) {
+r ? n(null, r) : 0 === t.res.error ? o.getClubTableInfo(e, function(t, r) {
+if (r) n(null, r); else if (0 === t.res.error) {
+a.default.focus = e;
+o.getSchemeList(e, function(e, t) {
+t ? n(null, t) : n(e.res, null);
+}, !0);
+}
+}, !0) : n(t.res, null);
+}, !0);
+};`,
+  `e.prototype.getClubData = function(e, t) {
+var o = this, n = 3, i = !1, s = null, l = function(e, o) {
+if (i) return;
+if (o) {
+i = !0;
+r.default.uiHelper.removeLoading();
+t && t(null, o);
+} else if (!e || !e.res || 0 !== e.res.error) {
+i = !0;
+r.default.uiHelper.removeLoading();
+t && t(e && e.res || null, null);
+} else if (0 === --n) {
+i = !0;
+a.default.focus = u;
+r.default.uiHelper.removeLoading();
+t && t(s.res, null);
+}
+}, u = e;
+r.default.uiHelper.showLoading();
+o.getClubMemberInfo(e, function(e, t) {
+l(e, t);
+}, !0);
+o.getClubTableInfo(e, function(e, t) {
+l(e, t);
+}, !0);
+o.getSchemeList(e, function(e, t) {
+s = e;
+l(e, t);
+}, !0);
+};`,
+  true,
+]);
+// 大厅进场后仅在后台刷新代理身份；代理入口已隐藏，后台请求不应再遮住大厅。
+RULES.push([
+  'e.prototype.clubAgentInfo = function(e) {\nn.default.sendMsg(153, null, function(t, o, n) {\nn ? e(null, n) : e(t, null);\n}, !1);\n};',
+  'e.prototype.clubAgentInfo = function(e, t) {\nvoid 0 === t && (t = !1);\nn.default.sendMsg(153, null, function(t, o, n) {\nn ? e(null, n) : e(t, null);\n}, t);\n};',
+  true,
+]);
+RULES.push([
+  't.prototype.getAgentInfo = function() {\nvar e = this;\nf.default.clubAgentInfo(function(t, o) {\nif (o) ; else {\na.default.isAgent = t.code.length > 0;\ne.headerBg.active = !a.default.isAgent;\ne.headerBg01.active = a.default.isAgent;\ne.btnAgent.active = a.default.isAgent;\n}\n});\n};',
+  't.prototype.getAgentInfo = function() {\nvar e = this;\nf.default.clubAgentInfo(function(t, o) {\nif (o) ; else {\na.default.isAgent = t.code.length > 0;\ne.headerBg.active = !a.default.isAgent;\ne.headerBg01.active = a.default.isAgent;\ne.btnAgent.active = a.default.isAgent;\n}\n}, !0);\n};',
+  true,
+]);
 RULES.push([
   'this.mobileNode.active = !0;',
   'this.mobileNode.active = !1;',
