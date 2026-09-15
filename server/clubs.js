@@ -106,6 +106,7 @@ class ClubStore {
       club.members.push({ uid: application.uid, role: PLAYER, freeze: 0, remark: '', joinTime: this.time() });
     }
     club.applications = club.applications.filter((a) => a.id !== application.id);
+    club.invites = club.invites.filter((invite) => Number(invite.toUid) !== Number(application.uid));
     return { club, uid: application.uid };
   }
 
@@ -192,13 +193,29 @@ class ClubStore {
   }
 
   addInvite(fromUid, clubId, targetUid) {
+    return this.addInvites(fromUid, clubId, [targetUid]);
+  }
+
+  addInvites(fromUid, clubId, targetUids) {
     const club = this.get(clubId);
     if (!club) return { error: '俱乐部不存在' };
     if (!this.isAdmin(club, fromUid)) return { error: '没有管理权限' };
-    if (this.member(club, targetUid)) return { error: '对方已经在俱乐部里' };
-    if (club.invites.some((i) => Number(i.toUid) === Number(targetUid))) return { error: '已经邀请过了' };
-    club.invites.push({ id: this.nextOpId++, clubId: club.id, fromUid: Number(fromUid), toUid: Number(targetUid), time: this.time() });
-    return { club };
+    if (club.settings.closed) return { error: '俱乐部已关闭' };
+    if (club.members.length >= club.maxUsers) return { error: '俱乐部人数已满' };
+    const ids = Array.isArray(targetUids) ? targetUids.map(Number) : [];
+    if (!ids.length || ids.length > 100) return { error: '请选择1至100位玩家' };
+    if (ids.some((id) => !Number.isSafeInteger(id) || id <= 0)) return { error: '玩家编号无效' };
+    if (new Set(ids).size !== ids.length) return { error: '请勿重复选择玩家' };
+    for (const targetUid of ids) {
+      if (targetUid === Number(fromUid)) return { error: '不能邀请自己' };
+      if (this.member(club, targetUid)) return { error: '所选玩家已经在俱乐部里' };
+      if (club.invites.some((invite) => Number(invite.toUid) === targetUid)) return { error: '所选玩家已有待处理邀请' };
+    }
+    const invites = ids.map((targetUid) => ({
+      id: this.nextOpId++, clubId: club.id, fromUid: Number(fromUid), toUid: targetUid, time: this.time(),
+    }));
+    club.invites.push(...invites);
+    return { club, invites };
   }
 
   findScheme(id) {

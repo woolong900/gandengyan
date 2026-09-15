@@ -98,6 +98,7 @@ const emptyPlayer = (uid, extra = {}) => ({
   nickname: extra.nickname || `玩家${uid}`,
   sex: extra.sex || 1,
   avatarUrl: extra.avatarUrl || '',
+  readMessageIds: Array.isArray(extra.readMessageIds) ? extra.readMessageIds.map(Number).filter(Number.isSafeInteger) : [],
   wechatOpenid: extra.wechatOpenid || '',
   wechatUnionid: extra.wechatUnionid || '',
   identityVerified: !!extra.identityVerified,

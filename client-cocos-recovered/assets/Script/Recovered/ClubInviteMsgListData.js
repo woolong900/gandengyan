@@ -42,12 +42,18 @@ return n.default.collection(this._data, e, t);
 };
 e.prototype.destroy = function() {
 this.init();
+r.default.eventUtils.emit(i.default.data_club_invite_msg_update);
 };
 e.prototype.get = function(e) {
 return this._data[e];
 };
 e.prototype.count = function() {
-return this._count;
+var e = 0;
+for (var t in this._data) if (this._data.hasOwnProperty(t)) {
+var o = this._data[t];
+if (!o.policy || 1 === o.policy) e++;
+}
+return e;
 };
 return e;
 }())();

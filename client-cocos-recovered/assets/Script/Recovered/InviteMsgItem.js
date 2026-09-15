@@ -38,11 +38,29 @@ return t;
 t.prototype.setData = function(e) {
 this._index = e;
 var t = i.default.get(e);
-this.msgLabel.string = "<color=#C54D24>" + t.inviterName + "</color><color=#5D461A>邀您加入【" + t.clubName + "】俱乐部</color>";
+var o = function(e) {
+return String(e || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+};
+if (t.policy) {
+var n = t.messageContent.length > 22 ? t.messageContent.slice(0, 22) + "…" : t.messageContent;
+this.msgLabel.string = "<color=#C54D24>【" + o(t.inviterName) + "】</color><color=#5D461A>" + o(n) + "</color>";
+} else this.msgLabel.string = "<color=#C54D24>" + o(t.inviterName) + "</color><color=#5D461A>邀您加入【" + o(t.clubName) + "】俱乐部</color>";
+var r = this.node.getChildByName("HandleBtns");
+r.getChildByName("BtnDisagree").active = !t.policy;
+r.getChildByName("BtnAgree").getChildByName("New Label").getComponent(cc.Label).string = t.policy ? "查看" : "同意";
 };
 t.prototype.start = function() {};
 t.prototype.onClickAgree = function() {
 a.default.clickBtn();
+var e = i.default.get(this._index), t = this._index;
+if (e && e.policy) {
+l.default.msgBox.showOnlyOk(e.messageContent, function() {
+if (1 === e.policy) s.default.disagreeInvite(t, function(e, t) {
+t ? l.default.uiHelper.showTipNetError() : e.error ? l.default.uiHelper.showTip(e.what) : s.default.getClubInviteMsgList(null, !0);
+});
+});
+return;
+}
 s.default.agreeInvite(this._index, function(e, t) {
 t ? l.default.uiHelper.showTipNetError() : 0 !== e.error && l.default.uiHelper.showTip(e.what);
 });

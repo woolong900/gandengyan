@@ -22,6 +22,7 @@ i.default.updateCardNum(e.card);
 }, n[1002] = function(e) {}, n[1003] = function(e) {
 cc.log("invite data is:", e);
 l.default.pushInvteData(e);
+l.default.refreshInbox();
 }, n[1005] = function(e) {}, n[999] = function(e) {
 cc.log("ad 999 is:", e);
 try {

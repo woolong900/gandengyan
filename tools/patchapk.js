@@ -147,6 +147,13 @@ console.log(`打包地址 ${TLS ? 'https' : 'http'}://${HOST}`);
 
 /** 中文规则要按 UTF-8 字节进 binary 串，否则 split 对不上 */
 const u2b = (s) => Buffer.from(s, 'utf8').toString('binary');
+const recoveredBetween = (file, start, end) => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'client-cocos-recovered', 'assets', 'Script', 'Recovered', file), 'utf8');
+  const from = source.indexOf(start);
+  const to = source.indexOf(end, from + start.length);
+  if (from < 0 || to < 0) throw new Error(`恢复的脚本缺少预期代码：${file} ${start}`);
+  return source.slice(from, to);
+};
 
 const http = `${TLS ? 'https' : 'http'}://${HOST}`;
 const ws = `${TLS ? 'wss' : 'ws'}://${HOST}`;
@@ -555,6 +562,32 @@ RULES.push([
 RULES.push([
   u2b('l.default.uiHelper.showTip("修改玩法成功");\nl.default.eventUtils.emit(c.default.data_club_get_scheme_list);\nl.default.uiHelper.remove(e);'),
   u2b('l.default.uiHelper.showTip("修改玩法成功");\nl.default.eventUtils.emit(c.default.data_club_get_scheme_list);\ny.default.getClubTableInfo(e._clubId, function() {}, !0);\nl.default.uiHelper.remove(e);'),
+]);
+
+// 右上角消息列表增加运营通知，并在已读或远端清空时同步刷新红点。
+RULES.push([
+  'this.clubName = "";\nthis.id = e.id;\nthis.inviterName = e.inviter;\nthis.clubName = e.name;\nthis.clubAvatarUrl = e.avatarUrl;\n',
+  recoveredBetween('ClubInviteMsgCellData.js', 'this.clubName = "";', '};\n}();'),
+]);
+RULES.push([
+  'e.prototype.collection = function(e, t) {\nreturn n.default.collection(this._data, e, t);\n};\ne.prototype.destroy = function() {\nthis.init();\n};\ne.prototype.get = function(e) {\nreturn this._data[e];\n};\ne.prototype.count = function() {\nreturn this._count;\n};\n',
+  recoveredBetween('ClubInviteMsgListData.js', 'e.prototype.collection = function(e, t) {', 'return e;\n}())();'),
+]);
+RULES.push([
+  't.pushInvteData = function(e) {\nm.push(e);\n};',
+  recoveredBetween('ClubControl.js', 't.pushInvteData = function(e) {', 't.remove = function(e) {').trimEnd(),
+]);
+RULES.push([
+  'n[1003] = function(e) {\ncc.log("invite data is:", e);\nl.default.pushInvteData(e);\n}, ',
+  recoveredBetween('NotifyMsg.js', 'n[1003] = function(e) {', 'n[1005] = function(e) {}'),
+]);
+RULES.push([
+  u2b('t.prototype.setData = function(e) {\nthis._index = e;\nvar t = i.default.get(e);\nthis.msgLabel.string = "<color=#C54D24>" + t.inviterName + "</color><color=#5D461A>邀您加入【" + t.clubName + "】俱乐部</color>";\n};\n'),
+  u2b(recoveredBetween('InviteMsgItem.js', 't.prototype.setData = function(e) {', 't.prototype.start = function() {};')),
+]);
+RULES.push([
+  't.prototype.onClickAgree = function() {\na.default.clickBtn();\n',
+  recoveredBetween('InviteMsgItem.js', 't.prototype.onClickAgree = function() {', 's.default.agreeInvite(this._index, function(e, t) {'),
 ]);
 
 // 俱乐部桌子数据统一刷新后通知桌子组件，避免空列表时旧空桌残留在界面；

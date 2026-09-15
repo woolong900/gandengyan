@@ -2,6 +2,7 @@
  * Node 入口。牌局在 GameApp / Table，这里只接 HTTP 和 ws。
  */
 const http = require('http');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { URL } = require('url');
@@ -27,6 +28,10 @@ const LISTEN_HOST = process.env.HOST || '0.0.0.0';
 const APP_BUNDLE_ID = 'com.haoke.gandengyan';
 const APPLE_TEAM_ID = process.env.QJQP_APPLE_TEAM_ID || '4CSMM3394C';
 const SHARE_ICON = fs.readFileSync(path.join(__dirname, 'public', 'share-icon.png'));
+const operatorKeyFile = process.env.QJQP_OPERATOR_KEY_FILE || path.join(path.dirname(store.FILE), 'operator.key');
+const operatorKey = String(process.env.QJQP_OPERATOR_KEY || (
+  fs.existsSync(operatorKeyFile) ? fs.readFileSync(operatorKeyFile, 'utf8') : ''
+)).trim();
 
 let saveTimer = null;
 let saveQueue = Promise.resolve();
@@ -163,6 +168,14 @@ const readBody = (req, limit) => new Promise((resolve, reject) => {
   req.on('error', reject);
 });
 
+const operatorAuthorized = (req) => {
+  if (!operatorKey) return false;
+  const supplied = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const actual = Buffer.from(supplied);
+  const expected = Buffer.from(operatorKey);
+  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+};
+
 const server = http.createServer(async (req, res) => {
   let url;
   try {
@@ -172,6 +185,27 @@ const server = http.createServer(async (req, res) => {
     return json(res, { err_code: 1, err_msg: 'invalid URL' }, 400);
   }
   console.log(`HTTP ${req.method} ${logUrl(url)}`);
+
+  if (url.pathname === '/operator/messages' || /^\/operator\/messages\/\d+$/.test(url.pathname)) {
+    res.setHeader('Cache-Control', 'no-store');
+    if (!operatorKey) return json(res, { error: '运营密钥未配置' }, 503);
+    if (!operatorAuthorized(req)) return json(res, { error: '未授权' }, 401);
+    if (req.method === 'GET' && url.pathname === '/operator/messages') {
+      return json(res, { messages: app.operatorMessages });
+    }
+    if (req.method === 'POST' && url.pathname === '/operator/messages') {
+      let body;
+      try { body = JSON.parse((await readBody(req, 4096)).toString('utf8')); }
+      catch { return json(res, { error: '消息参数不是有效 JSON' }, 400); }
+      const created = app.createOperatorMessage(body);
+      return json(res, created.error ? { error: created.error } : created.message, created.error ? 400 : 201);
+    }
+    if (req.method === 'DELETE' && /^\/operator\/messages\/\d+$/.test(url.pathname)) {
+      const deleted = app.deleteOperatorMessage(Number(url.pathname.split('/').pop()));
+      return json(res, deleted.error ? { error: deleted.error } : { deleted: deleted.message.id }, deleted.error ? 404 : 200);
+    }
+    return json(res, { error: '请求方法不支持' }, 405);
+  }
 
   // Apple 要求 AASA 用 HTTPS 直接返回，不允许重定向。微信 iOS SDK
   // 使用同一个 /wechat/ 前缀完成 Universal Link 校验和回调。

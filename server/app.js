@@ -34,6 +34,8 @@ class GameApp {
     this.uidRoom = new Map();
     this.records = [];
     this.playbackSeq = 0;
+    this.operatorMessages = [];
+    this.nextOperatorMessageId = 1000000000;
   }
 
   now() {
@@ -46,6 +48,68 @@ class GameApp {
 
   playerByUid(uid) {
     return this.playersByUid.get(Number(uid)) || null;
+  }
+
+  notifyInbox(uid) {
+    for (const conn of this.conns.values()) {
+      if (conn.player && Number(conn.player.uid) === Number(uid)) {
+        conn.send(pack(1003, { clubInfo: { name: '', code: '' }, inviterInfo: { name: '', code: '' } }));
+      }
+    }
+  }
+
+  messageForPlayer(message, player) {
+    return message && player && message.expiresAt > this.now()
+      && (!message.targetUid || Number(message.targetUid) === Number(player.uid));
+  }
+
+  createOperatorMessage({ title, content, targetUid = 0, days = 30 } = {}) {
+    const cleanTitle = String(title || '').trim();
+    const cleanContent = String(content || '').trim();
+    const uid = Number(targetUid || 0);
+    const lifetime = Number(days);
+    if (!cleanTitle || cleanTitle.length > 32) return { error: '标题须为1至32个字' };
+    if (!cleanContent || cleanContent.length > 300) return { error: '正文须为1至300个字' };
+    if (!Number.isSafeInteger(uid) || uid < 0 || (uid && (!this.playerByUid(uid) || this.playerByUid(uid).bot))) {
+      return { error: '收件玩家不存在' };
+    }
+    if (!Number.isInteger(lifetime) || lifetime < 1 || lifetime > 365) return { error: '有效天数须为1至365天' };
+    if (this.nextOperatorMessageId > 4294967295) return { error: '消息编号已耗尽' };
+    const message = {
+      id: this.nextOperatorMessageId++, title: cleanTitle, content: cleanContent,
+      targetUid: uid, createdAt: this.now(), expiresAt: this.now() + lifetime * 86400000,
+    };
+    this.operatorMessages.push(message);
+    this.operatorMessages = this.operatorMessages.slice(-100);
+    this.persist();
+    const recipients = new Set([...this.conns.values()].filter((conn) => (
+      conn.player && (!uid || Number(conn.player.uid) === uid)
+    )).map((conn) => conn.player.uid));
+    for (const recipientUid of recipients) this.notifyInbox(recipientUid);
+    return { message };
+  }
+
+  deleteOperatorMessage(id) {
+    const index = this.operatorMessages.findIndex((message) => Number(message.id) === Number(id));
+    if (index < 0) return { error: '消息不存在' };
+    const [message] = this.operatorMessages.splice(index, 1);
+    this.persist();
+    const recipients = new Set([...this.conns.values()].filter((conn) => (
+      conn.player && (!message.targetUid || Number(conn.player.uid) === Number(message.targetUid))
+    )).map((conn) => conn.player.uid));
+    for (const recipientUid of recipients) this.notifyInbox(recipientUid);
+    return { message };
+  }
+
+  markOperatorMessageRead(player, id) {
+    const message = this.operatorMessages.find((item) => Number(item.id) === Number(id));
+    if (!this.messageForPlayer(message, player)) return { error: '消息不存在或已过期' };
+    if (!player.readMessageIds.includes(message.id)) {
+      player.readMessageIds.push(message.id);
+      player.readMessageIds = player.readMessageIds.slice(-100);
+      this.persist();
+    }
+    return { message };
   }
 
   clearRoomLink(uid) {
@@ -306,6 +370,7 @@ class GameApp {
         nickname: p.nickname,
         sex: p.sex,
         avatarUrl: p.avatarUrl || '',
+        readMessageIds: p.readMessageIds || [],
         wechatOpenid: p.wechatOpenid || '',
         wechatUnionid: p.wechatUnionid || '',
         identityVerified: !!p.identityVerified,
@@ -324,6 +389,8 @@ class GameApp {
       })),
       rooms: [...this.tables.values()].filter((t) => !t.closed).map((t) => t.dump()),
       records: this.records,
+      operatorMessages: this.operatorMessages,
+      nextOperatorMessageId: this.nextOperatorMessageId,
       playbackSeq: this.playbackSeq || 0,
       clubs: this.clubStore.dump(),
     };
@@ -339,6 +406,14 @@ class GameApp {
     this.nextUid = data.nextUid || 100001;
     this.nextRoomId = data.nextRoomId || 100000;
     this.records = Array.isArray(data.records) ? data.records : [];
+    this.operatorMessages = Array.isArray(data.operatorMessages) ? data.operatorMessages.filter((message) => (
+      message && Number.isSafeInteger(Number(message.id)) && Number(message.id) >= 1000000000
+    )).slice(-100) : [];
+    this.nextOperatorMessageId = Math.max(
+      1000000000,
+      Number(data.nextOperatorMessageId) || 0,
+      ...this.operatorMessages.map((message) => Number(message.id) + 1),
+    );
     this.playbackSeq = data.playbackSeq || 0;
     this.clubStore.restore(data.clubs);
     const byUid = new Map();
@@ -687,20 +762,60 @@ class GameApp {
       const invites = this.clubStore.inviteList(c.player.uid).map(({ club, invite }) => ({
         id: invite.id,
         avatarUrl: (this.playerByUid(invite.fromUid) || {}).avatarUrl || '',
-        inviter: String(invite.fromUid),
+        inviter: (this.playerByUid(invite.fromUid) || {}).nickname || `玩家${invite.fromUid}`,
         name: club.name,
         policy: 0,
       }));
-      return c.send(pack(118, { res: { error: 0, what: '' }, invites, count: invites.length, total: invites.length }));
+      const messages = this.operatorMessages.filter((message) => this.messageForPlayer(message, c.player)).map((message) => ({
+        id: message.id,
+        avatarUrl: '',
+        inviter: message.title,
+        name: message.content,
+        policy: c.player.readMessageIds.includes(message.id) ? 2 : 1,
+      }));
+      const inbox = [...invites, ...messages];
+      return c.send(pack(118, { res: { error: 0, what: '' }, invites: inbox, count: inbox.length, total: inbox.length }));
     }
 
     if (proto === 119 || proto === 120) {
+      if (proto === 120 && num(msg && msg.id) >= 1000000000) {
+        const marked = this.markOperatorMessageRead(c.player, num(msg && msg.id));
+        return c.send(pack(120, { res: { error: marked.error ? 1 : 0, what: marked.error || '' } }));
+      }
       const ret = proto === 119
         ? this.clubStore.acceptInvite(c.player.uid, num(msg && msg.id))
         : this.clubStore.ignoreInvite(c.player.uid, num(msg && msg.id));
       if (ret.error) return c.send(pack(proto, { res: { error: 1, what: ret.error } }));
       this.persist();
+      if (proto === 119) this.notifyInbox(c.player.uid);
       return c.send(pack(proto, { res: { error: 0, what: '' } }));
+    }
+
+    if (proto === 143) {
+      const club = this.clubStore.get(num(msg && msg.clubId));
+      if (!club || !this.clubStore.isAdmin(club, c.player.uid)) {
+        return c.send(pack(143, { res: { error: 1, what: '没有邀请权限' }, data: [] }));
+      }
+      const pending = new Set(club.invites.map((invite) => Number(invite.toUid)));
+      const data = [...this.playersByUid.values()].filter((player) => (
+        !player.bot && player.uid !== c.player.uid && !this.clubStore.member(club, player.uid) && !pending.has(player.uid)
+      )).slice(0, 500).map((player) => ({
+        userId: player.uid, avatarUrl: player.avatarUrl || '', nickname: player.nickname,
+        code: String(player.uid),
+      }));
+      return c.send(pack(143, { res: { error: 0, what: '' }, data, count: data.length, total: data.length }));
+    }
+
+    if (proto === 144) {
+      const ids = Array.isArray(msg && msg.userId) ? msg.userId.map(num) : [];
+      if (ids.some((uid) => !this.playerByUid(uid) || this.playerByUid(uid).bot)) {
+        return c.send(pack(144, { res: { error: 1, what: '所选玩家不存在' } }));
+      }
+      const result = this.clubStore.addInvites(c.player.uid, num(msg && msg.clubId), ids);
+      if (result.error) return c.send(pack(144, { res: { error: 1, what: result.error } }));
+      this.persist();
+      for (const uid of ids) this.notifyInbox(uid);
+      return c.send(pack(144, { res: { error: 0, what: '' } }));
     }
 
     if (proto === 121) {
@@ -798,7 +913,7 @@ class GameApp {
       return c.send(pack(160, { res: { error: 0, what: '' } }));
     }
 
-    if ([142, 143, 146, 163, 164, 166].includes(proto)) {
+    if ([142, 146, 163, 164, 166].includes(proto)) {
       const clubId = num(msg && msg.clubId);
       const club = this.clubStore.get(clubId);
       if (!club || !this.clubStore.member(club, c.player.uid)) {
@@ -961,9 +1076,13 @@ class GameApp {
     }
 
     if (proto === 141) {
-      const ret = this.clubStore.addInvite(c.player.uid, num(msg && msg.clubId), num(msg && msg.userId));
+      const targetUid = num(msg && msg.userId);
+      const target = this.playerByUid(targetUid);
+      if (!target || target.bot) return c.send(pack(141, { res: { error: 1, what: '玩家不存在' } }));
+      const ret = this.clubStore.addInvite(c.player.uid, num(msg && msg.clubId), targetUid);
       if (ret.error) return c.send(pack(141, { res: { error: 1, what: ret.error } }));
       this.persist();
+      this.notifyInbox(targetUid);
       return c.send(pack(141, { res: { error: 0, what: '' } }));
     }
 

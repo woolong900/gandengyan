@@ -13,7 +13,9 @@ const LEGACY_FILE = process.env.QJQP_STATE || path.join(DATA_DIR, 'state.json');
 const empty = () => ({
   nextUid: 100001,
   nextRoomId: 100000,
+  nextOperatorMessageId: 1000000000,
   players: [],
+  operatorMessages: [],
   rooms: [],
   records: [],
   playbackSeq: 0,
@@ -28,7 +30,9 @@ const normalize = (data) => {
   return {
     nextUid: Number(raw.nextUid) || base.nextUid,
     nextRoomId: Number(raw.nextRoomId) || base.nextRoomId,
+    nextOperatorMessageId: Number(raw.nextOperatorMessageId) || base.nextOperatorMessageId,
     players: Array.isArray(raw.players) ? raw.players : [],
+    operatorMessages: Array.isArray(raw.operatorMessages) ? raw.operatorMessages : [],
     rooms: Array.isArray(raw.rooms) ? raw.rooms : [],
     records: Array.isArray(raw.records) ? raw.records : [],
     playbackSeq: Number(raw.playbackSeq) || 0,
@@ -66,6 +70,7 @@ const open = () => {
       playback_seq INTEGER NOT NULL,
       club_next_id INTEGER NOT NULL,
       club_next_op_id INTEGER NOT NULL,
+      next_operator_message_id INTEGER NOT NULL DEFAULT 1000000000,
       updated_at INTEGER NOT NULL
     );
     CREATE TABLE IF NOT EXISTS players (
@@ -77,6 +82,11 @@ const open = () => {
     );
     CREATE UNIQUE INDEX IF NOT EXISTS players_uid ON players(uid);
     CREATE INDEX IF NOT EXISTS players_invite_code ON players(invite_code);
+    CREATE TABLE IF NOT EXISTS operator_messages (
+      position INTEGER PRIMARY KEY,
+      id INTEGER NOT NULL UNIQUE,
+      data TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS rooms (
       position INTEGER NOT NULL,
       room_id INTEGER PRIMARY KEY,
@@ -102,10 +112,13 @@ const open = () => {
     );
     CREATE INDEX IF NOT EXISTS clubs_owner_uid ON clubs(owner_uid);
   `);
+  if (!db.pragma('table_info(meta)').some((column) => column.name === 'next_operator_message_id')) {
+    db.exec('ALTER TABLE meta ADD COLUMN next_operator_message_id INTEGER NOT NULL DEFAULT 1000000000');
+  }
   statements = {
     meta: db.prepare(`INSERT INTO meta
-      (id, schema_version, next_uid, next_room_id, playback_seq, club_next_id, club_next_op_id, updated_at)
-      VALUES (1, 1, ?, ?, ?, ?, ?, ?)
+      (id, schema_version, next_uid, next_room_id, playback_seq, club_next_id, club_next_op_id, next_operator_message_id, updated_at)
+      VALUES (1, 1, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         schema_version=excluded.schema_version,
         next_uid=excluded.next_uid,
@@ -113,8 +126,10 @@ const open = () => {
         playback_seq=excluded.playback_seq,
         club_next_id=excluded.club_next_id,
         club_next_op_id=excluded.club_next_op_id,
+        next_operator_message_id=excluded.next_operator_message_id,
         updated_at=excluded.updated_at`),
     player: db.prepare('INSERT INTO players (position, token, uid, invite_code, data) VALUES (?, ?, ?, ?, ?)'),
+    operatorMessage: db.prepare('INSERT INTO operator_messages (position, id, data) VALUES (?, ?, ?)'),
     room: db.prepare('INSERT INTO rooms (position, room_id, club_id, data) VALUES (?, ?, ?, ?)'),
     record: db.prepare('INSERT INTO records (position, record_id, time, club_id, data) VALUES (?, ?, ?, ?, ?)'),
     club: db.prepare('INSERT INTO clubs (position, club_id, owner_uid, data) VALUES (?, ?, ?, ?)'),
@@ -128,17 +143,19 @@ const writeTransaction = (data) => {
   const write = db.transaction(() => {
     // 先序列化再删除，常见的数据错误不会触碰现有快照；事务还负责兜底回滚。
     const players = state.players.map((item) => encode(item));
+    const operatorMessages = state.operatorMessages.map((item) => encode(item));
     const rooms = state.rooms.map((item) => encode(item));
     const records = state.records.map((item) => encode(item));
     const clubs = state.clubs.clubs.map((item) => encode(item));
-    db.exec('DELETE FROM players; DELETE FROM rooms; DELETE FROM records; DELETE FROM clubs;');
+    db.exec('DELETE FROM players; DELETE FROM operator_messages; DELETE FROM rooms; DELETE FROM records; DELETE FROM clubs;');
     statements.meta.run(
       state.nextUid, state.nextRoomId, state.playbackSeq,
-      state.clubs.nextId, state.clubs.nextOpId, Date.now(),
+      state.clubs.nextId, state.clubs.nextOpId, state.nextOperatorMessageId, Date.now(),
     );
     state.players.forEach((item, i) => statements.player.run(
       i, String(item.token || ''), Number(item.uid), String(item.inviteCode || ''), players[i],
     ));
+    state.operatorMessages.forEach((item, i) => statements.operatorMessage.run(i, Number(item.id), operatorMessages[i]));
     state.rooms.forEach((item, i) => statements.room.run(
       i, Number(item.roomId), Number(item.clubId || 0), rooms[i],
     ));
@@ -174,7 +191,9 @@ const load = () => {
   return {
     nextUid: Number(meta.next_uid),
     nextRoomId: Number(meta.next_room_id),
+    nextOperatorMessageId: Number(meta.next_operator_message_id),
     players: db.prepare('SELECT data FROM players ORDER BY position').all().map((row) => JSON.parse(row.data)),
+    operatorMessages: db.prepare('SELECT data FROM operator_messages ORDER BY position').all().map((row) => JSON.parse(row.data)),
     rooms: db.prepare('SELECT data FROM rooms ORDER BY position').all().map((row) => JSON.parse(row.data)),
     records: db.prepare('SELECT data FROM records ORDER BY position').all().map((row) => JSON.parse(row.data)),
     playbackSeq: Number(meta.playback_seq),

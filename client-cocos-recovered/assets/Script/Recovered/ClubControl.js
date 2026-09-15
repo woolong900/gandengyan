@@ -62,6 +62,9 @@ e > 0 && i.default.getClubMemberInfo(e, function(e, t) {}, !0);
 t.pushInvteData = function(e) {
 m.push(e);
 };
+t.refreshInbox = function() {
+i.default.getClubInviteMsgList(null, !0);
+};
 t.remove = function(e) {
 e ? m.remove(e) : m.clean();
 };

@@ -32,6 +32,8 @@ const makeFixture = () => {
   app.clubStore.edit(owner.uid, { id: club.id, announcement: '欢迎加入', quitApply: true });
   app.clubStore.apply(applicant.uid, club.code);
   app.clubStore.addInvite(owner.uid, club.id, invited.uid);
+  const notice = app.createOperatorMessage({ title: '运营通知', content: '欢迎体验消息功能' }).message;
+  member.readMessageIds.push(notice.id);
   club.schemes.push({
     id: app.clubStore.nextOpId++, name: '三人桌', gameType: 2, num: 2,
     ...rules.buildParam({ 人数: 3, 房费: 'AA' }), auto: true, color: 'blue',
@@ -65,8 +67,10 @@ const main = async () => {
     try {
       t('启用 WAL', inspect.pragma('journal_mode', { simple: true }), 'wal');
       t('玩家分表保存', inspect.prepare('SELECT count(*) n FROM players').get().n, snapshot.players.length);
+      t('运营通知分表保存', inspect.prepare('SELECT count(*) n FROM operator_messages').get().n, 1);
       t('俱乐部分表保存', inspect.prepare('SELECT count(*) n FROM clubs').get().n, snapshot.clubs.clubs.length);
       t('元数据只保存一行', inspect.prepare('SELECT count(*) n FROM meta').get().n, 1);
+      t('消息编号序列写入元数据', inspect.prepare('SELECT next_operator_message_id id FROM meta').get().id, snapshot.nextOperatorMessageId);
     } finally {
       inspect.close();
     }
@@ -99,6 +103,7 @@ const main = async () => {
     const restored = new GameApp();
     restored.restore(store.load());
     t('恢复全部俱乐部、成员和方案', restored.dump(), asyncState);
+    t('重启后保留通知及已读标记', [restored.operatorMessages.length, restored.playerByUid(member.uid).readMessageIds], [1, [snapshot.operatorMessages[0].id]]);
     t('恢复后成员仍能找到俱乐部', restored.clubStore.listFor(member.uid).map((c) => c.id), [club.id]);
     t('恢复后新俱乐部 ID 不重复', restored.clubStore.create(owner.uid, '恢复后新建').club.id, snapshot.clubs.nextId);
     t('恢复后新申请 ID 不重复', restored.clubStore.apply(invited.uid, club.code).application.id, snapshot.clubs.nextOpId);
