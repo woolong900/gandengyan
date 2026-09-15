@@ -504,8 +504,12 @@ class Round {
     if (this.over || this.turn !== seat) return;
     if (this.pending && !(this.pending.kind === 'self' && this.pending.seat === seat)) return;
     const drawn = this.drawn[seat];
-    const dumpJoker = !!(this.seats[seat] && this.seats[seat].bot);
-    const card = (dumpJoker && this.looseTiles(seat).includes(this.laizi))
+    const loose = this.looseTiles(seat);
+    const dumpJoker = !!(this.seats[seat] && this.seats[seat].bot)
+      && loose.includes(this.laizi)
+      // 牌墙空时甩癞子会被 discard 拒绝；有普通牌就先打普通牌。
+      && (this.wall.remain() > 0 || loose.every((tile) => tile === this.laizi));
+    const card = dumpJoker
       ? this.laizi
       : (drawn != null && drawn !== this.laizi)
         ? drawn

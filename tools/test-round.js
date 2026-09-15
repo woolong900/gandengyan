@@ -283,6 +283,20 @@ const boot = (n, extra = {}) => {
 
 {
   const { round, io } = boot(2);
+  round.seats[0].bot = true;
+  round.laizi = 19;
+  round.hands[0] = [1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13];
+  round.drawn[0] = 19;
+  round.turn = 0;
+  round.pending = null;
+  round.wall.remain = () => 0;
+  io.sent.length = 0;
+  round.autoPlay(0);
+  t('牌墙空了陪玩改打普通牌而不是卡在甩癞子', io.sent.some((x) => x.h === 'game_step' && x.d.card === 1), true);
+}
+
+{
+  const { round, io } = boot(2);
   round.hands[0] = [1, 2, 3, 4, 5, 6, 11, 11, 11, 12, 12, 13, 13];
   round.laizi = 19;
   round.drawn[0] = 14;
