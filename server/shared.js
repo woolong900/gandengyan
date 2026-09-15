@@ -28,7 +28,7 @@ const roomInfo = (room) => ({
   person: room.members.map((m) => ({
     uid: m.player.uid,
     name: m.player.nickname,
-    imgurl: '',
+    imgurl: m.player.avatarUrl || '',
     ip: '127.0.0.1',
     latitude: 0,
     longitude: 0,

@@ -58,7 +58,7 @@ class Tape {
       players: seats.map((m, i) => ({
         uid: m.player.uid,
         name: m.player.nickname || `玩家${m.player.uid}`,
-        headImg: '',
+        headImg: m.player.avatarUrl || '',
         ip: '127.0.0.1',
         onLine: true,
         ready: true,

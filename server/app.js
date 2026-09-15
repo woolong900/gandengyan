@@ -12,6 +12,7 @@ const {
 const { buildRecord, listFor, keepLatest } = require('./records');
 const { findPlayback, mintPlaybackId } = require('./playback');
 const { identityDigest, maskIdCard, validateIdentity } = require('./identity');
+const { assignAvatarIfMissing } = require('./avatars');
 
 class GameApp {
   constructor({ persist, now, allowUnregisteredTokens = false, identityHashKey } = {}) {
@@ -224,6 +225,7 @@ class GameApp {
     player.wechatUnionid = unionid;
     if (profile.nickname) player.nickname = String(profile.nickname).slice(0, 32);
     if (profile.avatarUrl) player.avatarUrl = String(profile.avatarUrl);
+    else assignAvatarIfMissing(player);
     if (Number(profile.sex)) player.sex = Number(profile.sex);
     this.ensureInviteCode(player);
     this.persist();
@@ -240,18 +242,22 @@ class GameApp {
     const deviceHash = this.guestDeviceHash(deviceId);
     const knownToken = deviceHash && this.playersByGuestDeviceHash.get(deviceHash);
     if (knownToken && this.players.has(knownToken)) {
-      return { token: knownToken, player: this.players.get(knownToken), created: false };
+      const player = this.players.get(knownToken);
+      if (assignAvatarIfMissing(player)) this.persist();
+      return { token: knownToken, player, created: false };
     }
 
     const previousToken = String(oldToken || '');
     if (previousToken && this.players.has(previousToken)) {
       const player = this.players.get(previousToken);
       if (!deviceHash || !player.guestDeviceHash || player.guestDeviceHash === deviceHash) {
+        let changed = assignAvatarIfMissing(player);
         if (deviceHash && !player.guestDeviceHash) {
           player.guestDeviceHash = deviceHash;
           this.playersByGuestDeviceHash.set(deviceHash, previousToken);
-          this.persist();
+          changed = true;
         }
+        if (changed) this.persist();
         return { token: previousToken, player, created: false };
       }
     }
@@ -259,6 +265,7 @@ class GameApp {
     const uid = this.nextUid++;
     const token = `t_${crypto.randomBytes(24).toString('hex')}`;
     const player = emptyPlayer(uid, { guestDeviceHash: deviceHash });
+    assignAvatarIfMissing(player);
     this.players.set(token, player);
     this.playersByUid.set(player.uid, player);
     if (deviceHash) this.playersByGuestDeviceHash.set(deviceHash, token);
@@ -335,8 +342,10 @@ class GameApp {
     this.playbackSeq = data.playbackSeq || 0;
     this.clubStore.restore(data.clubs);
     const byUid = new Map();
+    let missingAvatars = 0;
     for (const p of data.players || []) {
       const player = emptyPlayer(p.uid, p);
+      if (assignAvatarIfMissing(player)) missingAvatars++;
       this.players.set(p.token, player);
       this.playersByUid.set(player.uid, player);
       if (player.inviteCode && !player.bot) this.playersByInviteCode.set(player.inviteCode, player);
@@ -365,7 +374,8 @@ class GameApp {
         staleLinks += 1;
       }
     }
-    if (staleLinks) this.persist();
+    if (staleLinks || missingAvatars) this.persist();
+    if (missingAvatars) console.log(`已为 ${missingAvatars} 位无头像玩家分配默认头像`);
   }
 
   tableHost(roomId) {
@@ -429,7 +439,7 @@ class GameApp {
     const player = this.playerByUid(member.uid) || {};
     const online = [...this.conns.values()].some((c) => c.player && c.player.uid === Number(member.uid));
     return {
-      avatarUrl: '',
+      avatarUrl: player.avatarUrl || '',
       nickname: player.nickname || `玩家${member.uid}`,
       code: String(member.uid),
       sex: player.sex || 1,
@@ -450,13 +460,13 @@ class GameApp {
     return {
       id: table.roomId,
       status: table.round ? 1 : 0,
-      owner: { avatarUrl: '', code: String(table.hostUid), nickname: host.nickname || `玩家${table.hostUid}` },
+      owner: { avatarUrl: host.avatarUrl || '', code: String(table.hostUid), nickname: host.nickname || `玩家${table.hostUid}` },
       gameType: table.gameType,
       num: table.num,
       param1: table.param1,
       param2: table.param2,
       players: seats.map((m) => ({
-        avatarUrl: '', code: String(m.player.uid), nickname: m.player.nickname || `玩家${m.player.uid}`,
+        avatarUrl: m.player.avatarUrl || '', code: String(m.player.uid), nickname: m.player.nickname || `玩家${m.player.uid}`,
       })),
       curPlayers: seats.length,
       maxPlayers: table.config.人数,
@@ -522,7 +532,7 @@ class GameApp {
         if (item.winner) winner++;
       }
       return {
-        avatarUrl: '', nickname: player.nickname || `玩家${member.uid}`, code: String(member.uid),
+        avatarUrl: player.avatarUrl || '', nickname: player.nickname || `玩家${member.uid}`, code: String(member.uid),
         winner, score, number, scoreRatio: 10, remark: member.remark || '',
       };
     }).filter((item) => item.number > 0);
@@ -601,11 +611,13 @@ class GameApp {
         }
         const uid = this.nextUid++;
         const newbie = emptyPlayer(uid);
+        assignAvatarIfMissing(newbie);
         this.players.set(msg.token, newbie);
         this.playersByUid.set(newbie.uid, newbie);
         this.ensureInviteCode(newbie);
       }
       c.player = this.players.get(msg.token);
+      if (assignAvatarIfMissing(c.player)) this.persist();
       this.ensureInviteCode(c.player);
       const roomId = this.uidRoom.get(c.player.uid) || 0;
       c.roomId = roomId;
@@ -651,7 +663,7 @@ class GameApp {
       }
       return c.send(pack(114, {
         res: { error: 0, what: '' },
-        avatarUrl: '', nickname: owner.nickname || `玩家${owner.uid}`, code: String(owner.uid),
+        avatarUrl: owner.avatarUrl || '', nickname: owner.nickname || `玩家${owner.uid}`, code: String(owner.uid),
       }));
     }
 
@@ -674,7 +686,7 @@ class GameApp {
     if (proto === 118) {
       const invites = this.clubStore.inviteList(c.player.uid).map(({ club, invite }) => ({
         id: invite.id,
-        avatarUrl: '',
+        avatarUrl: (this.playerByUid(invite.fromUid) || {}).avatarUrl || '',
         inviter: String(invite.fromUid),
         name: club.name,
         policy: 0,
@@ -860,7 +872,13 @@ class GameApp {
       if (type === 1) {
         return c.send(pack(125, { res: { error: 0, what: '' }, records: [] }));
       }
-      const records = listFor(this.records, c.player.uid, num(msg && msg.time));
+      const records = listFor(this.records, c.player.uid, num(msg && msg.time)).map((record) => ({
+        ...record,
+        players: (record.players || []).map((entry) => ({
+          ...entry,
+          avatarUrl: (this.playerByUid(entry.uid) || {}).avatarUrl || entry.avatarUrl || '',
+        })),
+      }));
       return c.send(pack(125, { res: { error: 0, what: '' }, records }));
     }
 
@@ -914,7 +932,7 @@ class GameApp {
       }
       const data = club.applications.map((a) => {
         const player = this.playerByUid(a.uid) || {};
-        return { id: a.id, avatarUrl: '', nickname: player.nickname || `玩家${a.uid}`, code: String(a.uid), sex: player.sex || 1, policy: 0 };
+        return { id: a.id, avatarUrl: player.avatarUrl || '', nickname: player.nickname || `玩家${a.uid}`, code: String(a.uid), sex: player.sex || 1, policy: 0 };
       });
       return c.send(pack(137, { res: { error: 0, what: '' }, data, count: data.length, total: data.length }));
     }
@@ -937,7 +955,7 @@ class GameApp {
       }
       return c.send(pack(140, {
         res: { error: 0, what: '' },
-        info: { id: target.uid, avatarUrl: '', code: String(target.uid), nickname: target.nickname },
+        info: { id: target.uid, avatarUrl: target.avatarUrl || '', code: String(target.uid), nickname: target.nickname },
         member: !!this.clubStore.member(club, target.uid),
       }));
     }

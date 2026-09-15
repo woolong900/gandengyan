@@ -25,7 +25,7 @@ const buildRecord = (table, now) => {
     uid: m.player.uid,
     name: m.player.nickname,
     score: m.score || 0,
-    avatarUrl: '',
+    avatarUrl: m.player.avatarUrl || '',
     winner: false,
   }));
   const top = Math.max(0, ...players.map((p) => p.score));

@@ -189,6 +189,17 @@ const server = http.createServer(async (req, res) => {
     });
     return res.end(SHARE_ICON);
   }
+  if (req.method === 'GET' && /^\/avatars\/(0[1-9]|10)\.png$/.test(url.pathname)) {
+    const filename = path.join(__dirname, 'public', 'avatars', path.basename(url.pathname));
+    const image = fs.readFileSync(filename);
+    res.writeHead(200, {
+      'Content-Type': 'image/png',
+      'Content-Length': image.length,
+      'Cache-Control': 'public, max-age=86400, immutable',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    return res.end(image);
+  }
   if (req.method === 'GET' && (url.pathname === '/wechat' || url.pathname.startsWith('/wechat/'))) {
     return html(res, sharePage(req, url.searchParams.get('roomId')));
   }
