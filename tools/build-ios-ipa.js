@@ -14,6 +14,7 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { toJs, toJsc } = require('./jsc');
+const { applyIosSyncPatches } = require('./ios-sync-patches');
 const u2b = (value) => Buffer.from(value, 'utf8').toString('binary');
 
 const ROOT = path.join(__dirname, '..');
@@ -47,6 +48,126 @@ const run = (command, args, options = {}) => execFileSync(command, args, {
   encoding: 'utf8',
   stdio: options.stdio || ['ignore', 'pipe', 'pipe'],
 });
+
+const walkFiles = (root, visit) => {
+  if (!fs.existsSync(root)) return;
+  for (const name of fs.readdirSync(root)) {
+    const file = path.join(root, name);
+    if (fs.statSync(file).isDirectory()) walkFiles(file, visit);
+    else visit(file);
+  }
+};
+
+const readCocosAsset = (file) => {
+  const input = fs.readFileSync(file);
+  const encrypted = input.subarray(0, 9).toString('ascii') === 'aaabbbccc';
+  if (!encrypted) return { body: input, key: null };
+  const key = input[9];
+  const body = Buffer.alloc(input.length - 10);
+  for (let i = 10; i < input.length; i += 1) body[i - 10] = input[i] ^ key;
+  return { body, key };
+};
+
+const writeCocosBody = (file, body, key) => {
+  if (key === null) {
+    fs.writeFileSync(file, body);
+    return;
+  }
+  const encrypted = Buffer.alloc(body.length);
+  for (let i = 0; i < body.length; i += 1) encrypted[i] = body[i] ^ key;
+  fs.writeFileSync(file, Buffer.concat([Buffer.from('aaabbbccc', 'ascii'), Buffer.from([key]), encrypted]));
+};
+
+const replaceCocosAsset = (source, target) => {
+  if (!fs.existsSync(source)) throw new Error(`缺少品牌资源：${source}`);
+  if (!fs.existsSync(target)) throw new Error(`iOS 基包缺少待替换资源：${target}`);
+  const { key } = readCocosAsset(target);
+  writeCocosBody(target, fs.readFileSync(source), key);
+};
+
+const patchIosSerializedAssets = (app) => {
+  const importRoot = path.join(app, 'res', 'import');
+  const textRules = [
+    ['元来互娱俱乐部', `${APP_NAME}俱乐部`],
+    ['元来黄冈麻将', APP_NAME],
+    ['元来黄冈', APP_NAME],
+    ['元来棋牌', APP_NAME],
+    ['元来', '浩克'],
+    ['m1m1_77', '游戏客服'],
+  ];
+  let mobileNodes = 0;
+  let licenseNodes = 0;
+  let changedFiles = 0;
+  walkFiles(importRoot, (file) => {
+    if (!file.endsWith('.json')) return;
+    const { body, key } = readCocosAsset(file);
+    let data;
+    try { data = JSON.parse(body.toString('utf8')); } catch { return; }
+    let changed = false;
+    if (Array.isArray(data)) {
+      for (const entry of data) {
+        if (!entry || typeof entry !== 'object') continue;
+        if (entry._name === 'BtnMobile') {
+          mobileNodes += 1;
+          if (entry._active !== false) {
+            entry._active = false;
+            changed = true;
+          }
+        }
+        if (entry._name === 'IBSA') {
+          licenseNodes += 1;
+          if (entry._active !== false) {
+            entry._active = false;
+            changed = true;
+          }
+        }
+      }
+    }
+    let json = JSON.stringify(data);
+    for (const [from, to] of textRules) {
+      if (json.includes(from)) {
+        json = json.split(from).join(to);
+        changed = true;
+      }
+    }
+    if (changed) {
+      writeCocosBody(file, Buffer.from(json, 'utf8'), key);
+      changedFiles += 1;
+    }
+  });
+  if (mobileNodes < 2) throw new Error(`iOS 手机入口节点只找到 ${mobileNodes} 个，预期至少 2 个`);
+  if (licenseNodes < 1) throw new Error('iOS 登录页没有找到许可证文字节点 IBSA');
+  console.log(`      已隐藏 ${mobileNodes} 个手机入口、${licenseNodes} 个许可证文字节点，更新 ${changedFiles} 个场景资源`);
+};
+
+const applyIosBrandingAssets = (app) => {
+  const branding = path.join(ROOT, 'assets', 'branding');
+  const raw = path.join(app, 'res', 'raw-assets');
+  const replacements = [
+    ['hall/hall-background.png', ['2d', '2dad1db8-b44a-4077-a9fa-52cbfe497b4d.png']],
+    ['hall/hall-character.png', ['1b', '1b6b9d70-3f53-4064-801d-f7fb08c52ba3.png']],
+    ['club/club-background.png', ['7f', '7fd7e41f-bc15-43c0-9ccf-9f255336b48f.png']],
+    ['club/club-character-empty.png', ['89', '896e3506-6fa6-4a3c-864b-f632f44c2f96.png']],
+    ['login/login-background.jpg', ['73', '73c931dd-4abb-4c4c-ab86-37f883c44430.jpg']],
+  ];
+  for (const [source, target] of replacements) {
+    replaceCocosAsset(path.join(branding, source), path.join(raw, ...target));
+  }
+
+  const legacy = {
+    '1b3339a9-7323-4d7a-bc29-a0541f03ebc0.png': ['1b', '1b3339a9-7323-4d7a-bc29-a0541f03ebc0.png'],
+    '352ea258-16a5-4785-9a93-7dcd168211b4.jpg': ['35', '352ea258-16a5-4785-9a93-7dcd168211b4.jpg'],
+    '735a1b69-bef3-4257-9942-773def542b50.png': ['73', '735a1b69-bef3-4257-9942-773def542b50.png'],
+    '7b0ebbdf-d404-42ab-9c8e-85ad2b828ae9.png': ['7b', '7b0ebbdf-d404-42ab-9c8e-85ad2b828ae9.png'],
+    '9272ef06-deee-4241-b004-64c282072754.jpg': ['92', '9272ef06-deee-4241-b004-64c282072754.jpg'],
+    'f80f7e41-3748-4fee-99cf-8066229ff1aa.png': ['f8', 'f80f7e41-3748-4fee-99cf-8066229ff1aa.png'],
+    'f89eca2a-97a6-4480-9d24-bdf2fec1e807.png': ['f8', 'f89eca2a-97a6-4480-9d24-bdf2fec1e807.png'],
+  };
+  for (const [source, target] of Object.entries(legacy)) {
+    replaceCocosAsset(path.join(branding, 'legacy-cleanup', source), path.join(raw, ...target));
+  }
+  patchIosSerializedAssets(app);
+};
 
 // 原厂壳在 iOS 系统启动页之上又手动添加了一层 LaunchImage12，
 // 并依赖 JS 在登录组件 start() 中调用 removeLaunchImg 移除。资源迁移后
@@ -243,6 +364,7 @@ try {
     replaceOnce('显示游客登录', 'this.guestNode.active = b.default.isDebug();', 'this.guestNode.active = !0;');
     replaceOnce('隐藏钉钉分享', 'this.ddNode.active = !0;', 'this.ddNode.active = !1;');
     replaceOnce('隐藏默往分享', 'this.mwNode.active = !0;', 'this.mwNode.active = !1;');
+    projectJs = applyIosSyncPatches(projectJs);
 
     const guestStart = projectJs.indexOf('t.prototype._guestLogin = function() {');
     const guestEnd = projectJs.indexOf('t.prototype._tokenLogin = function(e) {', guestStart);
@@ -370,8 +492,7 @@ l.default.uiHelper.showTip(t);
   fs.mkdirSync(brandingTarget, { recursive: true });
   fs.copyFileSync(path.join(ROOT, 'assets', 'branding', 'login', 'login-logo.png'), path.join(brandingTarget, 'login-logo.png'));
   if (COCOS_BASE === 'ios') {
-    fs.copyFileSync(path.join(ROOT, 'assets', 'branding', 'login', 'login-background.jpg'),
-      path.join(app, 'res', 'raw-assets', '73', '73c931dd-4abb-4c4c-ab86-37f883c44430.jpg'));
+    applyIosBrandingAssets(app);
   }
   fs.copyFileSync(path.join(ROOT, 'assets', 'branding', 'startup', 'splash-screen.png'), path.join(app, 'LaunchImage12.png'));
 
