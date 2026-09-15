@@ -573,6 +573,24 @@ console.log('杠分');
   check('抢杠转补杠也乘癞子', scoreOf(seats), [-4, 4]);
 }
 
+{
+  // 玩家甩三癞、对家甩一癞：双方癞子倍数 8×2=16。
+  // 1 分房暗杠 4×16=64，黑摸 4×16=64，合计 128。
+  const { round, seats } = table(cfg({ 人数: 2, 玩法: '土豪必杠', 喜钱: 0 }), (r) => {
+    r.laizi = 19;
+    r.shuai = [[19, 19, 19], [19]];
+    r.gangs = [{ seat: 0, type: 'an', from: null, burst: true }];
+    r.hands = [[1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5], []];
+    r.drawn = [5, null];
+    r.turn = 0;
+    r.pending = null;
+    r.seats.forEach((m) => { m.score = 0; });
+    r.roundScore = [0, 0];
+  });
+  round.win(0, 5, null);
+  check('三癞对一癞暗杠加黑摸是128分', scoreOf(seats), [128, -128]);
+}
+
 // ---------------------------------------------------------------- 喜钱
 
 console.log('喜钱');

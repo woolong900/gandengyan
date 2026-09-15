@@ -85,6 +85,38 @@ const applyIosSyncPatches = (input) => {
     '0 === t.error ? c.default.focus = e :',
     '0 === t.error ? (c.default.focus = e, cc.director.getScene().name !== u.default.ClubSceneName && s.default.uiHelper.loadScene(u.default.ClubSceneName)) :',
   );
+  // 原厂旧 iOS 客户端没有 R234 加入的 score_ratio 支持。服务端为支持
+  // 2.5 分底分用整数保存十分之一分，必须在解析实时牌局数据时还原。
+  source = replaceOnce(
+    source,
+    'iOS 读取牌局分数倍率',
+    'r.default.owner = e.host;\nr.default.config = new i.default({',
+    'r.default.owner = e.host;\nr.default.scoreRatio = e.score_ratio || 1;\nr.default.config = new i.default({',
+  );
+  source = replaceOnce(
+    source,
+    'iOS 实时分数还原',
+    'var r = t[o], a = r.uid, s = r.score, l = r.total;\ni.default.players.getByUid(a).updateScore(l, s);',
+    'var r = t[o], a = r.uid, s = r.score / i.default.scoreRatio, l = r.total / i.default.scoreRatio;\ni.default.players.getByUid(a).updateScore(l, s);',
+  );
+  source = replaceOnce(
+    source,
+    'iOS 单局结算分数还原',
+    'uid: _.uid,\nscore: _.score,\nhuType: _.hu_type,',
+    'uid: _.uid,\nscore: _.score / i.default.scoreRatio,\nhuType: _.hu_type,',
+  );
+  source = replaceOnce(
+    source,
+    'iOS 牌桌累计分数还原',
+    'var a = !!e.ready, l = e.total || 0, c = e.deal || !1;',
+    'var a = !!e.ready, l = (e.total || 0) / i.default.scoreRatio, c = e.deal || !1;',
+  );
+  source = replaceOnce(
+    source,
+    'iOS 总结算分数还原',
+    'uid: u.uid,\nscore: u.score,\nwiner: u.winner || !1,',
+    'uid: u.uid,\nscore: u.score / r.default.scoreRatio,\nwiner: u.winner || !1,',
+  );
   source = replaceAll(
     source,
     '隐藏语音房选项',
