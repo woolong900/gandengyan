@@ -19,8 +19,8 @@
  * 原生库从旧 GCloudVoice 换成 GME 2.9。录音仍用 GME，文件走自己服务器 /voice，
  * 避免模拟器和真机落在不同 COS 分区后互相反向下载超时。
  *
- * 地址一律写局域网 IP。不要打 10.0.2.2：那是模拟器回环，真机连不上。
- * 模拟器也能访问电脑的 192.168.*。不写 --host 时自动探测网卡。
+ * 地址优先使用 .dev.vars 中的 QJQP_PUBLIC_BASE_URL，供真机在任意网络下访问。
+ * 未配置公网地址时才回退到局域网 IP。不要打 10.0.2.2：那是模拟器回环，真机连不上。
  *
  * usage: node tools/patchapk.js --apk <原始.apk> [--host <主机[:端口]>] [--tls] [--guest]
  *   [--package <包名>] [--app-name <应用名>] [--wechat-appid <微信AppID>] [--out <输出.apk>]
@@ -41,7 +41,7 @@ const loadDotEnv = () => {
   const p = path.join(__dirname, '..', '.dev.vars');
   if (!fs.existsSync(p)) return;
   for (const line of fs.readFileSync(p, 'utf8').split('\n')) {
-    const m = line.match(/^(QJQP_VOICE_APPID|QJQP_VOICE_APPKEY|QJQP_WECHAT_APPID)=(.*)$/);
+    const m = line.match(/^(QJQP_VOICE_APPID|QJQP_VOICE_APPKEY|QJQP_WECHAT_APPID|QJQP_PUBLIC_BASE_URL)=(.*)$/);
     if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim();
   }
 };
@@ -69,7 +69,22 @@ const lanIPv4 = () => {
 const APK = arg('apk');
 const LAN = lanIPv4();
 let HOST = arg('host');
-const TLS = argv.includes('--tls');
+let TLS = argv.includes('--tls');
+if (!HOST && process.env.QJQP_PUBLIC_BASE_URL) {
+  let publicUrl;
+  try {
+    publicUrl = new URL(process.env.QJQP_PUBLIC_BASE_URL);
+  } catch {
+    console.error('QJQP_PUBLIC_BASE_URL 不是有效 URL');
+    process.exit(1);
+  }
+  if (!['http:', 'https:'].includes(publicUrl.protocol) || publicUrl.pathname !== '/' || publicUrl.search || publicUrl.hash) {
+    console.error('QJQP_PUBLIC_BASE_URL 必须是不含路径、参数或锚点的 http(s) 根地址');
+    process.exit(1);
+  }
+  HOST = publicUrl.host;
+  TLS = publicUrl.protocol === 'https:';
+}
 if (HOST && /^10\.0\.2\.2(?::|$)/.test(HOST)) {
   if (!LAN) {
     console.error('不能打 10.0.2.2，真机连不上，也找不到局域网 IP');
