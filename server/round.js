@@ -120,7 +120,11 @@ class Round {
     let type = zimo
       ? (joker >= 0 && this.looseTiles(seat).includes(joker) ? HU.软摸 : HU.黑摸)
       : HU.屁胡;
-    if (qiangGang) type |= HU.抢杠胡;
+    if (qiangGang) {
+      // 抢杠只转被抢的补杠分；普通屁胡位会抢先命中原版客户端的语音。
+      // 清一色、双大胡等复合胡型仍由下方独立叠加。
+      type = HU.抢杠胡;
+    }
     // 清一色要先报过才算，没开这个玩法就没得报
     if (this.config.清一色 && this.baoQys[seat] && this.isQingYiSe(seat)) type |= HU.清一色;
     // 热铳：笑完紧接着打出的牌被捉炮。只转本轮杠分，不另加番。

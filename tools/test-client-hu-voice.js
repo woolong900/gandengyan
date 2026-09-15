@@ -68,7 +68,10 @@ for (const file of packages) {
     [32, 'qj_gsp', 'rechong'],
     [4 | 32, 'qj_gsp', 'rechong'],
     [8 | 32, 'qj_gsp', 'rechong'],
+    [16, 'qj_qgh', 'qiangganghu'],
     [4 | 16, 'qj_qgh', 'qiangganghu'],
+    [8 | 16, 'qj_qgh', 'qiangganghu'],
+    [16 | 64, 'qj_qgh', 'qiangganghu'],
   ];
   for (const [mask, wantSound, wantAnimation] of scenarios) {
     const operate = new context.e();
@@ -78,5 +81,5 @@ for (const file of packages) {
       throw new Error(`${file} 胡型 ${mask} 播报 ${sound}/${animation}，预期 ${wantSound}/${wantAnimation}`);
     }
   }
-  console.log(`${file}：普通炮、热铳、复合热铳及抢杠胡播报通过`);
+  console.log(`${file}：普通炮、热铳、抢杠胡及复合胡型播报通过`);
 }

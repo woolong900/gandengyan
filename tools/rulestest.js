@@ -103,6 +103,7 @@ console.log('抢杠胡');
   check('被抢后回头笑仍在杠堆', round.melds[0][0].type, 'bu');
   const over = lastOver(log);
   check('抢杠胡的位被置上', rules.hasBit(over.huType, rules.HU.抢杠胡), true);
+  check('普通抢杠只发送抢杠胡位', over.huType, rules.HU.抢杠胡);
   check('抢杠胡不算热铳', rules.hasBit(over.huType, rules.HU.热铳), false);
   // 两人、暗杠 4 倍：回头笑本该收 2，转给胡家，不加炮
   check('抢杠只转补杠进账，不加炮', scoreOf(seats), [-2, 2]);
@@ -345,6 +346,27 @@ console.log('双大胡');
   check('抢杠 + 清一色', [rules.hasBit(t, rules.HU.抢杠胡), rules.hasBit(t, rules.HU.清一色)], [true, true]);
   check('抢杠不是双大胡', rules.hasBit(t, rules.HU.双大胡), false);
   check('抢杠胡型不加炮', rules.huMultiplier(t, cfg({ 双大胡: true })), 0);
+}
+
+{
+  const { round, log, seats } = table(cfg({ 双大胡: true }), (r) => {
+    r.laizi = 31;
+    r.pizi = 15;
+    r.melds = [[{ type: 'peng', card: 5, from: 1 }], []];
+    r.hands = [[1, 1, 1, 2, 2, 2, 3, 3, 3, 4], [15, 15, 15, 1, 2, 3, 6, 7, 8, 11, 12, 13, 5]];
+    r.drawn = [5, null];
+    r.turn = 0;
+    r.pending = null;
+    r.seats.forEach((m) => { m.score = 0; });
+    r.roundScore = [0, 0];
+  });
+  check('手里保留朝天时可抢杠胡', round.canHu(1, 5), true);
+  round.selfGang(0, 5);
+  round.respond(1, 'hu');
+  const t = lastOver(log).huType;
+  check('抢杠和双大胡可以并存', t, rules.HU.抢杠胡 | rules.HU.双大胡);
+  check('复合抢杠也不加炮', rules.huMultiplier(t, cfg({ 双大胡: true })), 0);
+  check('复合抢杠保留双大胡杠分', scoreOf(seats), [-6, 6]);
 }
 
 {
