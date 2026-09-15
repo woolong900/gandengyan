@@ -551,6 +551,12 @@ RULES.push([
   u2b('a.default.eventUtils.emit(s.default.data_club_get_scheme_list);\nh.default.getClubTableInfo(e._clubId, function() { a.default.eventUtils.emit(s.default.data_club_table_scheme_update); }, !0);\n} else a.default.uiHelper.showTip(e.res.what);'),
 ]);
 
+// 修改玩法成功后立即拉取桌子数据，让空桌的局数和规则在俱乐部页面同步显示。
+RULES.push([
+  u2b('l.default.uiHelper.showTip("修改玩法成功");\nl.default.eventUtils.emit(c.default.data_club_get_scheme_list);\nl.default.uiHelper.remove(e);'),
+  u2b('l.default.uiHelper.showTip("修改玩法成功");\nl.default.eventUtils.emit(c.default.data_club_get_scheme_list);\ny.default.getClubTableInfo(e._clubId, function() {}, !0);\nl.default.uiHelper.remove(e);'),
+]);
+
 // 俱乐部桌子数据统一刷新后通知桌子组件，避免空列表时旧空桌残留在界面；
 // 回调变量全部改名，避免遮蔽模块级 gContext/EventKeys。
 RULES.push([

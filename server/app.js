@@ -483,7 +483,7 @@ class GameApp {
       if (!scheme.auto) continue;
       const exists = [...this.tables.values()].some((table) => (
         !table.closed && table.clubId === club.id && Number(table.schemeId) === Number(scheme.id)
-        && table.seats().length === 0
+        && table.members.length === 0
       ));
       if (exists) continue;
       const roomId = this.nextRoomId++;
@@ -989,7 +989,19 @@ class GameApp {
         });
       } else if (proto === 150) {
         const scheme = club.schemes.find((item) => item.id === num(msg.id));
-        if (scheme) Object.assign(scheme, { name: String(msg.name || ''), gameType: num(msg.gameType), num: num(msg.num), param1: num(msg.param1), param2: num(msg.param2), color: String(msg.color || '') });
+        if (scheme) {
+          Object.assign(scheme, { name: String(msg.name || ''), gameType: num(msg.gameType), num: num(msg.num), param1: num(msg.param1), param2: num(msg.param2), color: String(msg.color || '') });
+          for (const table of this.tables.values()) {
+            if (table.closed || table.clubId !== club.id || Number(table.schemeId) !== Number(scheme.id)
+              || table.members.length || table.round || table.step) continue;
+            table.gameType = scheme.gameType;
+            table.num = scheme.num;
+            table.param1 = scheme.param1;
+            table.param2 = scheme.param2;
+            table.config = rules.parseConfig(scheme.param1, scheme.param2);
+          }
+          if (scheme.auto) this.ensureClubSchemeTables(club);
+        }
       } else if (proto === 151) {
         const scheme = club.schemes.find((item) => item.id === num(msg.id));
         if (scheme) {

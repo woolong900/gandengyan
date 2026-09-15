@@ -106,7 +106,7 @@ app.onMessage('a', packCs(121, { clubId }));
 const managed = last(boxes.a, 121).members.find((member) => Number(member.userId) === b.uid);
 t('成员管理数据生效', [Number(managed.memberType), Number(managed.freeze), managed.remark], [2, 1, '测试备注']);
 
-app.onMessage('a', packCs(149, { clubId, gameType: 2, num: 1, param1: gameParam.param1, param2: gameParam.param2 }));
+app.onMessage('a', packCs(149, { clubId, gameType: 2, num: 2, param1: gameParam.param1, param2: gameParam.param2 }));
 t('添加俱乐部方案', Number(last(boxes.a, 149).res.error), 0);
 app.onMessage('a', packCs(124, { clubId }));
 const schemes = last(boxes.a, 124);
@@ -123,8 +123,16 @@ const autoSnapshot = JSON.parse(JSON.parse(last(boxes.a, 202).json).msgdata).roo
 t('牌桌快照携带俱乐部 ID', Number(autoSnapshot.club_id), clubId);
 const autoTables = [...app.tables.values()].filter((table) => table.clubId === clubId && Number(table.schemeId) === schemeId);
 t('有人入座立即补一张空桌', [autoTables.length, autoTables.filter((table) => table.seats().length === 0).length], [2, 1]);
+const vacantTable = autoTables.find((table) => table.members.length === 0);
+app.onMessage('a', packCs(150, {
+  id: schemeId, name: '', gameType: 2, num: 1, param1: gameParam.param1, param2: gameParam.param2, color: '0',
+}));
+t('玩法从16局改为8局成功', Number(last(boxes.a, 150).res.error), 0);
+t('已有玩家的桌子保留16局', app.tables.get(autoRoomId).num, 2);
+t('空桌立即改为8局', vacantTable.num, 1);
 app.onMessage('a', packCs(122, { clubId }));
 t('俱乐部桌子列表能看到补建空桌', last(boxes.a, 122).rooms.length, 2);
+t('桌子列表显示新空桌8局', Number(last(boxes.a, 122).rooms.find((room) => Number(room.id) === vacantTable.roomId).num), 1);
 app.onMessage('a', packCs(202, { roomId: autoRoomId }));
 t('重连同一桌不会重复补桌', [...app.tables.values()].filter((table) => table.clubId === clubId && Number(table.schemeId) === schemeId).length, 2);
 app.tables.get(autoRoomId).dissolve();

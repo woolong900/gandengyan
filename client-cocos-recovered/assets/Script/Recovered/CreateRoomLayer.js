@@ -194,6 +194,7 @@ y.default.clubGameSchemeEdit(n, "", this._clubId, r, t, function(t, o) {
 if (o) l.default.uiHelper.showTip("修改玩法失败"); else if (0 === t.res.error) {
 l.default.uiHelper.showTip("修改玩法成功");
 l.default.eventUtils.emit(c.default.data_club_get_scheme_list);
+y.default.getClubTableInfo(e._clubId, function() {}, !0);
 l.default.uiHelper.remove(e);
 } else l.default.uiHelper.showTip(t.res.what);
 });
