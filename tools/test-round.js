@@ -73,7 +73,8 @@ const boot = (n, extra = {}) => {
   t('屁胡 2 倍', rules.huMultiplier(rules.HU.屁胡, c), 2);
   t('黑摸 4 倍', rules.huMultiplier(rules.HU.黑摸, c), 4);
   t('软摸 2 倍', rules.huMultiplier(rules.HU.软摸, c), 2);
-  t('热铳不加番', rules.huMultiplier(rules.HU.屁胡 | rules.HU.热铳, c), 2);
+  t('单独热铳位仍按点炮计分', rules.huMultiplier(rules.HU.热铳, c), 2);
+  t('旧复合热铳位计分兼容', rules.huMultiplier(rules.HU.屁胡 | rules.HU.热铳, c), 2);
   t('抢杠胡不加炮', rules.huMultiplier(rules.HU.屁胡 | rules.HU.抢杠胡, c), 0);
 }
 

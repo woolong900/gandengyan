@@ -209,9 +209,15 @@ t.prototype._updatePos = function() {`;
 
   source = replaceOnce(
     source,
-    '抢杠胡语音优先级',
+    '抢杠胡与热铳动画优先级',
+    'e.prototype._huAnimationName = function(e, t) {\nfor (var o = "hu", r = a.HuTypeBitConfig[e], i = this._sortIds(r), s = 0; s < i.length; s++) {\nvar l = parseInt(i[s]);\nif (n.default.checkBit(t, l)) {\no = r[l].animation || o;\nbreak;\n}\n}\nreturn o;\n};',
+    'e.prototype._huAnimationName = function(e, t) {\nvar r = a.HuTypeBitConfig[e];\nif (e === i.eGameIds.QJHH && r[16] && n.default.checkBit(t, 16)) return r[16].animation || "hu";\nif (e === i.eGameIds.QJHH && r[32] && n.default.checkBit(t, 32)) return r[32].animation || "hu";\nfor (var o = "hu", h = this._sortIds(r), s = 0; s < h.length; s++) {\nvar l = parseInt(h[s]);\nif (n.default.checkBit(t, l)) {\no = r[l].animation || o;\nbreak;\n}\n}\nreturn o;\n};',
+  );
+  source = replaceOnce(
+    source,
+    '抢杠胡与热铳语音优先级',
     u2b('e.prototype._huSound = function(e, t) {\nfor (var o = null, r = a.HuTypeBitConfig[e], i = this._sortIds(r), l = 0; l < i.length; l++) {\nvar c = parseInt(i[l]);\nif (n.default.checkBit(t, c)) {\no = r[c].sound;\nbreak;\n}\n}\no || (o = s.default.gameLogic().isZiMo(t) ? "zimo" : "hu");\nreturn o;\n};'),
-    u2b('e.prototype._huSound = function(e, t) {\nvar o = null, r = a.HuTypeBitConfig[e];\nif (e === i.eGameIds.QJHH && r[16] && n.default.checkBit(t, 16)) return r[16].sound || "hu";\nfor (var h = this._sortIds(r), l = 0; l < h.length; l++) {\nvar c = parseInt(h[l]);\nif (n.default.checkBit(t, c)) {\no = r[c].sound;\nbreak;\n}\n}\no || (o = s.default.gameLogic().isZiMo(t) ? "zimo" : "hu");\nreturn o;\n};'),
+    u2b('e.prototype._huSound = function(e, t) {\nvar o = null, r = a.HuTypeBitConfig[e];\nif (e === i.eGameIds.QJHH && r[16] && n.default.checkBit(t, 16)) return r[16].sound || "hu";\nif (e === i.eGameIds.QJHH && r[32] && n.default.checkBit(t, 32)) return r[32].sound || "hu";\nfor (var h = this._sortIds(r), l = 0; l < h.length; l++) {\nvar c = parseInt(h[l]);\nif (n.default.checkBit(t, c)) {\no = r[c].sound;\nbreak;\n}\n}\no || (o = s.default.gameLogic().isZiMo(t) ? "zimo" : "hu");\nreturn o;\n};'),
   );
 
   source = replaceOnce(

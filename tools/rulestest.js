@@ -202,6 +202,7 @@ console.log('热铳');
   round.doSelfGang(0, 1, false);
   gangThenHu(round, 0, 1);
   check('笑后打出被捉才是热铳', rules.hasBit(lastOver(log).huType, rules.HU.热铳), true);
+  check('普通热铳只发送热铳位', lastOver(log).huType, rules.HU.热铳);
   // 暗杠本该收 2×3=6，不算进自己账，整笔给胡家，再加屁胡 2
   check('暗杠热铳把 6 分杠款加屁胡给胡家', scoreOf(seats), [-8, 8, 0, 0]);
 }

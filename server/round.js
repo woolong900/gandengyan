@@ -125,7 +125,9 @@ class Round {
     if (this.config.清一色 && this.baoQys[seat] && this.isQingYiSe(seat)) type |= HU.清一色;
     // 热铳：笑完紧接着打出的牌被捉炮。只转本轮杠分，不另加番。
     if (this.config.热铳 && !zimo && !qiangGang && from != null && this.hotSeat === from) {
-      type |= HU.热铳;
+      // 胡分仍按普通点炮计，协议里的普通屁胡位会抢先匹配客户端语音。
+      // 只保留热铳胡型位，复合胡型（清一色、双大胡）继续叠加。
+      type = (type & ~HU.屁胡) | HU.热铳;
     }
     if (this.config.双大胡 && this.isShuangDaHu(seat)) type |= HU.双大胡;
     return type;

@@ -425,10 +425,14 @@ RULES.push([
   't.prototype.load = function(e) {\nvar t = this, o = this.node.getComponent(cc.ScrollView), n = this.node.getChildByName("scrollBar"), r = cc.find("view/content", this.node);\no.elastic = !1;',
 ]);
 
-// 抢杠胡同时带普通胡位时，优先播报潜江专用的 qj_qgh，不能被普通 hu 音频抢先匹配。
+// 抢杠胡、热铳同时带普通屁胡位时，先播放专用语音和动画。
+RULES.push([
+  'e.prototype._huAnimationName = function(e, t) {\nfor (var o = "hu", r = a.HuTypeBitConfig[e], i = this._sortIds(r), s = 0; s < i.length; s++) {\nvar l = parseInt(i[s]);\nif (n.default.checkBit(t, l)) {\no = r[l].animation || o;\nbreak;\n}\n}\nreturn o;\n};',
+  'e.prototype._huAnimationName = function(e, t) {\nvar r = a.HuTypeBitConfig[e];\nif (e === i.eGameIds.QJHH && r[16] && n.default.checkBit(t, 16)) return r[16].animation || "hu";\nif (e === i.eGameIds.QJHH && r[32] && n.default.checkBit(t, 32)) return r[32].animation || "hu";\nfor (var o = "hu", h = this._sortIds(r), s = 0; s < h.length; s++) {\nvar l = parseInt(h[s]);\nif (n.default.checkBit(t, l)) {\no = r[l].animation || o;\nbreak;\n}\n}\nreturn o;\n};',
+]);
 RULES.push([
   u2b('e.prototype._huSound = function(e, t) {\nfor (var o = null, r = a.HuTypeBitConfig[e], i = this._sortIds(r), l = 0; l < i.length; l++) {\nvar c = parseInt(i[l]);\nif (n.default.checkBit(t, c)) {\no = r[c].sound;\nbreak;\n}\n}\no || (o = s.default.gameLogic().isZiMo(t) ? "zimo" : "hu");\nreturn o;\n};'),
-  u2b('e.prototype._huSound = function(e, t) {\nvar o = null, r = a.HuTypeBitConfig[e];\nif (e === i.eGameIds.QJHH && r[16] && n.default.checkBit(t, 16)) return r[16].sound || "hu";\nfor (var h = this._sortIds(r), l = 0; l < h.length; l++) {\nvar c = parseInt(h[l]);\nif (n.default.checkBit(t, c)) {\no = r[c].sound;\nbreak;\n}\n}\no || (o = s.default.gameLogic().isZiMo(t) ? "zimo" : "hu");\nreturn o;\n};'),
+  u2b('e.prototype._huSound = function(e, t) {\nvar o = null, r = a.HuTypeBitConfig[e];\nif (e === i.eGameIds.QJHH && r[16] && n.default.checkBit(t, 16)) return r[16].sound || "hu";\nif (e === i.eGameIds.QJHH && r[32] && n.default.checkBit(t, 32)) return r[32].sound || "hu";\nfor (var h = this._sortIds(r), l = 0; l < h.length; l++) {\nvar c = parseInt(h[l]);\nif (n.default.checkBit(t, c)) {\no = r[c].sound;\nbreak;\n}\n}\no || (o = s.default.gameLogic().isZiMo(t) ? "zimo" : "hu");\nreturn o;\n};'),
 ]);
 
 // 右侧开启/关闭玩法后，主动刷新桌子列表，清掉服务端已回收的空桌。
