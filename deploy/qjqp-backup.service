@@ -1,0 +1,14 @@
+[Unit]
+Description=备份潜江干瞪眼 SQLite 数据
+After=qjqp.service
+
+[Service]
+Type=oneshot
+User=qjqp
+Group=qjqp
+WorkingDirectory=/opt/qjqp
+EnvironmentFile=/etc/qjqp.env
+ExecStart=/opt/qjqp/deploy/qjqp-backup.sh
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/qjqp /var/backups/qjqp

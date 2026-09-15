@@ -23,6 +23,7 @@ const { authorizeWechat } = require('./wechat');
 const voice = createVoice(path.join(path.dirname(store.FILE), 'voice'));
 
 const PORT = Number(process.env.PORT) || 8080;
+const LISTEN_HOST = process.env.HOST || '0.0.0.0';
 const APP_BUNDLE_ID = 'com.haoke.gandengyan';
 const APPLE_TEAM_ID = process.env.QJQP_APPLE_TEAM_ID || '4CSMM3394C';
 
@@ -275,6 +276,6 @@ try {
   process.exit(1);
 }
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`服务端起在 :${PORT}  （/version /login /ws /voice）`);
+server.listen(PORT, LISTEN_HOST, () => {
+  console.log(`服务端起在 ${LISTEN_HOST}:${PORT}  （/version /login /ws /voice）`);
 });

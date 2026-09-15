@@ -1,0 +1,23 @@
+[Unit]
+Description=潜江干瞪眼游戏服务
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=qjqp
+Group=qjqp
+WorkingDirectory=/opt/qjqp
+EnvironmentFile=/etc/qjqp.env
+ExecStart=/usr/bin/node /opt/qjqp/server/index.js
+Restart=always
+RestartSec=3
+TimeoutStopSec=15
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/qjqp
+
+[Install]
+WantedBy=multi-user.target

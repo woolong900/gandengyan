@@ -1,0 +1,10 @@
+[Unit]
+Description=每天备份潜江干瞪眼数据
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 Asia/Shanghai
+Persistent=true
+RandomizedDelaySec=10m
+
+[Install]
+WantedBy=timers.target
