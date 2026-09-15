@@ -154,6 +154,8 @@ const applyIosBrandingAssets = (app) => {
     ['login/login-background.jpg', ['73', '73c931dd-4abb-4c4c-ab86-37f883c44430.jpg']],
     ['table/table-background-2d.jpg', ['65', '6528fb79-db94-4c58-88e8-ff1b0a184491.jpg']],
     ['table/table-background-3d-ios.png', ['16', '16cd3461-5051-44bf-83b2-bb6ad34d0696.png']],
+    ['share/settlement-background.png', ['b9', 'b90e4f53-0a61-4024-a8e4-3c9d5dd78f18.png']],
+    ['share/download-qr.png', ['20', '206b229f-fa1c-409e-b47e-b2d2c0938d57.png']],
   ];
   for (const [source, target] of replacements) {
     replaceCocosAsset(path.join(branding, source), path.join(raw, ...target));

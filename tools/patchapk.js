@@ -165,6 +165,12 @@ const RULES = [
   ['http://ylsoft.qj.dayuehuyu.com', http],
   ['http://hotupgrade.yuanlaihuyu.com', http],
 ];
+// 战绩截图的“玩法”显示的是本项目保留的玩法名，而不是原厂游戏名。
+RULES.push([
+  u2b('d = "玩法：" + o + "  " + n;'),
+  u2b('d = "玩法：干瞪眼  " + n;'),
+  true,
+]);
 if (argv.includes('--guest')) {
   RULES.push(['this.guestNode.active = v.default.isDebug();', 'this.guestNode.active = true;']);
 }
@@ -796,6 +802,14 @@ const applyBranding = (decoded) => {
     TABLE_BACKGROUND_3D_SOURCE,
     path.join(decoded, 'assets', 'res', 'raw-assets', '0e', '0ed69516-3023-4cb0-947a-abd9aab04b9f.jpg'),
   );
+  writeEncryptedAsset(
+    path.join(__dirname, '..', 'assets', 'branding', 'share', 'settlement-background.png'),
+    path.join(decoded, 'assets', 'res', 'raw-assets', 'b9', 'b90e4f53-0a61-4024-a8e4-3c9d5dd78f18.png'),
+  );
+  writeEncryptedAsset(
+    path.join(__dirname, '..', 'assets', 'branding', 'share', 'download-qr.png'),
+    path.join(decoded, 'assets', 'res', 'raw-assets', '20', '206b229f-fa1c-409e-b47e-b2d2c0938d57.png'),
+  );
   sanitizeCocosText(decoded);
   replaceLegacyArtwork(decoded);
   disableLegacyHotUpdate(decoded);
@@ -808,6 +822,7 @@ const applyBranding = (decoded) => {
   console.log('      已替换大厅背景和卡通人物');
   console.log('      已替换创建俱乐部页面背景和人物');
   console.log('      已替换 2D / 3D 牌桌背景花纹');
+  console.log('      已替换微信分享缩略图、战绩背景和下载二维码');
   console.log('      已移除用户可见的旧品牌名称、公告和客服信息');
   console.log('      协议页面已改为待补充真实运营主体的内部测试提示');
   console.log('      已禁用不再使用的钉钉 SDK 启动初始化');

@@ -38,7 +38,7 @@ t.cellPre1 = null;
 return t;
 }
 t.prototype.start = function() {
-var e = i.default.getTotalEndData(), t = i.default.config.gameCount(), o = i.default.config.gameName(), n = l.default.gameLogic().scoreRuleDesc(i.default.config), r = "" + a.default.dateFormat(1e3 * e.time, "yyyy-MM-dd hh:mm:ss"), c = "房号：" + i.default.roomId, u = "局数：" + t + "局", d = "玩法：" + o + "  " + n;
+var e = i.default.getTotalEndData(), t = i.default.config.gameCount(), o = i.default.config.gameName(), n = l.default.gameLogic().scoreRuleDesc(i.default.config), r = "" + a.default.dateFormat(1e3 * e.time, "yyyy-MM-dd hh:mm:ss"), c = "房号：" + i.default.roomId, u = "局数：" + t + "局", d = "玩法：干瞪眼  " + n;
 this.descLabel.string = r + "\n" + c + "\n" + u + "\n" + d;
 for (var p = 0, f = e.players.length; p < f; p++) {
 var h = null;
