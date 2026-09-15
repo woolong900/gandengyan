@@ -39,6 +39,12 @@ t.wechat = null;
 t.tencent = null;
 return t;
 }
+t.prototype.onLoad = function() {
+var e = this.activityRoot.getChildByName("Btn4");
+e && e.removeFromParent();
+var t = this.content.getChildByName("page_5");
+t && (t.active = !1);
+};
 t.prototype.start = function() {
 if (u.default.isReivew) {
 this.activityRoot.getChildByName("Btn0").removeFromParent();

@@ -172,6 +172,14 @@ const RULES = [
   ['http://ylsoft.qj.dayuehuyu.com', http],
   ['http://hotupgrade.yuanlaihuyu.com', http],
 ];
+// “活动”面板的第五栏是原厂固定的违禁公告。进入页面时移除按钮，
+// 保留前四栏的原有索引，避免活动列表点击后切换到错误内容。
+RULES.push([
+  't.prototype.start = function() {\nif (u.default.isReivew) {\nthis.activityRoot.getChildByName("Btn0").removeFromParent();',
+  recoveredBetween('ActivityLayer.js', 't.prototype.onLoad = function() {', 'this.activityRoot.getChildByName("Btn0").removeFromParent();')
+    + 'this.activityRoot.getChildByName("Btn0").removeFromParent();',
+  true,
+]);
 // 战绩截图的“玩法”显示的是本项目保留的玩法名，而不是原厂游戏名。
 RULES.push([
   u2b('d = "玩法：" + o + "  " + n;'),
