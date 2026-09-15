@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>潜江干瞪眼 · 管理后台</title>
+  <link rel="icon" href="/share/icon.png">
+  <link rel="stylesheet" href="/admin/style.css">
+  <script src="/admin/app.js" defer></script>
+</head>
+<body>
+  <div id="login" class="login-screen hidden">
+    <div class="login-card">
+      <div class="login-symbol">♠</div>
+      <p class="eyebrow">HAOKE OPERATIONS</p>
+      <h1>潜江干瞪眼</h1>
+      <p class="subline">管理后台 · 请使用管理员密码登录</p>
+      <form id="login-form">
+        <label for="password">管理员密码</label>
+        <input id="password" type="password" name="password" autocomplete="current-password" minlength="12" required>
+        <button type="submit" class="button primary full">进入后台</button>
+      </form>
+      <p id="login-error" class="error-line" role="alert"></p>
+    </div>
+  </div>
+  <div id="workspace" class="workspace hidden">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark">♠</span><div><strong>潜江干瞪眼</strong><small>运营控制台</small></div></div>
+      <p class="nav-caption">业务管理</p>
+      <nav id="nav">
+        <button type="button" data-view="dashboard" class="nav-item active"><span>◫</span> 数据面板</button>
+        <button type="button" data-view="players" class="nav-item"><span>♙</span> 玩家管理</button>
+        <button type="button" data-view="rooms" class="nav-item"><span>▣</span> 房间管理</button>
+        <button type="button" data-view="records" class="nav-item"><span>≡</span> 牌局管理</button>
+        <button type="button" data-view="clubs" class="nav-item"><span>♧</span> 俱乐部管理</button>
+        <p class="nav-caption secondary">运营与系统</p>
+        <button type="button" data-view="messages" class="nav-item"><span>✉</span> 通知管理</button>
+        <button type="button" data-view="notices" class="nav-item"><span>◉</span> 大厅公告</button>
+        <button type="button" data-view="audit" class="nav-item"><span>◷</span> 操作日志</button>
+        <button type="button" data-view="system" class="nav-item"><span>⚙</span> 备份与系统</button>
+      </nav>
+      <div class="sidebar-footer"><span class="online-dot"></span> 数据来自当前服务端</div>
+    </aside>
+    <div class="main-column">
+      <header class="topbar">
+        <div><p class="eyebrow">QIANJIANG GANDENGYAN</p><h2 id="page-title">数据面板</h2></div>
+        <div class="top-actions"><span id="current-time"></span><span class="account-chip">管理员</span><button type="button" data-action="logout" class="button ghost">退出</button></div>
+      </header>
+      <main id="content" class="content"><div class="loading-card">正在加载数据…</div></main>
+    </div>
+  </div>
+  <div id="toast" class="toast hidden" role="status"></div>
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true"><div id="modal-card" class="modal-card"></div></div>
+</body>
+</html>

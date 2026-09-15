@@ -20,6 +20,7 @@ const store = require('./store');
 const { GameApp } = require('./app');
 const { createVoice } = require('./voice');
 const { authorizeWechat } = require('./wechat');
+const { createAdminHttp } = require('./admin-http');
 
 const voice = createVoice(path.join(path.dirname(store.FILE), 'voice'));
 
@@ -62,6 +63,10 @@ const flush = (data) => {
 const app = new GameApp({
   persist: () => persistSoon(),
   now: Date.now,
+  onRecord: (record) => store.archiveRecord(record),
+});
+const adminHttp = createAdminHttp({ app, store, flush,
+  publicBaseUrl: String(process.env.QJQP_PUBLIC_BASE_URL || '').replace(/\/$/, ''),
 });
 
 const json = (res, body, status = 200) => {
@@ -185,6 +190,15 @@ const server = http.createServer(async (req, res) => {
     return json(res, { err_code: 1, err_msg: 'invalid URL' }, 400);
   }
   console.log(`HTTP ${req.method} ${logUrl(url)}`);
+
+  if (url.pathname === '/admin' || url.pathname.startsWith('/admin/')) {
+    try { return await adminHttp.handler(req, res, url); }
+    catch (error) {
+      console.error('管理后台请求失败', error);
+      if (!res.headersSent) return json(res, { error: '管理后台处理失败' }, 500);
+      return;
+    }
+  }
 
   if (url.pathname === '/operator/messages' || /^\/operator\/messages\/\d+$/.test(url.pathname)) {
     res.setHeader('Cache-Control', 'no-store');
@@ -314,7 +328,7 @@ wss.on('connection', (ws) => {
   console.log('WS 连上');
   app.attach(connId, (buf) => {
     if (ws.readyState === 1) ws.send(buf);
-  });
+  }, () => ws.close(4003, 'account disabled'));
   ws.on('error', (err) => console.error('WS 错误', err));
   ws.on('message', (data) => {
     try {
@@ -353,6 +367,7 @@ server.on('error', (err) => console.error('HTTP 监听出错', err));
 
 try {
   app.restore(store.load());
+  store.backfillRecords(app.records);
   void flush();
   console.log(`从存档恢复 ${app.players.size} 个玩家、${app.tables.size} 个房间  ${store.FILE}`);
 } catch (err) {

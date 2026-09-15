@@ -12,7 +12,7 @@
     "apk:install": "node tools/build-install-apk.js",
     "apk:source": "node tools/build-cocos-source-apk.js",
     "ipa:build": "node tools/build-ios-ipa.js",
-    "test": "node tools/test-cards.js && node tools/test-clubs.js && node tools/test-club-access.js && node tools/test-finished-room.js && node tools/test-store.js && node tools/test-http.js && node tools/test-wechat.js && node tools/test-guest-login.js && node tools/test-identity.js && node tools/test-playback.js && node tools/test-records.js && node tools/test-watch.js && node tools/test-net.js && node tools/test-trustee.js && node tools/test-round.js && node tools/rulestest.js"
+    "test": "node tools/test-cards.js && node tools/test-clubs.js && node tools/test-club-access.js && node tools/test-finished-room.js && node tools/test-store.js && node tools/test-http.js && node tools/test-admin.js && node tools/test-messages.js && node tools/test-wechat.js && node tools/test-guest-login.js && node tools/test-identity.js && node tools/test-playback.js && node tools/test-records.js && node tools/test-watch.js && node tools/test-net.js && node tools/test-trustee.js && node tools/test-round.js && node tools/rulestest.js"
   },
   "devDependencies": {
     "rollup": "^4.0.0"

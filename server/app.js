@@ -15,8 +15,9 @@ const { identityDigest, maskIdCard, validateIdentity } = require('./identity');
 const { assignAvatarIfMissing } = require('./avatars');
 
 class GameApp {
-  constructor({ persist, now, allowUnregisteredTokens = false, identityHashKey } = {}) {
+  constructor({ persist, now, onRecord, allowUnregisteredTokens = false, identityHashKey } = {}) {
     this.persistFn = persist || (() => {});
+    this.onRecord = onRecord || (() => {});
     this.nowFn = now || Date.now;
     this.allowUnregisteredTokens = !!allowUnregisteredTokens;
     this.identityHashKey = String(identityHashKey || process.env.QJQP_ID_HASH_KEY || '');
@@ -36,6 +37,7 @@ class GameApp {
     this.playbackSeq = 0;
     this.operatorMessages = [];
     this.nextOperatorMessageId = 1000000000;
+    this.publicNotices = { hallMarquee: '', serviceWechat: '', serviceQQ: '' };
   }
 
   now() {
@@ -56,6 +58,19 @@ class GameApp {
         conn.send(pack(1003, { clubInfo: { name: '', code: '' }, inviterInfo: { name: '', code: '' } }));
       }
     }
+  }
+
+  noticeBody() {
+    return { noticeInfo: [
+      { id: 1, content: this.publicNotices.hallMarquee || '' },
+      { id: 3, content: this.publicNotices.serviceWechat || '' },
+      { id: 4, content: this.publicNotices.serviceQQ || '' },
+    ] };
+  }
+
+  broadcastNotices() {
+    const message = pack(1007, this.noticeBody());
+    for (const conn of this.conns.values()) if (conn.player && !conn.player.disabled) conn.send(message);
   }
 
   messageForPlayer(message, player) {
@@ -169,6 +184,7 @@ class GameApp {
     if ((table.step || 0) < 1 && !(table.hands && table.hands.length)) return null;
     table.recordSaved = true;
     const rec = buildRecord(table, this.now());
+    try { this.onRecord(rec); } catch (error) { console.error('牌局归档失败', error); }
     this.records = keepLatest(this.records.concat(rec));
     console.log(`  战绩 ${rec.id} 房${rec.roomId} ${rec.gameCount}/${rec.totalCount}局`);
     return rec;
@@ -279,9 +295,10 @@ class GameApp {
     let player;
     if (match) {
       [token, player] = match;
+      if (player.disabled) throw new Error('账号已停用，请联系管理员');
     } else {
       token = `t_${crypto.randomBytes(24).toString('hex')}`;
-      player = emptyPlayer(this.nextUid++);
+      player = emptyPlayer(this.nextUid++, { createdAt: this.now() });
       this.players.set(token, player);
       this.playersByUid.set(player.uid, player);
     }
@@ -291,6 +308,7 @@ class GameApp {
     if (profile.avatarUrl) player.avatarUrl = String(profile.avatarUrl);
     else assignAvatarIfMissing(player);
     if (Number(profile.sex)) player.sex = Number(profile.sex);
+    player.lastLoginAt = this.now();
     this.ensureInviteCode(player);
     this.persist();
     return { token, player };
@@ -307,28 +325,32 @@ class GameApp {
     const knownToken = deviceHash && this.playersByGuestDeviceHash.get(deviceHash);
     if (knownToken && this.players.has(knownToken)) {
       const player = this.players.get(knownToken);
-      if (assignAvatarIfMissing(player)) this.persist();
+      if (player.disabled) return { error: '账号已停用，请联系管理员' };
+      player.lastLoginAt = this.now();
+      assignAvatarIfMissing(player);
+      this.persist();
       return { token: knownToken, player, created: false };
     }
 
     const previousToken = String(oldToken || '');
     if (previousToken && this.players.has(previousToken)) {
       const player = this.players.get(previousToken);
+      if (player.disabled) return { error: '账号已停用，请联系管理员' };
       if (!deviceHash || !player.guestDeviceHash || player.guestDeviceHash === deviceHash) {
-        let changed = assignAvatarIfMissing(player);
+        player.lastLoginAt = this.now();
+        assignAvatarIfMissing(player);
         if (deviceHash && !player.guestDeviceHash) {
           player.guestDeviceHash = deviceHash;
           this.playersByGuestDeviceHash.set(deviceHash, previousToken);
-          changed = true;
         }
-        if (changed) this.persist();
+        this.persist();
         return { token: previousToken, player, created: false };
       }
     }
 
     const uid = this.nextUid++;
     const token = `t_${crypto.randomBytes(24).toString('hex')}`;
-    const player = emptyPlayer(uid, { guestDeviceHash: deviceHash });
+    const player = emptyPlayer(uid, { guestDeviceHash: deviceHash, createdAt: this.now(), lastLoginAt: this.now() });
     assignAvatarIfMissing(player);
     this.players.set(token, player);
     this.playersByUid.set(player.uid, player);
@@ -371,6 +393,9 @@ class GameApp {
         sex: p.sex,
         avatarUrl: p.avatarUrl || '',
         readMessageIds: p.readMessageIds || [],
+        createdAt: Number(p.createdAt || 0),
+        lastLoginAt: Number(p.lastLoginAt || 0),
+        disabled: !!p.disabled,
         wechatOpenid: p.wechatOpenid || '',
         wechatUnionid: p.wechatUnionid || '',
         identityVerified: !!p.identityVerified,
@@ -391,6 +416,7 @@ class GameApp {
       records: this.records,
       operatorMessages: this.operatorMessages,
       nextOperatorMessageId: this.nextOperatorMessageId,
+      publicNotices: this.publicNotices,
       playbackSeq: this.playbackSeq || 0,
       clubs: this.clubStore.dump(),
     };
@@ -414,6 +440,12 @@ class GameApp {
       Number(data.nextOperatorMessageId) || 0,
       ...this.operatorMessages.map((message) => Number(message.id) + 1),
     );
+    const notices = data.publicNotices && typeof data.publicNotices === 'object' ? data.publicNotices : {};
+    this.publicNotices = {
+      hallMarquee: String(notices.hallMarquee || ''),
+      serviceWechat: String(notices.serviceWechat || ''),
+      serviceQQ: String(notices.serviceQQ || ''),
+    };
     this.playbackSeq = data.playbackSeq || 0;
     this.clubStore.restore(data.clubs);
     const byUid = new Map();
@@ -646,18 +678,23 @@ class GameApp {
       }
       if (accountType === 'token') {
         if (old && this.players.has(old)) {
+          const player = this.players.get(old);
+          if (player.disabled) return { status: 200, body: { err_code: 66, err_msg: '账号已停用，请联系管理员' } };
+          player.lastLoginAt = this.now();
+          this.persist();
           return { status: 200, body: { err_code: 0, data: { token: old } } };
         }
         return { status: 200, body: { err_code: 65, err_msg: '登录时效已过期,请重新登录' } };
       }
       const login = this.loginGuest(query.get('deviceId'), old);
+      if (login.error) return { status: 200, body: { err_code: 66, err_msg: login.error } };
       return { status: 200, body: { err_code: 0, data: { token: login.token } } };
     }
     return { status: 404, body: null };
   }
 
-  attach(connId, send) {
-    this.conns.set(connId, { send, player: null, roomId: 0 });
+  attach(connId, send, close) {
+    this.conns.set(connId, { send, close, player: null, roomId: 0 });
   }
 
   detach(connId) {
@@ -692,12 +729,18 @@ class GameApp {
         this.ensureInviteCode(newbie);
       }
       c.player = this.players.get(msg.token);
+      if (c.player.disabled) {
+        c.player = null;
+        return c.send(pack(100, { res: { error: 66, what: '账号已停用，请联系管理员' } }));
+      }
+      c.player.lastLoginAt = this.now();
+      this.persist();
       if (assignAvatarIfMissing(c.player)) this.persist();
       this.ensureInviteCode(c.player);
       const roomId = this.uidRoom.get(c.player.uid) || 0;
       c.roomId = roomId;
       console.log(`  100 登录 uid=${c.player.uid}`);
-      return c.send(pack(100, {
+      c.send(pack(100, {
         res: { error: 0, what: '' },
         uid: c.player.uid,
         nickname: c.player.nickname,
@@ -707,6 +750,8 @@ class GameApp {
         cardNum: c.player.cardNum,
         ip: '127.0.0.1',
       }));
+      if (Object.values(this.publicNotices).some(Boolean)) c.send(pack(1007, this.noticeBody()));
+      return;
     }
 
     if (proto === 99) return c.send(pack(99, { time: this.now() }));
@@ -716,6 +761,7 @@ class GameApp {
     }
 
     if (!c.player) return;
+    if (c.player.disabled) return;
 
     if (proto === 101) {
       return c.send(pack(101, { res: { error: 0, what: '' }, ...this.identityInfo(c.player) }));

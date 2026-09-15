@@ -16,6 +16,7 @@ const empty = () => ({
   nextOperatorMessageId: 1000000000,
   players: [],
   operatorMessages: [],
+  publicNotices: { hallMarquee: '', serviceWechat: '', serviceQQ: '' },
   rooms: [],
   records: [],
   playbackSeq: 0,
@@ -33,6 +34,7 @@ const normalize = (data) => {
     nextOperatorMessageId: Number(raw.nextOperatorMessageId) || base.nextOperatorMessageId,
     players: Array.isArray(raw.players) ? raw.players : [],
     operatorMessages: Array.isArray(raw.operatorMessages) ? raw.operatorMessages : [],
+    publicNotices: raw.publicNotices && typeof raw.publicNotices === 'object' ? raw.publicNotices : base.publicNotices,
     rooms: Array.isArray(raw.rooms) ? raw.rooms : [],
     records: Array.isArray(raw.records) ? raw.records : [],
     playbackSeq: Number(raw.playbackSeq) || 0,
@@ -87,6 +89,34 @@ const open = () => {
       id INTEGER NOT NULL UNIQUE,
       data TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS public_notices (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      data TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS admin_audit (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      at INTEGER NOT NULL,
+      actor TEXT NOT NULL,
+      action TEXT NOT NULL,
+      target TEXT NOT NULL,
+      details TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS admin_audit_at ON admin_audit(at);
+    CREATE TABLE IF NOT EXISTS record_history (
+      id TEXT PRIMARY KEY,
+      room_id INTEGER NOT NULL,
+      club_id INTEGER NOT NULL DEFAULT 0,
+      time INTEGER NOT NULL,
+      data TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS record_history_time ON record_history(time);
+    CREATE INDEX IF NOT EXISTS record_history_room ON record_history(room_id);
+    CREATE TABLE IF NOT EXISTS record_history_player (
+      record_id TEXT NOT NULL REFERENCES record_history(id) ON DELETE CASCADE,
+      uid INTEGER NOT NULL,
+      PRIMARY KEY(record_id, uid)
+    );
+    CREATE INDEX IF NOT EXISTS record_history_player_uid ON record_history_player(uid);
     CREATE TABLE IF NOT EXISTS rooms (
       position INTEGER NOT NULL,
       room_id INTEGER PRIMARY KEY,
@@ -130,6 +160,7 @@ const open = () => {
         updated_at=excluded.updated_at`),
     player: db.prepare('INSERT INTO players (position, token, uid, invite_code, data) VALUES (?, ?, ?, ?, ?)'),
     operatorMessage: db.prepare('INSERT INTO operator_messages (position, id, data) VALUES (?, ?, ?)'),
+    publicNotices: db.prepare('INSERT INTO public_notices (id, data) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET data=excluded.data'),
     room: db.prepare('INSERT INTO rooms (position, room_id, club_id, data) VALUES (?, ?, ?, ?)'),
     record: db.prepare('INSERT INTO records (position, record_id, time, club_id, data) VALUES (?, ?, ?, ?, ?)'),
     club: db.prepare('INSERT INTO clubs (position, club_id, owner_uid, data) VALUES (?, ?, ?, ?)'),
@@ -144,6 +175,7 @@ const writeTransaction = (data) => {
     // 先序列化再删除，常见的数据错误不会触碰现有快照；事务还负责兜底回滚。
     const players = state.players.map((item) => encode(item));
     const operatorMessages = state.operatorMessages.map((item) => encode(item));
+    const publicNotices = encode(state.publicNotices);
     const rooms = state.rooms.map((item) => encode(item));
     const records = state.records.map((item) => encode(item));
     const clubs = state.clubs.clubs.map((item) => encode(item));
@@ -156,6 +188,7 @@ const writeTransaction = (data) => {
       i, String(item.token || ''), Number(item.uid), String(item.inviteCode || ''), players[i],
     ));
     state.operatorMessages.forEach((item, i) => statements.operatorMessage.run(i, Number(item.id), operatorMessages[i]));
+    statements.publicNotices.run(publicNotices);
     state.rooms.forEach((item, i) => statements.room.run(
       i, Number(item.roomId), Number(item.clubId || 0), rooms[i],
     ));
@@ -194,6 +227,7 @@ const load = () => {
     nextOperatorMessageId: Number(meta.next_operator_message_id),
     players: db.prepare('SELECT data FROM players ORDER BY position').all().map((row) => JSON.parse(row.data)),
     operatorMessages: db.prepare('SELECT data FROM operator_messages ORDER BY position').all().map((row) => JSON.parse(row.data)),
+    publicNotices: JSON.parse((db.prepare('SELECT data FROM public_notices WHERE id=1').get() || { data: '{}' }).data),
     rooms: db.prepare('SELECT data FROM rooms ORDER BY position').all().map((row) => JSON.parse(row.data)),
     records: db.prepare('SELECT data FROM records ORDER BY position').all().map((row) => JSON.parse(row.data)),
     playbackSeq: Number(meta.playback_seq),
@@ -219,6 +253,80 @@ const backup = async (destination) => {
   return db.backup(destination);
 };
 
+const appendAudit = (entry) => {
+  open();
+  const info = db.prepare('INSERT INTO admin_audit (at, actor, action, target, details) VALUES (?, ?, ?, ?, ?)')
+    .run(Number(entry.at || Date.now()), String(entry.actor || '管理员'), String(entry.action),
+      String(entry.target || ''), encode(entry.details || {}));
+  return Number(info.lastInsertRowid);
+};
+
+const listAudit = (limit = 100) => {
+  open();
+  return db.prepare('SELECT id, at, actor, action, target, details FROM admin_audit ORDER BY id DESC LIMIT ?')
+    .all(Math.max(1, Math.min(500, Number(limit) || 100))).map((row) => ({ ...row, details: JSON.parse(row.details) }));
+};
+
+const archiveRecord = (record) => {
+  open();
+  const compact = { ...record, playbackIds: Object.keys(record.playbacks || {}) };
+  delete compact.playbacks;
+  const write = db.transaction(() => {
+    const inserted = db.prepare('INSERT OR IGNORE INTO record_history (id, room_id, club_id, time, data) VALUES (?, ?, ?, ?, ?)')
+      .run(String(record.id), Number(record.roomId), Number(record.clubId || 0), Number(record.time), encode(compact));
+    if (inserted.changes) for (const uid of new Set(record.uids || [])) {
+      db.prepare('INSERT OR IGNORE INTO record_history_player (record_id, uid) VALUES (?, ?)')
+        .run(String(record.id), Number(uid));
+    }
+    return !!inserted.changes;
+  });
+  return write();
+};
+
+const backfillRecords = (records) => {
+  let added = 0;
+  for (const record of records || []) if (archiveRecord(record)) added++;
+  return added;
+};
+
+const listRecordHistory = ({ q = '', page = 1, limit = 25 } = {}) => {
+  open();
+  const term = String(q).trim().slice(0, 64);
+  const pattern = `%${term.replace(/[\\%_]/g, '\\$&')}%`;
+  const pageNumber = Math.max(1, Math.min(100000, Number(page) || 1));
+  const size = Math.max(1, Math.min(100, Number(limit) || 25));
+  const where = `(? = '' OR CAST(room_id AS TEXT) LIKE ? ESCAPE '\\' OR id LIKE ? ESCAPE '\\'
+    OR EXISTS (SELECT 1 FROM record_history_player p WHERE p.record_id = record_history.id
+      AND CAST(p.uid AS TEXT) LIKE ? ESCAPE '\\'))`;
+  const args = [term, pattern, pattern, pattern];
+  const total = db.prepare(`SELECT COUNT(*) n FROM record_history WHERE ${where}`).get(...args).n;
+  const rows = db.prepare(`SELECT data FROM record_history WHERE ${where} ORDER BY time DESC, id DESC LIMIT ? OFFSET ?`)
+    .all(...args, size, (pageNumber - 1) * size);
+  return { items: rows.map((row) => JSON.parse(row.data)), total, page: pageNumber, limit: size };
+};
+
+const getRecordHistory = (id) => {
+  open();
+  const row = db.prepare('SELECT data FROM record_history WHERE id = ?').get(String(id));
+  return row ? JSON.parse(row.data) : null;
+};
+
+const listPlayerRecordHistory = (uid, limit = 10) => {
+  open();
+  return db.prepare(`SELECT h.data FROM record_history h JOIN record_history_player p ON p.record_id=h.id
+    WHERE p.uid=? ORDER BY h.time DESC, h.id DESC LIMIT ?`)
+    .all(Number(uid), Math.max(1, Math.min(100, Number(limit) || 10)))
+    .map((row) => JSON.parse(row.data));
+};
+
+const recordHistoryStats = (since) => {
+  open();
+  const total = db.prepare('SELECT COUNT(*) n FROM record_history').get().n;
+  const days = db.prepare(`SELECT date(time / 1000 + 8 * 3600, 'unixepoch') day, COUNT(*) n
+    FROM record_history WHERE time >= ? GROUP BY day`).all(Number(since));
+  return { total, days: Object.fromEntries(days.map((item) => [item.day, item.n])) };
+};
+
 const close = () => {
   if (!db) return;
   db.close();
@@ -226,4 +334,6 @@ const close = () => {
   statements = null;
 };
 
-module.exports = { FILE, LEGACY_FILE, load, save, saveAsync, backup, close };
+module.exports = { FILE, LEGACY_FILE, load, save, saveAsync, backup, appendAudit, listAudit,
+  archiveRecord, backfillRecords, listRecordHistory, listPlayerRecordHistory,
+  getRecordHistory, recordHistoryStats, close };
