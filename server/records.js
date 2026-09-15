@@ -48,6 +48,7 @@ const buildRecord = (table, now) => {
 
   return {
     id: `R${table.roomId}${now}`,
+    shareCode: table.shareCode || '',
     gameId: table.gameType,
     roomId: table.roomId,
     clubId: table.clubId || 0,

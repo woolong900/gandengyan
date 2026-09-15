@@ -171,6 +171,12 @@ RULES.push([
   u2b('d = "玩法：干瞪眼  " + n;'),
   true,
 ]);
+// 单局结算可以直接截屏分享；其中“玩法”也应显示所选的干瞪眼玩法。
+RULES.push([
+  'var e = i.default.gameInfo.singleEndInfo, t = i.default.config.gameCount(), o = i.default.config.gameName(), n =',
+  u2b('var e = i.default.gameInfo.singleEndInfo, t = i.default.config.gameCount(), o = i.default.config.index === m.eGameIds.QJHH ? "干瞪眼" : i.default.config.gameName(), n ='),
+  true,
+]);
 if (argv.includes('--guest')) {
   RULES.push(['this.guestNode.active = v.default.isDebug();', 'this.guestNode.active = true;']);
 }
@@ -810,6 +816,14 @@ const applyBranding = (decoded) => {
     path.join(__dirname, '..', 'assets', 'branding', 'share', 'download-qr.png'),
     path.join(decoded, 'assets', 'res', 'raw-assets', '20', '206b229f-fa1c-409e-b47e-b2d2c0938d57.png'),
   );
+  // 朋友圈海报在 R234 中是明文 JPG，原生微信 SDK 会直接读取它。
+  const momentsPoster = path.join(__dirname, '..', 'assets', 'branding', 'share', 'moments-poster.jpg');
+  const momentsTarget = path.join(decoded, 'assets', 'res', 'raw-assets', 'db', 'dbd4ba35-fdeb-4a79-a26f-1f3ba1fdfca9.jpg');
+  if (!fs.readFileSync(momentsPoster).subarray(0, 2).equals(Buffer.from([0xff, 0xd8]))
+      || !fs.readFileSync(momentsTarget).subarray(0, 2).equals(Buffer.from([0xff, 0xd8]))) {
+    throw new Error('朋友圈分享海报必须保持明文 JPG 格式');
+  }
+  fs.copyFileSync(momentsPoster, momentsTarget);
   sanitizeCocosText(decoded);
   replaceLegacyArtwork(decoded);
   disableLegacyHotUpdate(decoded);
@@ -822,7 +836,7 @@ const applyBranding = (decoded) => {
   console.log('      已替换大厅背景和卡通人物');
   console.log('      已替换创建俱乐部页面背景和人物');
   console.log('      已替换 2D / 3D 牌桌背景花纹');
-  console.log('      已替换微信分享缩略图、战绩背景和下载二维码');
+  console.log('      已替换微信分享缩略图、朋友圈海报、战绩背景和下载二维码');
   console.log('      已移除用户可见的旧品牌名称、公告和客服信息');
   console.log('      协议页面已改为待补充真实运营主体的内部测试提示');
   console.log('      已禁用不再使用的钉钉 SDK 启动初始化');

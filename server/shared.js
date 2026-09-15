@@ -17,6 +17,7 @@ const maxStep = (room) => room.num * (GAME_COUNT_MUL[room.gameType] || 8);
 const roomInfo = (room) => ({
   type: room.gameType,
   roomid: room.roomId,
+  room_code: room.shareCode || '',
   host: room.hostUid,
   maxstep: maxStep(room),
   step: room.round && room.step < 1 ? 1 : room.step,

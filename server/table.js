@@ -12,6 +12,7 @@
  *   onUidRoom(uid, roomId)
  */
 const { Round } = require('./round');
+const { randomBytes } = require('crypto');
 const rules = require('./rules');
 const {
   maxStep, roomInfo, push, playerAction, emptyMember,
@@ -28,6 +29,7 @@ class Table {
   constructor(meta, host) {
     this.host = host;
     this.roomId = meta.roomId;
+    this.shareCode = meta.shareCode || randomBytes(12).toString('hex');
     this.gameType = meta.gameType;
     this.clubId = meta.clubId;
     this.schemeId = meta.schemeId || 0;
@@ -669,6 +671,7 @@ class Table {
   dump() {
     return {
       roomId: this.roomId,
+      shareCode: this.shareCode,
       gameType: this.gameType,
       clubId: this.clubId,
       schemeId: this.schemeId || 0,
@@ -705,6 +708,7 @@ class Table {
   static fromDump(raw, host, playersByUid) {
     const table = new Table({
       roomId: raw.roomId,
+      shareCode: raw.shareCode,
       gameType: raw.gameType,
       clubId: raw.clubId,
       schemeId: raw.schemeId || 0,

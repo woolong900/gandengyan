@@ -7,6 +7,8 @@ process.env.QJQP_FILLBOTS = '0';
 const { GameApp } = require('../server/app');
 const { protocol } = require('../server/proto/protocol');
 const { listFor } = require('../server/records');
+const { Table } = require('../server/table');
+const { roomInfo } = require('../server/shared');
 const rules = require('../server/rules');
 
 let pass = 0;
@@ -55,6 +57,7 @@ const NOON = DAY * 1000 + 12 * 3600 * 1000;
 
 const fakeTable = (extra = {}) => ({
   roomId: 100000,
+  shareCode: 'abcdef0123456789abcdef01',
   gameType: 2,
   num: 1,
   param1: 2000,
@@ -77,12 +80,20 @@ const fakeTable = (extra = {}) => ({
   const app = new GameApp({ persist: () => {}, now: () => NOON, allowUnregisteredTokens: true });
   const rec = app.saveRecord(fakeTable());
   t('记下战绩', !!rec.id, true);
+  t('战绩保留分享码', rec.shareCode, 'abcdef0123456789abcdef01');
   t('玩法是潜江晃晃', rec.gameId, 2);
   t('打了 2 局', rec.gameCount, 2);
   t('满局 8', rec.totalCount, 8);
   t('分数倍率', rec.scoreRatio, rules.RATIO);
   t('大赢家', rec.players.find((p) => p.uid === 100001).winner, true);
   t('只存一次', app.saveRecord(fakeTable({ recordSaved: true })), null);
+}
+
+{
+  const table = new Table({ roomId: 100100, gameType: 2, num: 1, param1: 2000, param2: 2, host: 100001 }, {});
+  t('新房间分配不可枚举分享码', /^[0-9a-f]{24}$/.test(table.shareCode), true);
+  t('房间快照给客户端分享码', roomInfo(table).room_code, table.shareCode);
+  t('重启后分享码稳定', Table.fromDump(table.dump(), {}, new Map()).shareCode, table.shareCode);
 }
 
 {

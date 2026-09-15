@@ -89,6 +89,15 @@ const main = async () => {
   let output = '';
   try {
     const port = await freePort();
+    fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify({
+      records: [{
+        id: 'R1000371234567890', shareCode: 'abcdef0123456789abcdef01', roomId: 100037,
+        gameId: 2, gameCount: 1, totalCount: 8, time: Date.now(), scoreRatio: 10,
+        players: [{ uid: 100001, name: '甲<&乙', score: 80 }, { uid: 100002, name: '丙', score: -80 }],
+        details: [{ id: '10003701', scores: [{ uid: 100001, score: 50 }, { uid: 100002, score: -50 }] }],
+        uids: [100001, 100002],
+      }],
+    }));
     child = spawn(process.execPath, [path.join(__dirname, '../server/index.js')], {
       env: {
         ...process.env,
@@ -134,6 +143,19 @@ const main = async () => {
     const share = await requestText(port, '/download/ylhy-activity?roomId=100037');
     t('微信分享落地页可访问', share.status, 200);
     t('微信分享落地页显示房间号', share.text.includes('100037'), true);
+    t('微信分享落地页有新图标预览', share.text.includes(`http://127.0.0.1:${port}/share/icon.png`), true);
+    t('微信分享预览使用新品牌名称', share.text.includes('og:title" content="潜江干瞪眼 房间号：100037'), true);
+    const shareIcon = await requestText(port, '/share/icon.png');
+    t('分享图标可以直接访问', shareIcon.status, 200);
+    t('分享图标保持 PNG 格式', shareIcon.headers['content-type'], 'image/png');
+    t('分享图标含 PNG 签名', shareIcon.text.slice(1, 4), 'PNG');
+    const record = await requestText(port, '/download/record?id=abcdef0123456789abcdef01');
+    t('战绩链接可显示详情', record.status, 200);
+    t('战绩有房间号与玩法名称', record.text.includes('潜江干瞪眼 战绩 房间号：100037'), true);
+    t('战绩按房间倍率显示积分', record.text.includes('8分'), true);
+    t('战绩包含每局积分', record.text.includes('第 1 局') && record.text.includes('5分'), true);
+    t('玩家名字不会注入 HTML', record.text.includes('甲&lt;&amp;乙'), true);
+    t('无效战绩显示过期提示', (await requestText(port, '/download/record?id=missing')).status, 404);
     t('原连接心跳正常', await heartbeat(ws), true);
     t('异常 Host 不影响路径解析', (await request(port, '/version', '[')).status, 200);
     t('IPv6 Host 仍可正常访问', (await request(port, '/version', '[::1]')).status, 200);
