@@ -1,15 +1,18 @@
 #!/usr/bin/env node
 /**
- * 将当前已修补 Android 包里的跨平台 Cocos 资源迁入原厂 iOS 壳，生成 IPA。
+ * 将原厂 iOS R234 热更新使用的跨平台 Cocos 资源迁入原厂 iOS 壳，生成 IPA。
+ * 原厂 iOS R234 清单里的 8563 个文件与原厂 Android R234 基包逐个 MD5 一致；
+ * 默认从当前已修补的 R234 APK 取资源，再应用 iOS 原生桥接。
  *
  * 默认使用 ad-hoc 签名，只用于校验包结构；真机安装需要 Apple 开发证书和
  * 与 com.haoke.gandengyan 匹配的 provisioning profile。
  *
- * usage: node tools/build-ios-ipa.js [--ipa <原厂.ipa>] [--apk <当前.apk>]
+ * usage: node tools/build-ios-ipa.js [--ipa <原厂.ipa>] [--apk <当前R234.apk>]
  *   [--host <局域网IP[:端口]>] [--base-url <HTTP(S)服务地址>] [--out <输出.ipa>]
  *   [--identity <Apple签名证书>] [--profile <描述文件>] [--without-wechat-applink]
  */
 const fs = require('fs');
+const crypto = require('crypto');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
@@ -215,7 +218,8 @@ const newestPatchedApk = () => {
 
 const BASE_IPA = path.resolve(arg('ipa', path.join(ROOT, 'originals/ios/qjqp-original-ios-1.0.2.ipa')));
 const SOURCE_APK = path.resolve(arg('apk', newestPatchedApk() || ''));
-const COCOS_BASE = arg('cocos-base', 'ios');
+const COCOS_BASE = arg('cocos-base', 'ios-r234');
+const R234_MANIFEST_FILE = path.join(ROOT, 'originals', 'ios', 'qjqp-r234-project.manifest');
 const APP_ID = 'com.haoke.gandengyan';
 const APP_NAME = '潜江干瞪眼';
 const EXECUTABLE_NAME = 'QianjiangGandengyan';
@@ -246,8 +250,9 @@ if (HTTP_BASE && !/^https?:\/\//.test(HTTP_BASE)) {
 }
 const WS_BASE = HTTP_BASE.replace(/^http/, 'ws');
 if (!BASE_IPA || !fs.existsSync(BASE_IPA)) throw new Error(`找不到原厂 IPA：${BASE_IPA}`);
-if (!['ios', 'android'].includes(COCOS_BASE)) throw new Error('--cocos-base 只能是 ios 或 android');
-if (COCOS_BASE === 'android' && (!SOURCE_APK || !fs.existsSync(SOURCE_APK))) throw new Error(`找不到当前 Android 包：${SOURCE_APK}`);
+if (!['ios', 'android', 'ios-r234'].includes(COCOS_BASE)) throw new Error('--cocos-base 只能是 ios、ios-r234 或 android');
+if (COCOS_BASE !== 'ios' && (!SOURCE_APK || !fs.existsSync(SOURCE_APK))) throw new Error(`找不到当前 R234 资源包：${SOURCE_APK}`);
+if (COCOS_BASE === 'ios-r234' && !fs.existsSync(R234_MANIFEST_FILE)) throw new Error(`找不到原厂 iOS R234 清单：${R234_MANIFEST_FILE}`);
 if (!HTTP_BASE) throw new Error('无法确定服务地址，请使用 --host 或 --base-url 指定');
 if (SIGN_IDENTITY !== '-' && !PROFILE) throw new Error('正式签名需要同时提供 --identity 和 --profile');
 if (PROFILE && !fs.existsSync(path.resolve(PROFILE))) throw new Error(`找不到描述文件：${PROFILE}`);
@@ -264,7 +269,7 @@ fs.mkdirSync(path.dirname(output), { recursive: true });
 const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'qjqp-ios-build-'));
 try {
   console.log(`原厂 IPA：${BASE_IPA}`);
-  console.log(`Cocos 基线：${COCOS_BASE === 'ios' ? '原厂 iOS 资源' : SOURCE_APK}`);
+  console.log(`Cocos 基线：${COCOS_BASE === 'ios' ? 'iOS IPA 内置旧资源' : COCOS_BASE === 'ios-r234' ? `原厂 iOS R234 热更新资源（取自 ${SOURCE_APK}）` : SOURCE_APK}`);
   console.log(`服务地址：${HTTP_BASE}`);
   console.log(`输出：${output}`);
 
@@ -294,24 +299,34 @@ try {
   fs.rmSync(path.join(app, 'embedded.mobileprovision'), { force: true });
   if (run('otool', ['-L', executable]).includes('cike.dylib')) throw new Error('没有清除 cike.dylib 加载项');
 
-  console.log(`3/7 ${COCOS_BASE === 'ios' ? '保留原厂 iOS Cocos 资源' : '迁入当前 Android Cocos 资源'}`);
-  if (COCOS_BASE === 'android') {
+  console.log(`3/7 ${COCOS_BASE === 'ios' ? '保留原厂 iOS Cocos 旧资源' : '迁入原厂 iOS R234 跨平台资源'}`);
+  if (COCOS_BASE !== 'ios') {
     const apkStage = path.join(stage, 'apk');
     fs.mkdirSync(apkStage);
     run('unzip', ['-q', '-o', SOURCE_APK, 'assets/src/*', 'assets/res/*', 'assets/branding/*', '-d', apkStage]);
     const androidAssets = path.join(apkStage, 'assets');
     for (const name of ['src', 'res', 'branding']) {
       const source = path.join(androidAssets, name);
-      if (!fs.existsSync(source)) throw new Error(`Android 包缺少 assets/${name}`);
+      if (!fs.existsSync(source)) throw new Error(`R234 资源包缺少 assets/${name}`);
       fs.rmSync(path.join(app, name), { recursive: true, force: true });
       fs.cpSync(source, path.join(app, name), { recursive: true });
+    }
+    if (COCOS_BASE === 'ios-r234') {
+      const official = JSON.parse(fs.readFileSync(R234_MANIFEST_FILE, 'utf8'));
+      if (official.version !== '234' || Object.keys(official.assets || {}).length !== 8563) {
+        throw new Error('原厂 iOS R234 资源清单版本或文件数量异常');
+      }
+      for (const asset of Object.keys(official.assets)) {
+        if (!fs.existsSync(path.join(app, asset))) throw new Error(`R234 资源包缺少原厂 iOS 资源 ${asset}`);
+      }
+      console.log(`      已核对原厂 iOS R234 清单中的 ${Object.keys(official.assets).length} 个资源路径`);
     }
   }
 
   console.log('4/7 应用 iOS 专用脚本桥接');
   const projectJsc = path.join(app, 'src', 'project.jsc');
   let projectJs = toJs(fs.readFileSync(projectJsc)).toString('binary');
-  if (COCOS_BASE === 'android') {
+  if (COCOS_BASE !== 'ios') {
   const guestVisibility = 'this.guestNode.active = v.default.isDebug();';
   const guestVisibilityCount = projectJs.split(guestVisibility).length - 1;
   if (guestVisibilityCount === 1) projectJs = projectJs.replace(guestVisibility, 'this.guestNode.active = true;');
@@ -501,6 +516,25 @@ l.default.uiHelper.showTip(t);
     applyIosBrandingAssets(app);
   }
   fs.copyFileSync(path.join(ROOT, 'assets', 'branding', 'startup', 'splash-screen.png'), path.join(app, 'LaunchImage12.png'));
+
+  if (COCOS_BASE === 'ios-r234') {
+    const official = JSON.parse(fs.readFileSync(R234_MANIFEST_FILE, 'utf8'));
+    const local = {
+      ...official,
+      packageUrl: `${HTTP_BASE}/disabled-hot-update/`,
+      remoteManifestUrl: `${HTTP_BASE}/disabled-hot-update/project.manifest`,
+      remoteVersionUrl: `${HTTP_BASE}/disabled-hot-update/version.manifest`,
+      assets: {},
+    };
+    const rawManifest = 'res/raw-assets/2c/2c8a7447-5900-4cca-b1ef-51d750d90396.manifest';
+    for (const asset of Object.keys(official.assets)) {
+      if (asset === rawManifest) continue; // 清单不能记录自身的新 MD5。
+      const data = fs.readFileSync(path.join(app, asset));
+      local.assets[asset] = { size: data.length, md5: crypto.createHash('md5').update(data).digest('hex') };
+    }
+    fs.writeFileSync(path.join(app, rawManifest), JSON.stringify(local));
+    console.log('      已生成与当前修改资源一致的 iOS R234 本地清单');
+  }
 
   console.log('6/7 签名并校验应用结构');
   let entitlements = null;
