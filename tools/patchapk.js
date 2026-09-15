@@ -445,6 +445,12 @@ RULES.push([
   u2b('desc: "干瞪眼",\nreject: [ 1, 2, 26 ]'),
   true,
 ]);
+// 只在潜江晃晃的“其它设置”里隐藏这一项；保留旧房间参数和其它游戏配置。
+RULES.push([
+  u2b('20: {\nvalue: 2,\ndesc: "只许自摸"\n}'),
+  u2b('20: {\nvalue: 2,\ndesc: "只许自摸",\nisHide: !0\n}'),
+  true,
+]);
 RULES.push([
   u2b('desc: "堆癞子",\nreject: [ 1, 2, 26 ]'),
   u2b('desc: "堆癞子",\nreject: [ 1, 2, 26 ],\nisHide: !0'),

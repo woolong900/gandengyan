@@ -140,7 +140,8 @@ desc: "少三张"
 },
 20: {
 value: 2,
-desc: "只许自摸"
+desc: "只许自摸",
+isHide: !0
 },
 21: {
 value: 2,
