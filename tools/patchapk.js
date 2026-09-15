@@ -320,10 +320,6 @@ RULES.push([
   'g ? m.removeHandCards(u.default.gameLogic().is3CardGang(D) ? [ D, D ] : [ D, D, D ], !0) : m.removeHandCards(u.default.gameLogic().is3CardGang(D) ? [ a.MJ_BACK_ID, a.MJ_BACK_ID ] : [ a.MJ_BACK_ID, a.MJ_BACK_ID, a.MJ_BACK_ID ], !0);\no();',
   true,
 ]);
-RULES.push([
-  '!c.default.isWatcher() && e.showVoice(a, n.content);',
-  'n.fromUid != D.default.uid && !c.default.isWatcher() && e.showVoice(a, n.content);',
-]);
 // 临时：创房/大厅只露出潜江晃晃。要恢复就把这一段删掉。
 RULES.push([
   'gameList: [ c.eGameIds.QJHH, c.eGameIds.QJHZ, c.eGameIds.PDKAA, c.eGameIds.DDZ, c.eGameIds.TMHH, c.eGameIds.QJSHZ, c.eGameIds.QJWSKBD, c.eGameIds.GD ]',
