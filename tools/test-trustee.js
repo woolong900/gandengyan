@@ -167,7 +167,15 @@ const fixture = (timeout = 0) => {
   f.member.bot = true;
   f.table.armTurns();
   t('不自动托管房间仍安排陪玩操作', f.timers.get(f.key), f.now() + 800);
-  f.advance(800);
+  const dueAt = f.timers.get(f.key);
+  // setTimeout 可在期限前一毫秒回调；旧实现直接返回，陪玩便永远不出牌。
+  f.timers.delete(f.key);
+  f.advance(799);
+  f.table.onTimer(f.key);
+  t('陪玩计时提前触发时保留出牌期限', f.timers.get(f.key), dueAt);
+  t('陪玩计时提前触发时暂不出牌', f.moves, []);
+  f.timers.delete(f.key);
+  f.advance(1);
   f.table.onTimer(f.key);
   t('陪玩到期仍能自动出牌', f.moves, [0]);
 }

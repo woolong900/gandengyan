@@ -531,7 +531,13 @@ class Table {
         this.cancelTurn(m);
         return;
       }
-      if (!m.turnDueAt || this.host.now() < m.turnDueAt) return;
+      if (!m.turnDueAt) return;
+      // Node 的定时器可能提前不到 1ms 触发。回调已经从调度表移除，
+      // 此时直接 return 会让机器人永久停在这一手。
+      if (this.host.now() < m.turnDueAt) {
+        this.host.schedule(name, m.turnDueAt);
+        return;
+      }
       this.cancelTurn(m);
       if (!m.trustee) {
         m.trustee = true;
