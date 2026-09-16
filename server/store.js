@@ -5,6 +5,7 @@
 const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
+const { CLUB_ID_START } = require('./clubs');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const FILE = process.env.QJQP_DB || path.join(DATA_DIR, 'state.sqlite');
@@ -22,7 +23,7 @@ const empty = () => ({
   rooms: [],
   records: [],
   playbackSeq: 0,
-  clubs: { nextId: 100000, nextOpId: 1, clubs: [] },
+  clubs: { nextId: CLUB_ID_START, nextOpId: 1, clubs: [] },
 });
 
 const normalize = (data) => {
@@ -45,7 +46,7 @@ const normalize = (data) => {
     records: Array.isArray(raw.records) ? raw.records : [],
     playbackSeq: Number(raw.playbackSeq) || 0,
     clubs: {
-      nextId: Number(clubs.nextId) || base.clubs.nextId,
+      nextId: Math.max(CLUB_ID_START, Number(clubs.nextId) || 0),
       nextOpId: Number(clubs.nextOpId) || base.clubs.nextOpId,
       clubs: Array.isArray(clubs.clubs) ? clubs.clubs : [],
     },

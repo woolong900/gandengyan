@@ -17,6 +17,20 @@ restored.restore({ ...app.dump(), nextUid: 100077 });
 assert.equal(restored.loginGuest('device-0003').player.uid, 285635);
 assert.equal(restored.loginGuest('device-0001').player.uid, 285633, '已有游客仍使用原 UID');
 
+const legacyClubState = app.dump();
+legacyClubState.clubs.nextId = 100003;
+legacyClubState.clubs.clubs = [{
+  id: 100002, code: '100002', name: '旧俱乐部', ownerUid: first.player.uid,
+  balanceCard: 0, rewardedMemberUids: [first.player.uid], settings: {},
+  members: [{ uid: first.player.uid, role: 3, freeze: 0, remark: '', joinTime: 1 }],
+  applications: [], invites: [], schemes: [],
+}];
+const restoredClubs = new GameApp();
+restoredClubs.restore(legacyClubState);
+assert.ok(restoredClubs.clubStore.get(100002), '旧俱乐部 ID 保持不变');
+assert.equal(restoredClubs.clubStore.create(first.player.uid, '新俱乐部').club.id, 158934);
+assert.equal(restoredClubs.clubStore.create(first.player.uid, '第二个新俱乐部').club.id, 158935);
+
 const oldRandomInt = crypto.randomInt;
 try {
   crypto.randomInt = () => 321456;

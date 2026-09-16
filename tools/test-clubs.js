@@ -70,7 +70,7 @@ app.onMessage('a', packCs(147, { name: '测试俱乐部' }));
 const created = last(boxes.a, 147);
 const clubId = Number(created.id);
 t('创建俱乐部成功', Number(created.res.error), 0);
-t('返回俱乐部 ID', clubId > 0, true);
+t('首个俱乐部 ID 从 158934 开始', clubId, 158934);
 
 boxes.a.sent.length = 0;
 app.onMessage('a', packCs(113, {}));

@@ -19,6 +19,10 @@ const ROOM_ID_MIN = 100000;
 const ROOM_ID_MAX = 1000000;
 const BOT_UID_MIN = 800000000;
 const BOT_UID_MAX = 900000000;
+// 右上角消息的 id 是 uint32。高位段用于把待审核入会申请映射成动态消息，
+// 审核后即自动消失，也不会污染运营通知存档。
+const CLUB_APPLICATION_MESSAGE_ID_BASE = 4000000000;
+const UINT32_MAX = 4294967295;
 
 class GameApp {
   constructor({ persist, now, onRecord, allowUnregisteredTokens = false, identityHashKey } = {}) {
@@ -119,7 +123,7 @@ class GameApp {
       return { error: '收件玩家不存在' };
     }
     if (!Number.isInteger(lifetime) || lifetime < 1 || lifetime > 365) return { error: '有效天数须为1至365天' };
-    if (this.nextOperatorMessageId > 4294967295) return { error: '消息编号已耗尽' };
+    if (this.nextOperatorMessageId >= CLUB_APPLICATION_MESSAGE_ID_BASE) return { error: '消息编号已耗尽' };
     const message = {
       id: this.nextOperatorMessageId++, title: cleanTitle, content: cleanContent,
       targetUid: uid, createdAt: this.now(), expiresAt: this.now() + lifetime * 86400000,
@@ -155,6 +159,45 @@ class GameApp {
       this.persist();
     }
     return { message };
+  }
+
+  clubApplicationMessages(player) {
+    const result = [];
+    for (const club of this.clubStore.listFor(player.uid)) {
+      if (!this.clubStore.isAdmin(club, player.uid)) continue;
+      for (const application of club.applications) {
+        const id = CLUB_APPLICATION_MESSAGE_ID_BASE + Number(application.id);
+        if (!Number.isSafeInteger(id) || id > UINT32_MAX) continue;
+        const applicant = this.playerByUid(application.uid) || {};
+        const nickname = applicant.nickname || `玩家${application.uid}`;
+        result.push({
+          id,
+          avatarUrl: applicant.avatarUrl || '',
+          inviter: '俱乐部申请',
+          name: `${nickname}（ID：${application.uid}）申请加入【${club.name}】，请到成员管理的申请列表处理。`,
+          policy: player.readMessageIds.includes(id) ? 2 : 1,
+        });
+      }
+    }
+    return result;
+  }
+
+  markClubApplicationMessageRead(player, id) {
+    const applicationId = Number(id) - CLUB_APPLICATION_MESSAGE_ID_BASE;
+    const found = this.clubStore.findApplication(applicationId);
+    if (!found || !this.clubStore.isAdmin(found.club, player.uid)) return { error: '申请不存在或已处理' };
+    if (!player.readMessageIds.includes(id)) {
+      player.readMessageIds.push(id);
+      player.readMessageIds = player.readMessageIds.slice(-100);
+      this.persist();
+    }
+    return { application: found.application };
+  }
+
+  notifyClubAdmins(club) {
+    for (const member of club.members) {
+      if (Number(member.role) >= ADMIN) this.notifyInbox(member.uid);
+    }
   }
 
   clearRoomLink(uid) {
@@ -515,10 +558,11 @@ class GameApp {
     this.records = Array.isArray(data.records) ? data.records : [];
     this.operatorMessages = Array.isArray(data.operatorMessages) ? data.operatorMessages.filter((message) => (
       message && Number.isSafeInteger(Number(message.id)) && Number(message.id) >= 1000000000
+        && Number(message.id) < CLUB_APPLICATION_MESSAGE_ID_BASE
     )).slice(-100) : [];
     this.nextOperatorMessageId = Math.max(
       1000000000,
-      Number(data.nextOperatorMessageId) || 0,
+      Math.min(CLUB_APPLICATION_MESSAGE_ID_BASE, Number(data.nextOperatorMessageId) || 0),
       ...this.operatorMessages.map((message) => Number(message.id) + 1),
     );
     const notices = data.publicNotices && typeof data.publicNotices === 'object' ? data.publicNotices : {};
@@ -899,6 +943,7 @@ class GameApp {
       const ret = this.clubStore.apply(c.player.uid, msg && msg.code);
       if (ret.error) return c.send(pack(117, { res: { error: 1, what: ret.error } }));
       this.persist();
+      this.notifyClubAdmins(ret.club);
       return c.send(pack(117, { res: { error: 0, what: '' } }));
     }
 
@@ -917,11 +962,15 @@ class GameApp {
         name: message.content,
         policy: c.player.readMessageIds.includes(message.id) ? 2 : 1,
       }));
-      const inbox = [...invites, ...messages];
+      const inbox = [...invites, ...this.clubApplicationMessages(c.player), ...messages];
       return c.send(pack(118, { res: { error: 0, what: '' }, invites: inbox, count: inbox.length, total: inbox.length }));
     }
 
     if (proto === 119 || proto === 120) {
+      if (proto === 120 && num(msg && msg.id) >= CLUB_APPLICATION_MESSAGE_ID_BASE) {
+        const marked = this.markClubApplicationMessageRead(c.player, num(msg && msg.id));
+        return c.send(pack(120, { res: { error: marked.error ? 1 : 0, what: marked.error || '' } }));
+      }
       if (proto === 120 && num(msg && msg.id) >= 1000000000) {
         const marked = this.markOperatorMessageRead(c.player, num(msg && msg.id));
         return c.send(pack(120, { res: { error: marked.error ? 1 : 0, what: marked.error || '' } }));
@@ -1202,6 +1251,7 @@ class GameApp {
         : this.clubStore.reject(c.player.uid, num(msg && msg.id));
       if (ret.error) return c.send(pack(proto, { res: { error: 1, what: ret.error } }));
       this.persist();
+      this.notifyClubAdmins(ret.club);
       return c.send(pack(proto, { res: { error: 0, what: '' } }));
     }
 

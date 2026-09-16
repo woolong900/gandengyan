@@ -7,6 +7,7 @@ const ADMIN = 2;
 const PLAYER = 1;
 const MAX_USERS = 500;
 const DEFAULT_JOIN_BONUS = 200;
+const CLUB_ID_START = 158934;
 // 协议中的 balanceCard 是 int32，超过此值客户端会显示成负数。
 const MAX_CLUB_CARDS = 2147483647;
 
@@ -14,7 +15,7 @@ class ClubStore {
   constructor({ now, memberBonus } = {}) {
     this.now = now || Date.now;
     this.memberBonus = memberBonus || (() => DEFAULT_JOIN_BONUS);
-    this.nextId = 100000;
+    this.nextId = CLUB_ID_START;
     this.nextOpId = 1;
     this.clubs = new Map();
   }
@@ -286,7 +287,6 @@ class ClubStore {
   }
 
   restore(raw) {
-    this.nextId = (raw && raw.nextId) || 100000;
     this.nextOpId = (raw && raw.nextOpId) || 1;
     this.clubs = new Map((raw && raw.clubs || []).map((club) => [Number(club.id), {
       ...club,
@@ -302,7 +302,12 @@ class ClubStore {
       invites: Array.isArray(club.invites) ? club.invites : [],
       schemes: Array.isArray(club.schemes) ? club.schemes : [],
     }]));
+    this.nextId = Math.max(
+      CLUB_ID_START,
+      Number(raw && raw.nextId) || 0,
+      ...[...this.clubs.keys()].map((id) => id + 1),
+    );
   }
 }
 
-module.exports = { ClubStore, MASTER, ADMIN, PLAYER, MAX_USERS, MAX_CLUB_CARDS };
+module.exports = { ClubStore, MASTER, ADMIN, PLAYER, MAX_USERS, MAX_CLUB_CARDS, CLUB_ID_START };

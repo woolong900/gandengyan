@@ -32,6 +32,7 @@ const owner = login('owner');
 const b = login('b');
 const c = login('c');
 const d = login('d');
+const e = login('e');
 const request = (who, id, body) => {
   app.onMessage(who, cs(id, body));
   return boxes[who].filter((item) => item.id === id).at(-1).body;
@@ -41,7 +42,7 @@ const created = request('owner', 147, { name: '消息测试俱乐部' });
 const clubId = Number(created.id);
 check('创建俱乐部', Number(created.res.error), 0);
 const candidates = request('owner', 143, { clubId }).data.map((item) => Number(item.userId));
-check('批量邀请列表显示真实玩家', candidates, [b.uid, c.uid, d.uid]);
+check('批量邀请列表显示真实玩家', candidates, [b.uid, c.uid, d.uid, e.uid]);
 check('普通成员没有邀请权限', Number(request('b', 143, { clubId }).res.error), 1);
 
 const batch = request('owner', 144, { clubId, userId: [b.uid, c.uid] });
@@ -50,17 +51,35 @@ check('两名在线收件人立即收到刷新信号', [boxes.b.some((item) => i
 const bInbox = request('b', 118, {}).invites;
 check('消息显示邀请人昵称和俱乐部名', [bInbox[0].inviter, bInbox[0].name, bInbox[0].policy], [owner.nickname, '消息测试俱乐部', 0]);
 const invitationId = Number(bInbox[0].id);
-check('批量邀请排除已有待办玩家', request('owner', 143, { clubId }).data.map((item) => Number(item.userId)), [d.uid]);
+check('批量邀请排除已有待办玩家', request('owner', 143, { clubId }).data.map((item) => Number(item.userId)), [d.uid, e.uid]);
 check('混合重复邀请整体失败', Number(request('owner', 144, { clubId, userId: [b.uid, d.uid] }).res.error), 1);
 check('失败批次没有给另一玩家误发邀请', request('d', 118, {}).invites.length, 0);
 check('不存在的玩家不能邀请', Number(request('owner', 141, { clubId, userId: 999999 }).res.error), 1);
 check('同意邀请加入俱乐部', Number(request('b', 119, { id: invitationId }).res.error), 0);
 check('同意后邀请从消息列表消失', request('b', 118, {}).invites.length, 0);
 check('同意后成为成员', !!app.clubStore.member(app.clubStore.get(clubId), b.uid), true);
+check('设置俱乐部管理员', Number(request('owner', 135, { clubId, userId: b.uid, role: 2 }).res.error), 0);
 const cInvitationId = Number(request('c', 118, {}).invites[0].id);
 check('拒绝邀请成功', Number(request('c', 120, { id: cInvitationId }).res.error), 0);
 check('拒绝后消息消失', request('c', 118, {}).invites.length, 0);
 check('单人邀请可发给未入会玩家', Number(request('owner', 141, { clubId, userId: d.uid }).res.error), 0);
+
+boxes.owner.length = 0;
+boxes.b.length = 0;
+check('玩家可申请加入俱乐部', Number(request('e', 117, { code: String(clubId) }).res.error), 0);
+check('申请后部长和管理员立即收到刷新信号', [
+  boxes.owner.some((item) => item.id === 1003), boxes.b.some((item) => item.id === 1003),
+], [true, true]);
+const applicationMessage = request('owner', 118, {}).invites.find((item) => Number(item.id) >= 4000000000);
+check('待审核申请显示在管理员消息中', [applicationMessage.inviter, Number(applicationMessage.policy)], ['俱乐部申请', 1]);
+check('点击查看后标记申请消息已读', Number(request('owner', 120, { id: applicationMessage.id }).res.error), 0);
+check('已读申请仍保留在消息列表', Number(request('owner', 118, {}).invites.find((item) => Number(item.id) === Number(applicationMessage.id)).policy), 2);
+const applicationId = Number(request('owner', 137, { clubId }).data.find((item) => Number(item.code) === e.uid).id);
+check('管理员审核通过入会申请', Number(request('owner', 138, { id: applicationId }).res.error), 0);
+check('已处理申请自动从所有管理员消息中消失', [
+  request('owner', 118, {}).invites.some((item) => Number(item.id) === Number(applicationMessage.id)),
+  request('b', 118, {}).invites.some((item) => Number(item.id) === Number(applicationMessage.id)),
+], [false, false]);
 
 const allMessage = app.createOperatorMessage({ title: '维护通知', content: '今晚维护，请提前结束牌局。' }).message;
 check('运营通知编号与邀请不冲突', allMessage.id >= 1000000000, true);
