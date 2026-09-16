@@ -47,7 +47,19 @@ const app = { tables: new Map([[100001, { roomId: 100001, closed: false, round: 
   step: 1, num: 1, gameType: 2, clubId: 0, schemeId: 0, hostUid: 101 }]]), persist() {} };
 const admin = new AdminData(app, null);
 assert.equal(admin.room(100001).wall.remaining, restored.wall.remain());
-assert.equal(admin.setRoomDrawPlan(100001, { uid: 101, cards: [after[0]] }).drawPlan.cards[0], after[0]);
+const distinct = [...new Set(after)].slice(0, 3);
+assert.equal(distinct.length, 3);
+assert.deepEqual(admin.setRoomDrawPlan(100001, { uid: 101, cards: distinct.slice(0, 2) }).drawPlan.cards,
+  distinct.slice(0, 2));
+restored.draw(0);
+assert.equal(restored.drawPlan.delivered, 1);
+assert.deepEqual(admin.editRoomDrawPlan(100001, 'append', { uid: 101, card: distinct[2] }).drawPlan.cards,
+  distinct.slice(1));
+assert.equal(restored.drawPlan.delivered, 1);
+assert.deepEqual(admin.editRoomDrawPlan(100001, 'move', { uid: 101, from: 1, to: 0 }).drawPlan.cards,
+  [distinct[2], distinct[1]]);
+assert.deepEqual(admin.editRoomDrawPlan(100001, 'remove', { uid: 101, index: 1 }).drawPlan.cards,
+  [distinct[2]]);
 assert.equal(admin.room(100001).wall.drawPlan.uid, 101);
 assert.equal(admin.clearRoomDrawPlan(100001).cleared.uid, 101);
 assert.equal(admin.room(100001).wall.drawPlan, null);

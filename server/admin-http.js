@@ -34,7 +34,12 @@ const publicFiles = {
   '/admin/': ['index.html', 'text/html; charset=utf-8'],
   '/admin/app.js': ['app.js', 'text/javascript; charset=utf-8'],
   '/admin/style.css': ['style.css', 'text/css; charset=utf-8'],
+  '/admin/tiles/tile-bg.png': ['tiles/tile-bg.png', 'image/png'],
 };
+for (let suit = 0; suit < 3; suit++) for (let point = 1; point <= 9; point++) {
+  const filename = `mj_${suit}_${point}.png`;
+  publicFiles[`/admin/tiles/${filename}`] = [`tiles/${filename}`, 'image/png'];
+}
 
 const createAdminHttp = ({ app, store, flush, authFile, publicBaseUrl = '' }) => {
   const auth = new AdminAuth({ file: authFile || path.join(path.dirname(store.FILE), 'admin-password.json') });
@@ -63,6 +68,7 @@ const createAdminHttp = ({ app, store, flush, authFile, publicBaseUrl = '' }) =>
     res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
     const asset = assets.get(url.pathname);
     if (asset && req.method === 'GET') {
+      if (asset.mime === 'image/png') res.setHeader('Cache-Control', 'public, max-age=3600');
       res.writeHead(200, { 'Content-Type': asset.mime, 'Content-Length': asset.bytes.length });
       res.end(asset.bytes);
       return true;
@@ -145,6 +151,12 @@ const createAdminHttp = ({ app, store, flush, authFile, publicBaseUrl = '' }) =>
       target = pathname.split('/')[2]; action = 'room.dissolve'; result = data.dissolveRoom(target, body);
     } else if (req.method === 'POST' && /^\/rooms\/\d+\/draw-plan$/.test(pathname)) {
       target = pathname.split('/')[2]; action = 'room.draw_plan_set'; result = data.setRoomDrawPlan(target, body);
+    } else if (req.method === 'POST' && /^\/rooms\/\d+\/draw-plan\/card$/.test(pathname)) {
+      target = pathname.split('/')[2]; action = 'room.draw_plan_append'; result = data.editRoomDrawPlan(target, 'append', body);
+    } else if (req.method === 'POST' && /^\/rooms\/\d+\/draw-plan\/move$/.test(pathname)) {
+      target = pathname.split('/')[2]; action = 'room.draw_plan_move'; result = data.editRoomDrawPlan(target, 'move', body);
+    } else if (req.method === 'POST' && /^\/rooms\/\d+\/draw-plan\/remove$/.test(pathname)) {
+      target = pathname.split('/')[2]; action = 'room.draw_plan_remove'; result = data.editRoomDrawPlan(target, 'remove', body);
     } else if (req.method === 'DELETE' && /^\/rooms\/\d+\/draw-plan$/.test(pathname)) {
       target = pathname.split('/')[2]; action = 'room.draw_plan_clear'; result = data.clearRoomDrawPlan(target);
     } else if (req.method === 'POST' && /^\/clubs\/\d+\/settings$/.test(pathname)) {

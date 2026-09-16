@@ -56,6 +56,10 @@ const run = async () => {
   };
   try {
     check('后台页面可打开', (await fetch(`${base}/admin`)).status, 200);
+    const tileResponse = await fetch(`${base}/admin/tiles/mj_0_1.png`);
+    check('后台麻将牌图片可打开', [tileResponse.status, tileResponse.headers.get('content-type')],
+      [200, 'image/png']);
+    check('非牌图路径不能读取文件', (await fetch(`${base}/admin/tiles/../admin-password.json`)).status, 404);
     check('未登录不可读取玩家', (await request('/players')).status, 401);
     check('密码错误不可登录', (await request('/login', 'POST', { password: 'wrong' }, false)).status, 401);
     const login = await request('/login', 'POST', { password: 'VeryStrongAdminPassword123!' }, false);
@@ -86,6 +90,13 @@ const run = async () => {
       { uid: player.uid, cards: [999] })).status, 400);
     check('后台可指定摸牌顺序', (await request('/rooms/100000/draw-plan', 'POST',
       { uid: player.uid, cards: [chosen] })).body.drawPlan.cards, [chosen]);
+    const extra = debugRound.wall.remainCards().find((card) => card !== chosen);
+    check('点击牌可立即追加指定牌', (await request('/rooms/100000/draw-plan/card', 'POST',
+      { uid: player.uid, card: extra })).body.drawPlan.cards, [chosen, extra]);
+    check('调整顺序立即生效', (await request('/rooms/100000/draw-plan/move', 'POST',
+      { uid: player.uid, from: 1, to: 0 })).body.drawPlan.cards, [extra, chosen]);
+    check('删除指定牌立即生效', (await request('/rooms/100000/draw-plan/remove', 'POST',
+      { uid: player.uid, index: 1 })).body.drawPlan.cards, [extra]);
     check('房间详情显示指定摸牌顺序', (await request('/rooms/100000')).body.wall.drawPlan.uid, player.uid);
     check('后台可取消摸牌顺序', (await request('/rooms/100000/draw-plan', 'DELETE')).body.cleared.uid, player.uid);
     table.round = null;

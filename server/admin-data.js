@@ -150,14 +150,27 @@ class AdminData {
     return { roomId: table.roomId, drawPlan: result };
   }
 
+  editRoomDrawPlan(id, operation, body) {
+    const table = this.app.tables.get(Number(id));
+    if (!table || table.closed) return fail('房间不存在或已结束', 404);
+    if (!table.round || table.round.over) return fail('只有正在进行的牌局可以修改摸牌顺序');
+    let result;
+    if (operation === 'append') result = table.round.appendDrawCard(body.uid, body.card);
+    else if (operation === 'move') result = table.round.moveDrawCard(body.uid, body.from, body.to);
+    else if (operation === 'remove') result = table.round.removeDrawCard(body.uid, body.index);
+    else return fail('牌序操作无效');
+    if (result && result.error) return fail(result.error);
+    this.app.persist();
+    return { roomId: table.roomId, drawPlan: result };
+  }
+
   clearRoomDrawPlan(id) {
     const table = this.app.tables.get(Number(id));
     if (!table || table.closed) return fail('房间不存在或已结束', 404);
     if (!table.round || table.round.over) return fail('牌局未在进行中');
     const previous = table.round.clearDrawPlan();
-    if (!previous) return fail('此房间当前没有指定摸牌顺序');
-    this.app.persist();
-    return { roomId: table.roomId, cleared: { ...previous, cards: previous.cards.slice() } };
+    if (previous) this.app.persist();
+    return { roomId: table.roomId, cleared: previous ? { ...previous, cards: previous.cards.slice() } : null };
   }
 
   dissolveRoom(id, body) {

@@ -440,6 +440,46 @@ class Round {
     return { ...this.drawPlan, cards: this.drawPlan.cards.slice() };
   }
 
+  appendDrawCard(uid, card) {
+    if (this.over || !this.wall) return { error: '牌局未在进行中' };
+    const targetUid = Number(uid);
+    if (this.seatOf(targetUid) < 0) return { error: '目标玩家不在本局座位中' };
+    if (!Number.isInteger(card)) return { error: '牌号无效' };
+    const plan = this.drawPlan;
+    if (!plan || plan.uid !== targetUid) return this.setDrawPlan(targetUid, [card]);
+    const remaining = this.wall.remainCards().filter((tile) => tile === card).length;
+    const reserved = plan.cards.filter((tile) => tile === card).length;
+    if (remaining <= reserved) return { error: `剩余牌堆中没有足够的 ${card}` };
+    plan.cards.push(card);
+    plan.total++;
+    this.io.log(`后台追加指定摸牌 uid=${uid} 牌=${card} 待摸=${plan.cards.join(',')}`);
+    return { ...plan, cards: plan.cards.slice() };
+  }
+
+  moveDrawCard(uid, from, to) {
+    const plan = this.drawPlan;
+    if (!plan || plan.uid !== Number(uid)) return { error: '指定摸牌顺序已变化，请刷新房间' };
+    if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || to < 0
+      || from >= plan.cards.length || to >= plan.cards.length) return { error: '牌序位置已变化，请刷新房间' };
+    const [card] = plan.cards.splice(from, 1);
+    plan.cards.splice(to, 0, card);
+    this.io.log(`后台调整指定摸牌 uid=${uid} ${from + 1}→${to + 1} 待摸=${plan.cards.join(',')}`);
+    return { ...plan, cards: plan.cards.slice() };
+  }
+
+  removeDrawCard(uid, index) {
+    const plan = this.drawPlan;
+    if (!plan || plan.uid !== Number(uid)) return { error: '指定摸牌顺序已变化，请刷新房间' };
+    if (!Number.isInteger(index) || index < 0 || index >= plan.cards.length) {
+      return { error: '牌序位置已变化，请刷新房间' };
+    }
+    const [card] = plan.cards.splice(index, 1);
+    plan.total--;
+    this.io.log(`后台删除指定摸牌 uid=${uid} 牌=${card} 待摸=${plan.cards.join(',')}`);
+    if (!plan.cards.length) this.drawPlan = null;
+    return this.drawPlan ? { ...plan, cards: plan.cards.slice() } : null;
+  }
+
   clearDrawPlan() {
     const previous = this.drawPlan;
     this.drawPlan = null;
