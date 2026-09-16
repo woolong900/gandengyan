@@ -127,6 +127,7 @@ const createAdminHttp = ({ app, store, flush, authFile, publicBaseUrl = '' }) =>
       else if (pathname === '/messages') result = { messages: app.operatorMessages.slice().reverse() };
       else if (pathname === '/notices') result = app.publicNotices;
       else if (pathname === '/economy') result = app.economySettings;
+      else if (pathname === '/bots') result = data.bots();
       else if (pathname === '/audit') result = { entries: store.listAudit(query.limit) };
       else if (pathname === '/system') result = { sqliteFile: store.FILE,
         recordsArchived: store.recordHistoryStats(0).total, recordsRetained: app.records.length,
@@ -171,6 +172,8 @@ const createAdminHttp = ({ app, store, flush, authFile, publicBaseUrl = '' }) =>
       target = '大厅'; action = 'notice.update'; result = data.updateNotices(body);
     } else if (req.method === 'PUT' && pathname === '/economy') {
       target = '全局房卡奖励'; action = 'economy.update'; result = data.updateEconomy(body);
+    } else if (req.method === 'PUT' && pathname === '/bots') {
+      target = '机器人'; action = 'bots.update'; result = data.updateBots(body);
     } else if (req.method === 'POST' && pathname === '/backup') {
       const filename = path.join(path.dirname(store.FILE), 'backups', `admin-${new Date().toISOString().replace(/[:.]/g, '-')}.sqlite`);
       await flush();

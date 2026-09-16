@@ -2,7 +2,7 @@
   'use strict';
   var state = { csrf: '', view: 'dashboard', page: 1, q: '', loading: false };
   var labels = { dashboard: '数据面板', players: '玩家管理', rooms: '房间管理', records: '牌局管理',
-    clubs: '俱乐部管理', economy: '房卡与奖励', messages: '通知管理', notices: '大厅公告', audit: '操作日志', system: '备份与系统' };
+    clubs: '俱乐部管理', economy: '房卡与奖励', bots: '机器人管理', messages: '通知管理', notices: '大厅公告', audit: '操作日志', system: '备份与系统' };
   var content = document.getElementById('content');
   var modal = document.getElementById('modal');
   var modalCard = document.getElementById('modal-card');
@@ -94,6 +94,7 @@
       else if (view === 'records') renderRecords(data);
       else if (view === 'clubs') renderClubs(data);
       else if (view === 'economy') renderEconomy(data);
+      else if (view === 'bots') renderBots(data);
       else if (view === 'messages') renderMessages(data);
       else if (view === 'notices') renderNotices(data);
       else if (view === 'audit') renderAudit(data);
@@ -195,6 +196,25 @@
       field('绑定邀请码双方各赠送房卡', '<input name="inviteBindBonus" type="number" min="0" max="1000000" step="1" value="' + escape(data.inviteBindBonus) + '" required>') +
       '</div><p class="note">设置为 0 可关闭对应奖励；已经发放的房卡不回收。俱乐部房卡可在“俱乐部管理”中单独调整。</p>' +
       '<button class="button primary" type="submit">保存奖励设置</button></form></section>';
+  }
+  function renderBots(data) {
+    var rows = data.rooms.map(function (room) { return '<tr><td class="mono">' + room.roomId +
+      '</td><td>' + badge(room.status, room.status === '进行中' ? 'green' : 'gold') +
+      '</td><td>' + room.humans + '</td><td>' + room.bots + '</td></tr>'; });
+    content.innerHTML = intro('机器人管理', '统一控制服务端是否自动向只有一位真人的等待房间补充陪玩机器人。') +
+      '<div class="grid metrics"><div class="metric"><span class="label">自动补充</span><strong class="' +
+      (data.enabled ? 'accent' : '') + '">' + (data.enabled ? '已开启' : '已关闭') +
+      '</strong><span class="hint">设置会持久保存</span></div><div class="metric"><span class="label">当前机器人</span><strong>' +
+      number(data.totalBots) + '</strong><span class="hint">所有活跃房间</span></div><div class="metric"><span class="label">牌局中</span><strong>' +
+      number(data.playingBots) + '</strong><span class="hint">关闭后完成当前小局再离开</span></div><div class="metric"><span class="label">等待中</span><strong>' +
+      number(data.waitingBots) + '</strong><span class="hint">关闭时立即移除</span></div></div>' +
+      '<section class="card"><form id="bots-form">' + field('机器人自动补位',
+        '<select name="enabled"><option value="true"' + (data.enabled ? ' selected' : '') +
+        '>开启</option><option value="false"' + (!data.enabled ? ' selected' : '') + '>关闭</option></select>') +
+      '<p class="note">开启后，符合条件的等待房间会立即补位。关闭后不再加入新机器人；等待中的机器人立即离开，正在打牌的机器人完成当前小局后离开。</p>' +
+      '<button class="button primary" type="submit">保存机器人设置</button></form></section>' +
+      '<section class="card" style="margin-top:18px"><h3>机器人所在房间</h3>' +
+      table(['房号', '状态', '真人', '机器人'], rows) + '</section>';
   }
   function renderMessages(data) {
     var rows = data.messages.map(function (message) { return '<tr><td class="mono">' + message.id +
@@ -516,6 +536,10 @@
         await api('/economy', 'PUT', { clubJoinBonus: Number(values.clubJoinBonus),
           inviteBindBonus: Number(values.inviteBindBonus) });
         toast('奖励设置已更新'); render(); return;
+      }
+      if (form.id === 'bots-form') {
+        var bots = await api('/bots', 'PUT', { enabled: values.enabled === 'true' });
+        toast(bots.enabled ? '机器人已开启' : '机器人已关闭'); render(); return;
       }
       if (form.id === 'password-form') {
         await api('/password', 'POST', values); state.csrf = ''; toast('密码已更新，请重新登录'); showLogin(); return;

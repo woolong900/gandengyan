@@ -176,7 +176,10 @@ class Table {
           table.sendTotalEnd();
           // 房间立即释放；客户端保留已收到的结算画面，玩家手动返回大厅。
           table.dissolve(0, { totalAlreadySent: true, notifyExit: false });
-        } else table.host.persist();
+        } else {
+          if (table.host.botsEnabled && !table.host.botsEnabled()) table.removeBots();
+          else table.host.persist();
+        }
       },
     };
   }
@@ -412,6 +415,24 @@ class Table {
     }
     this.host.log(`  房 ${this.roomId} 补了 ${players.length} 个陪玩`);
     this.host.persist();
+  }
+
+  /** 关闭陪玩时只在局间移除；进行中的牌局等待本小局结束。 */
+  removeBots() {
+    if (this.round) return 0;
+    const bots = this.members.filter((member) => member.bot);
+    if (!bots.length) return 0;
+    const ids = new Set(bots.map((member) => member.player.uid));
+    this.members = this.members.filter((member) => !ids.has(member.player.uid));
+    for (const member of bots) {
+      member.player.roomId = 0;
+      this.host.onUidRoom(member.player.uid, 0);
+      if (this.host.forgetBot) this.host.forgetBot(member.player.uid);
+    }
+    this.host.log(`  房 ${this.roomId} 移除 ${bots.length} 个陪玩`);
+    this.broadcast('roominfo', roomInfo(this));
+    this.host.persist();
+    return bots.length;
   }
 
   join(player, connId) {

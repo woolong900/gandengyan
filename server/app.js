@@ -34,6 +34,7 @@ class GameApp {
     this.playersByGuestDeviceHash = new Map();
     this.tables = new Map();
     this.economySettings = { clubJoinBonus: 200, inviteBindBonus: INVITE_GIVE };
+    this.botSettings = { enabled: process.env.QJQP_FILLBOTS !== '0' };
     this.clubStore = new ClubStore({ now: () => this.now(), memberBonus: () => this.economySettings.clubJoinBonus });
     this.nextUid = FIRST_PLAYER_UID;
     this.nextRoomId = 100000;
@@ -409,7 +410,35 @@ class GameApp {
   }
 
   fillBotsOn() {
-    return process.env.QJQP_FILLBOTS !== '0';
+    return this.botSettings.enabled;
+  }
+
+  forgetBot(uid) {
+    const player = this.playerByUid(uid);
+    if (!player || !player.bot) return;
+    this.playersByUid.delete(player.uid);
+    this.players.delete(`t_bot_${player.uid}`);
+    this.uidRoom.delete(player.uid);
+  }
+
+  setBotsEnabled(enabled) {
+    if (typeof enabled !== 'boolean') return { error: '机器人开关参数无效' };
+    this.botSettings.enabled = enabled;
+    let removed = 0;
+    let filledRooms = 0;
+    for (const table of this.tables.values()) {
+      if (table.closed) continue;
+      if (!enabled) removed += table.removeBots();
+      else {
+        const before = table.members.filter((member) => member.bot).length;
+        this.maybeFillBots(table);
+        if (table.members.filter((member) => member.bot).length > before) filledRooms++;
+      }
+    }
+    this.persist();
+    const playingBots = [...this.tables.values()].reduce((count, table) => count
+      + (table.round ? table.members.filter((member) => member.bot).length : 0), 0);
+    return { enabled, removed, filledRooms, playingBots };
   }
 
   mintBot(site, roomId) {
@@ -468,6 +497,7 @@ class GameApp {
       nextOperatorMessageId: this.nextOperatorMessageId,
       publicNotices: this.publicNotices,
       economySettings: this.economySettings,
+      botSettings: this.botSettings,
       playbackSeq: this.playbackSeq || 0,
       clubs: this.clubStore.dump(),
     };
@@ -504,6 +534,9 @@ class GameApp {
       inviteBindBonus: Number.isSafeInteger(economy.inviteBindBonus) && economy.inviteBindBonus >= 0
         ? economy.inviteBindBonus : INVITE_GIVE,
     };
+    const botSettings = data.botSettings && typeof data.botSettings === 'object' ? data.botSettings : {};
+    this.botSettings = { enabled: typeof botSettings.enabled === 'boolean'
+      ? botSettings.enabled : process.env.QJQP_FILLBOTS !== '0' };
     this.playbackSeq = data.playbackSeq || 0;
     this.clubStore.restore(data.clubs);
     const byUid = new Map();
@@ -562,6 +595,8 @@ class GameApp {
       now: () => app.now(),
       log: (line) => console.log(line),
       onDissolved: () => {
+        const table = app.tables.get(roomId);
+        if (table) for (const member of table.members) if (member.bot) app.forgetBot(member.player.uid);
         for (const [uid, rid] of app.uidRoom) {
           if (rid === roomId) app.clearRoomLink(uid);
         }
@@ -572,6 +607,8 @@ class GameApp {
         if (rid) app.uidRoom.set(uid, rid);
         else app.clearRoomLink(uid);
       },
+      botsEnabled: () => app.fillBotsOn(),
+      forgetBot: (uid) => app.forgetBot(uid),
     };
   }
 

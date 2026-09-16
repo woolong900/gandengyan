@@ -18,6 +18,7 @@ const empty = () => ({
   operatorMessages: [],
   publicNotices: { hallMarquee: '', serviceWechat: '', serviceQQ: '' },
   economySettings: { clubJoinBonus: 200, inviteBindBonus: 1000 },
+  botSettings: { enabled: process.env.QJQP_FILLBOTS !== '0' },
   rooms: [],
   records: [],
   playbackSeq: 0,
@@ -38,6 +39,8 @@ const normalize = (data) => {
     publicNotices: raw.publicNotices && typeof raw.publicNotices === 'object' ? raw.publicNotices : base.publicNotices,
     economySettings: raw.economySettings && typeof raw.economySettings === 'object'
       ? raw.economySettings : base.economySettings,
+    botSettings: raw.botSettings && typeof raw.botSettings === 'object'
+      ? { enabled: raw.botSettings.enabled !== false } : base.botSettings,
     rooms: Array.isArray(raw.rooms) ? raw.rooms : [],
     records: Array.isArray(raw.records) ? raw.records : [],
     playbackSeq: Number(raw.playbackSeq) || 0,
@@ -97,6 +100,10 @@ const open = () => {
       data TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS economy_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      data TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS bot_settings (
       id INTEGER PRIMARY KEY CHECK (id = 1),
       data TEXT NOT NULL
     );
@@ -169,6 +176,7 @@ const open = () => {
     operatorMessage: db.prepare('INSERT INTO operator_messages (position, id, data) VALUES (?, ?, ?)'),
     publicNotices: db.prepare('INSERT INTO public_notices (id, data) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET data=excluded.data'),
     economySettings: db.prepare('INSERT INTO economy_settings (id, data) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET data=excluded.data'),
+    botSettings: db.prepare('INSERT INTO bot_settings (id, data) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET data=excluded.data'),
     room: db.prepare('INSERT INTO rooms (position, room_id, club_id, data) VALUES (?, ?, ?, ?)'),
     record: db.prepare('INSERT INTO records (position, record_id, time, club_id, data) VALUES (?, ?, ?, ?, ?)'),
     club: db.prepare('INSERT INTO clubs (position, club_id, owner_uid, data) VALUES (?, ?, ?, ?)'),
@@ -185,6 +193,7 @@ const writeTransaction = (data) => {
     const operatorMessages = state.operatorMessages.map((item) => encode(item));
     const publicNotices = encode(state.publicNotices);
     const economySettings = encode(state.economySettings);
+    const botSettings = encode(state.botSettings);
     const rooms = state.rooms.map((item) => encode(item));
     const records = state.records.map((item) => encode(item));
     const clubs = state.clubs.clubs.map((item) => encode(item));
@@ -199,6 +208,7 @@ const writeTransaction = (data) => {
     state.operatorMessages.forEach((item, i) => statements.operatorMessage.run(i, Number(item.id), operatorMessages[i]));
     statements.publicNotices.run(publicNotices);
     statements.economySettings.run(economySettings);
+    statements.botSettings.run(botSettings);
     state.rooms.forEach((item, i) => statements.room.run(
       i, Number(item.roomId), Number(item.clubId || 0), rooms[i],
     ));
@@ -239,6 +249,7 @@ const load = () => {
     operatorMessages: db.prepare('SELECT data FROM operator_messages ORDER BY position').all().map((row) => JSON.parse(row.data)),
     publicNotices: JSON.parse((db.prepare('SELECT data FROM public_notices WHERE id=1').get() || { data: '{}' }).data),
     economySettings: JSON.parse((db.prepare('SELECT data FROM economy_settings WHERE id=1').get() || { data: '{}' }).data),
+    botSettings: JSON.parse((db.prepare('SELECT data FROM bot_settings WHERE id=1').get() || { data: '{}' }).data),
     rooms: db.prepare('SELECT data FROM rooms ORDER BY position').all().map((row) => JSON.parse(row.data)),
     records: db.prepare('SELECT data FROM records ORDER BY position').all().map((row) => JSON.parse(row.data)),
     playbackSeq: Number(meta.playback_seq),

@@ -109,6 +109,11 @@ const run = async () => {
     check('非法奖励设置被拒绝', (await request('/economy', 'PUT', { clubJoinBonus: -1 })).status, 400);
     check('奖励设置可更新', (await request('/economy', 'PUT',
       { clubJoinBonus: 300, inviteBindBonus: 75 })).body, { clubJoinBonus: 300, inviteBindBonus: 75 });
+    check('机器人设置默认开启', (await request('/bots')).body.enabled, true);
+    check('非法机器人设置被拒绝', (await request('/bots', 'PUT', { enabled: 'false' })).status, 400);
+    check('后台可关闭机器人', (await request('/bots', 'PUT', { enabled: false })).body.enabled, false);
+    check('机器人设置写入 SQLite', store.load().botSettings.enabled, false);
+    check('后台可重新开启机器人', (await request('/bots', 'PUT', { enabled: true })).body.enabled, true);
     check('俱乐部房卡不可扣成负数', (await request(`/clubs/${club.id}/cards`, 'POST',
       { delta: -1, reason: '测试扣费记录' })).status, 400);
     check('俱乐部房卡可调整', (await request(`/clubs/${club.id}/cards`, 'POST',

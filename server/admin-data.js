@@ -291,6 +291,28 @@ class AdminData {
     return next;
   }
 
+  bots() {
+    const rooms = [...this.app.tables.values()].filter((table) => !table.closed);
+    const roomStats = rooms.map((table) => ({ roomId: table.roomId,
+      status: table.round ? '进行中' : table.step ? '局间' : '等待中',
+      bots: table.members.filter((member) => member.bot).length,
+      humans: table.members.filter((member) => !member.bot && !member.view).length }));
+    return {
+      enabled: this.app.fillBotsOn(),
+      totalBots: roomStats.reduce((sum, room) => sum + room.bots, 0),
+      playingBots: roomStats.filter((room) => room.status === '进行中').reduce((sum, room) => sum + room.bots, 0),
+      waitingBots: roomStats.filter((room) => room.status !== '进行中').reduce((sum, room) => sum + room.bots, 0),
+      rooms: roomStats.filter((room) => room.bots > 0),
+    };
+  }
+
+  updateBots(body) {
+    if (typeof body.enabled !== 'boolean') return fail('机器人开关参数无效');
+    const changed = this.app.setBotsEnabled(body.enabled);
+    if (changed.error) return fail(changed.error);
+    return { ...this.bots(), changed };
+  }
+
   updateNotices(body) {
     const max = { hallMarquee: 200, serviceWechat: 64, serviceQQ: 64 };
     for (const [key, limit] of Object.entries(max)) {
