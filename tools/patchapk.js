@@ -180,6 +180,54 @@ RULES.push([
     + 'this.activityRoot.getChildByName("Btn0").removeFromParent();',
   true,
 ]);
+// “邀请成员”页不能枚举平台全部玩家。页面初始为空，只允许右上角按完整用户 ID 查询。
+RULES.push([
+  u2b(`t.prototype.start = function() {
+var e = this;
+this.adjustHead(this.inviteOtherTr, [ "全选", "头像", "昵称", "ID", "操作" ]);
+i.default.eventUtils.on(a.default.ui_page_change, function(t, o) {
+e._curPage !== o && (e._curPage = o);
+e._updateList();
+}, this, s.eOffType.OnDestroy);
+i.default.eventUtils.on(a.default.todo_club_list_search, function(t, o) {
+e.getSearchData(o);
+}, this, s.eOffType.OnDestroy);
+i.default.eventUtils.on(a.default.data_club_inviteuser_list_update, function() {
+e.getInviteUserList();
+}, this, s.eOffType.OnDestroy);
+this.getInviteUserList();
+};
+`),
+  u2b(recoveredBetween('InnerMemberInvite.js', 't.prototype.start = function() {', 't.prototype.getInviteUserList = function() {')),
+  true,
+]);
+RULES.push([
+  u2b(`t.prototype.getSearchData = function(e) {
+u.default.clubApplyInviteUserSearch(d.default.focus, e, function(e, t) {
+if (t) i.default.uiHelper.showTip("获取数据失败～"); else if (0 === e.res.error) {
+if (!e.info) {
+i.default.uiHelper.showTip("玩家不存在");
+return;
+}
+i.default.uiHelper.show(p.eWindowID.AllianceClubInviteLayer, e.info, e.member);
+} else {
+if (79 === e.res.error) {
+i.default.uiHelper.showTip("查询已达到最大次数");
+return;
+}
+i.default.uiHelper.showTip(e.res.what);
+}
+});
+};
+`),
+  u2b(recoveredBetween('InnerMemberInvite.js', 't.prototype.getSearchData = function(e) {', 't.prototype._setData = function(e) {')),
+  true,
+]);
+RULES.push([
+  u2b('2 === this._chooseIndex || this._popupType === a.eClubPopupType.Record ? this.searchEditBox.node.getChildByName("PLACEHOLDER_LABEL").getComponent(cc.Label).string = "用户ID/备注" : this.searchEditBox.node.getChildByName("PLACEHOLDER_LABEL").getComponent(cc.Label).string = "昵称/ID/备注";'),
+  u2b('2 === this._chooseIndex ? this.searchEditBox.node.getChildByName("PLACEHOLDER_LABEL").getComponent(cc.Label).string = "用户ID（精确搜索）" : this._popupType === a.eClubPopupType.Record ? this.searchEditBox.node.getChildByName("PLACEHOLDER_LABEL").getComponent(cc.Label).string = "用户ID/备注" : this.searchEditBox.node.getChildByName("PLACEHOLDER_LABEL").getComponent(cc.Label).string = "昵称/ID/备注";'),
+  true,
+]);
 // 俱乐部自动桌的首位入座者会临时成为房主；未开局时只允许退出或返回。
 RULES.push([
   '} else if (d.default.isFangZhu()) {\nthis.btnExit.active = !1;\nthis.btnDissolve.active = !0;',

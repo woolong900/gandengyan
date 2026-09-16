@@ -989,14 +989,8 @@ class GameApp {
       if (!club || !this.clubStore.isAdmin(club, c.player.uid)) {
         return c.send(pack(143, { res: { error: 1, what: '没有邀请权限' }, data: [] }));
       }
-      const pending = new Set(club.invites.map((invite) => Number(invite.toUid)));
-      const data = [...this.playersByUid.values()].filter((player) => (
-        !player.bot && player.uid !== c.player.uid && !this.clubStore.member(club, player.uid) && !pending.has(player.uid)
-      )).slice(0, 500).map((player) => ({
-        userId: player.uid, avatarUrl: player.avatarUrl || '', nickname: player.nickname,
-        code: String(player.uid),
-      }));
-      return c.send(pack(143, { res: { error: 0, what: '' }, data, count: data.length, total: data.length }));
+      // 邀请页不允许枚举平台玩家，只能通过协议 140 按完整用户 ID 查找。
+      return c.send(pack(143, { res: { error: 0, what: '' }, data: [], count: 0, total: 0 }));
     }
 
     if (proto === 144) {
@@ -1257,9 +1251,12 @@ class GameApp {
 
     if (proto === 140) {
       const club = this.clubStore.get(num(msg && msg.clubId));
-      const target = this.playerByUid(num(msg && msg.userCode))
-        || [...this.players.values()].find((player) => player.nickname === String(msg && msg.userCode));
-      if (!club || !this.clubStore.isAdmin(club, c.player.uid) || !target) {
+      const userCode = String((msg && msg.userCode) || '').trim();
+      const target = /^\d+$/.test(userCode) ? this.playerByUid(Number(userCode)) : null;
+      if (!club || !this.clubStore.isAdmin(club, c.player.uid)) {
+        return c.send(pack(140, { res: { error: 1, what: '没有邀请权限' }, member: false }));
+      }
+      if (!target || target.bot || String(target.uid) !== userCode) {
         return c.send(pack(140, { res: { error: 1, what: '用户不存在' }, member: false }));
       }
       return c.send(pack(140, {

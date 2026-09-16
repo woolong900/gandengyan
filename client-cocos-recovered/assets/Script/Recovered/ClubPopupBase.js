@@ -96,7 +96,7 @@ t.prototype._cleanSearch = function() {
 if (this.searchRoot.active) {
 this.searchEditBox.string = "";
 this._searchStr = "";
-2 === this._chooseIndex || this._popupType === a.eClubPopupType.Record ? this.searchEditBox.node.getChildByName("PLACEHOLDER_LABEL").getComponent(cc.Label).string = "用户ID/备注" : this.searchEditBox.node.getChildByName("PLACEHOLDER_LABEL").getComponent(cc.Label).string = "昵称/ID/备注";
+2 === this._chooseIndex ? this.searchEditBox.node.getChildByName("PLACEHOLDER_LABEL").getComponent(cc.Label).string = "用户ID（精确搜索）" : this._popupType === a.eClubPopupType.Record ? this.searchEditBox.node.getChildByName("PLACEHOLDER_LABEL").getComponent(cc.Label).string = "用户ID/备注" : this.searchEditBox.node.getChildByName("PLACEHOLDER_LABEL").getComponent(cc.Label).string = "昵称/ID/备注";
 }
 };
 t.prototype.onClickSearch = function() {

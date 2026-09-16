@@ -52,6 +52,11 @@ this._contentWidth = this.adjustW - 16;
 t.prototype.start = function() {
 var e = this;
 this.adjustHead(this.inviteOtherTr, [ "全选", "头像", "昵称", "ID", "操作" ]);
+this.titleRoot.active = !1;
+var t = this.node.getChildByName("btn_inviteSelect");
+t && (t.active = !1);
+var o = this.noDataTipNode.getComponentInChildren(cc.Label);
+o && (o.string = "请在右上角输入用户ID精确搜索", o.fontSize = 24, o.node.width = 420);
 i.default.eventUtils.on(a.default.ui_page_change, function(t, o) {
 e._curPage !== o && (e._curPage = o);
 e._updateList();
@@ -60,9 +65,13 @@ i.default.eventUtils.on(a.default.todo_club_list_search, function(t, o) {
 e.getSearchData(o);
 }, this, s.eOffType.OnDestroy);
 i.default.eventUtils.on(a.default.data_club_inviteuser_list_update, function() {
-e.getInviteUserList();
+y.default.destroy();
+e._setData(null);
+e._updateList();
 }, this, s.eOffType.OnDestroy);
-this.getInviteUserList();
+y.default.destroy();
+this._setData(null);
+this._updateList();
 };
 t.prototype.getInviteUserList = function() {
 var e = this;
@@ -76,6 +85,11 @@ e._updateList();
 });
 };
 t.prototype.getSearchData = function(e) {
+e = (e || "").trim();
+if (!/^\d+$/.test(e)) {
+i.default.uiHelper.showTip("请输入完整的数字用户ID");
+return;
+}
 u.default.clubApplyInviteUserSearch(d.default.focus, e, function(e, t) {
 if (t) i.default.uiHelper.showTip("获取数据失败～"); else if (0 === e.res.error) {
 if (!e.info) {

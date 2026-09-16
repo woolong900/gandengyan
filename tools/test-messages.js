@@ -42,7 +42,10 @@ const created = request('owner', 147, { name: '消息测试俱乐部' });
 const clubId = Number(created.id);
 check('创建俱乐部', Number(created.res.error), 0);
 const candidates = request('owner', 143, { clubId }).data.map((item) => Number(item.userId));
-check('批量邀请列表显示真实玩家', candidates, [b.uid, c.uid, d.uid, e.uid]);
+check('邀请页不枚举平台玩家', candidates, []);
+const foundById = request('owner', 140, { clubId, userCode: String(b.uid) });
+check('按完整用户 ID 精确找到玩家', [Number(foundById.res.error), Number(foundById.info.id)], [0, b.uid]);
+check('昵称不能用于邀请搜索', Number(request('owner', 140, { clubId, userCode: b.nickname }).res.error), 1);
 check('普通成员没有邀请权限', Number(request('b', 143, { clubId }).res.error), 1);
 
 const batch = request('owner', 144, { clubId, userId: [b.uid, c.uid] });
@@ -51,7 +54,7 @@ check('两名在线收件人立即收到刷新信号', [boxes.b.some((item) => i
 const bInbox = request('b', 118, {}).invites;
 check('消息显示邀请人昵称和俱乐部名', [bInbox[0].inviter, bInbox[0].name, bInbox[0].policy], [owner.nickname, '消息测试俱乐部', 0]);
 const invitationId = Number(bInbox[0].id);
-check('批量邀请排除已有待办玩家', request('owner', 143, { clubId }).data.map((item) => Number(item.userId)), [d.uid, e.uid]);
+check('发出邀请后仍不能枚举剩余玩家', request('owner', 143, { clubId }).data.map((item) => Number(item.userId)), []);
 check('混合重复邀请整体失败', Number(request('owner', 144, { clubId, userId: [b.uid, d.uid] }).res.error), 1);
 check('失败批次没有给另一玩家误发邀请', request('d', 118, {}).invites.length, 0);
 check('不存在的玩家不能邀请', Number(request('owner', 141, { clubId, userId: 999999 }).res.error), 1);

@@ -59,6 +59,7 @@ const login = (id, token) => {
 };
 const a = login('a', 'club_a');
 const b = login('b', 'club_b');
+const c = login('c', 'club_c');
 a.cardNum = 20;
 b.cardNum = 20;
 
@@ -71,6 +72,16 @@ const created = last(boxes.a, 147);
 const clubId = Number(created.id);
 t('创建俱乐部成功', Number(created.res.error), 0);
 t('首个俱乐部 ID 从 158934 开始', clubId, 158934);
+
+app.onMessage('a', packCs(143, { clubId }));
+t('邀请页不能枚举所有玩家', last(boxes.a, 143).data.length, 0);
+app.onMessage('a', packCs(140, { clubId, userCode: c.nickname }));
+t('邀请搜索不允许按昵称查找', Number(last(boxes.a, 140).res.error), 1);
+app.onMessage('a', packCs(140, { clubId, userCode: `0${c.uid}` }));
+t('邀请搜索要求用户 ID 精确匹配', Number(last(boxes.a, 140).res.error), 1);
+app.onMessage('a', packCs(140, { clubId, userCode: String(c.uid) }));
+const exactInviteSearch = last(boxes.a, 140);
+t('完整用户 ID 可以查到对应玩家', [Number(exactInviteSearch.res.error), Number(exactInviteSearch.info.id)], [0, c.uid]);
 
 boxes.a.sent.length = 0;
 app.onMessage('a', packCs(113, {}));
