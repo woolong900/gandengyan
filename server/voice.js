@@ -1,5 +1,5 @@
 /**
- * 房内语音文件。SILK 15 秒大约 10–20KB，和打牌消息比很小；
+ * 房内语音文件。新客户端使用 M4A/AAC，旧客户端仍可能上传 SILK；
  * 要防的是同步读盘卡住 WS、以及被刷满磁盘。
  */
 const fs = require('fs');
@@ -83,9 +83,17 @@ const createVoice = (dir, opts = {}) => {
     try { prune(); } catch { /* */ }
   };
 
+  const isSupportedAudio = (buf) => {
+    if (!buf || buf.length < 8) return false;
+    if (buf.toString('ascii', 0, 6) === '#!SILK') return true;
+    // Android MediaRecorder 与 iOS AVAudioRecorder 统一输出 MPEG-4/AAC。
+    // ISO BMFF 文件在第 4 字节处以 ftyp 标识容器类型。
+    return buf.length >= 12 && buf.toString('ascii', 4, 8) === 'ftyp';
+  };
+
   const put = (buf) => {
     if (!buf || buf.length < 8 || buf.length > maxBytes) return { error: 'too large' };
-    if (buf.toString('ascii', 0, 6) !== '#!SILK') return { error: 'invalid' };
+    if (!isSupportedAudio(buf)) return { error: 'invalid' };
     pruneSoon();
     ensure();
     const id = crypto.randomBytes(16).toString('hex');

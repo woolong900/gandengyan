@@ -3,6 +3,8 @@ package com.yuanlai.external;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.media.MediaPlayer;
+import android.media.MediaRecorder;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -23,7 +25,8 @@ import org.cocos2dx.javascript.AppActivity;
 import org.json.JSONObject;
 
 /**
- * 原版桥的方法名和返回值保持不变，底层从 GCloudVoice 换成 GME 2.9。
+ * 原版桥的方法名和返回值保持不变。按住说话使用系统 AAC 录音与播放，
+ * GME 仅保留原桥所需的初始化兼容代码。
  * 上传/下载完成事件要靠 Poll 在游戏线程里捞出来，只靠 AppActivity 的 Timer 线程不够。
  */
 public class Voice {
@@ -38,6 +41,9 @@ public class Voice {
   private static String appKey = "";
   private static String openId = "";
   private static ITMGContext ctx;
+  private static MediaRecorder localRecorder;
+  private static MediaPlayer localPlayer;
+  private static boolean lastDownloadLocal;
   private static final Notify notify = new Notify();
   private static final Handler poller = new Handler(Looper.getMainLooper());
 
@@ -150,8 +156,8 @@ public class Voice {
 
   private static void ensurePaths() {
     Activity act = activity();
-    write_msg_path = new File(act.getFilesDir(), "__gv_recording_data__").getAbsolutePath();
-    download_msg_path = new File(act.getFilesDir(), "__gv_download_dat__").getAbsolutePath();
+    write_msg_path = new File(act.getFilesDir(), "qjqp_voice_record.m4a").getAbsolutePath();
+    download_msg_path = new File(act.getFilesDir(), "qjqp_voice_download.m4a").getAbsolutePath();
   }
 
   private static void queuePoll() {
@@ -278,19 +284,44 @@ public class Voice {
   }
 
   public static String startRecording() {
-    if (ctx == null) return "fail";
-    int r = ctx.GetPTT().StartRecording(write_msg_path);
-    Log.e(TAG, "startRecording ret:" + r);
-    return ok(r);
+    ensurePaths();
+    releaseRecorder();
+    try {
+      File output = new File(write_msg_path);
+      if (output.exists()) output.delete();
+      MediaRecorder recorder = new MediaRecorder();
+      recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+      recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+      recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
+      recorder.setAudioChannels(1);
+      recorder.setAudioSamplingRate(16000);
+      recorder.setAudioEncodingBitRate(24000);
+      recorder.setOutputFile(write_msg_path);
+      recorder.prepare();
+      recorder.start();
+      localRecorder = recorder;
+      Log.e(TAG, "AAC recording started");
+      return "ok";
+    } catch (Throwable t) {
+      Log.e(TAG, "AAC startRecording", t);
+      releaseRecorder();
+      return "fail";
+    }
   }
 
   public static String stopRecording() {
-    if (ctx == null) return "fail";
-    int r = ctx.GetPTT().StopRecording();
-    File f = new File(write_msg_path);
-    Log.e(TAG, "stopRecording ret:" + r + " size:" + (f.isFile() ? f.length() : -1));
-    queuePoll();
-    return ok(r);
+    if (localRecorder == null) return "fail";
+    try {
+      localRecorder.stop();
+      File f = new File(write_msg_path);
+      Log.e(TAG, "AAC recording stopped size:" + (f.isFile() ? f.length() : -1));
+      return f.isFile() && f.length() > 12 ? "ok" : "fail";
+    } catch (Throwable t) {
+      Log.e(TAG, "AAC stopRecording", t);
+      return "fail";
+    } finally {
+      releaseRecorder();
+    }
   }
 
   public static String uploadRecordedFile() {
@@ -306,13 +337,7 @@ public class Voice {
           tellOnGl("uploadRecordedFile", "success", id);
           return;
         }
-        if (ctx == null) {
-          tellOnGl("uploadRecordedFile", "fail", null);
-          return;
-        }
-        int r = ctx.GetPTT().UploadRecordedFile(write_msg_path);
-        Log.e(TAG, "uploadRecordedFile GME ret:" + r);
-        queuePoll();
+        tellOnGl("uploadRecordedFile", "fail", null);
       }
     });
     return "ok";
@@ -320,6 +345,7 @@ public class Voice {
 
   public static String downloadRecordedFile(String fileId) {
     if (isLocalId(fileId)) {
+      lastDownloadLocal = true;
       final String id = fileId;
       runBg(new Runnable() {
         public void run() {
@@ -329,6 +355,7 @@ public class Voice {
       });
       return "ok";
     }
+    lastDownloadLocal = false;
     if (ctx == null) return "fail";
     int r = ctx.GetPTT().DownloadRecordedFile(fileId, download_msg_path);
     Log.e(TAG, "downloadRecordedFile ret:" + r + " id:" + fileId);
@@ -337,6 +364,27 @@ public class Voice {
   }
 
   public static String playRecordedFile() {
+    if (lastDownloadLocal) {
+      releasePlayer();
+      try {
+        MediaPlayer player = new MediaPlayer();
+        player.setDataSource(download_msg_path);
+        player.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
+          public void onCompletion(MediaPlayer completed) {
+            tellOnGl("playRecordedFile", "success", null);
+            releasePlayer();
+          }
+        });
+        player.prepare();
+        player.start();
+        localPlayer = player;
+        return "ok";
+      } catch (Throwable t) {
+        Log.e(TAG, "AAC playRecordedFile", t);
+        releasePlayer();
+        return "fail";
+      }
+    }
     if (ctx == null) return "fail";
     int r = ctx.GetPTT().PlayRecordedFile(download_msg_path);
     Log.e(TAG, "playRecordedFile ret:" + r);
@@ -345,6 +393,10 @@ public class Voice {
   }
 
   public static String stopPlayFile() {
+    if (localPlayer != null) {
+      releasePlayer();
+      return "ok";
+    }
     if (ctx == null) return "fail";
     return ok(ctx.GetPTT().StopPlayFile());
   }
@@ -373,6 +425,23 @@ public class Voice {
 
   private static boolean isLocalId(String fileId) {
     return fileId != null && fileId.startsWith("qjqp:");
+  }
+
+  private static void releaseRecorder() {
+    MediaRecorder recorder = localRecorder;
+    localRecorder = null;
+    if (recorder == null) return;
+    try { recorder.reset(); } catch (Throwable ignored) {}
+    try { recorder.release(); } catch (Throwable ignored) {}
+  }
+
+  private static void releasePlayer() {
+    MediaPlayer player = localPlayer;
+    localPlayer = null;
+    if (player == null) return;
+    try { if (player.isPlaying()) player.stop(); } catch (Throwable ignored) {}
+    try { player.reset(); } catch (Throwable ignored) {}
+    try { player.release(); } catch (Throwable ignored) {}
   }
 
   private static String gameHttp() {

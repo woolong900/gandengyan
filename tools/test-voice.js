@@ -17,6 +17,7 @@ const t = (name, got, want) => {
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qjqp-voice-'));
 const silk = Buffer.from('#!SILK_V3' + 'x'.repeat(40));
+const m4a = Buffer.concat([Buffer.alloc(4), Buffer.from('ftypM4A '), Buffer.alloc(40)]);
 let clock = 1_000_000;
 const voice = createVoice(dir, {
   maxBytes: 80,
@@ -27,10 +28,11 @@ const voice = createVoice(dir, {
   now: () => clock,
 });
 
-t('拒绝非 silk', voice.put(Buffer.from('hello!!!')).error, 'invalid');
+t('拒绝非支持音频', voice.put(Buffer.from('hello!!!')).error, 'invalid');
 t('拒绝过大', voice.put(Buffer.concat([silk, Buffer.alloc(80)])).error, 'too large');
 const a = voice.put(silk);
 t('写入成功', !!a.id && a.id.startsWith('qjqp:'), true);
+t('接受双端通用 AAC', voice.put(m4a).error || '', '');
 t('能取到文件', !!voice.fileOf(a.id), true);
 t('坏 id 没有文件', voice.fileOf('qjqp:not-a-real-id-value-xxx'), '');
 

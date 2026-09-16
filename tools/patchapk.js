@@ -16,7 +16,7 @@
  *
  * 语音走自己的 GME AppID：写在 AndroidManifest 的 SDK_VOICE_*，
  * 用 --voice-appid / --voice-appkey，或环境变量 / .dev.vars，不要把密钥提交进 git。
- * 原生库从旧 GCloudVoice 换成 GME 2.9。录音仍用 GME，文件走自己服务器 /voice，
+ * 原生库从旧 GCloudVoice 换成 GME 2.9。按住说话使用系统 AAC，文件走自己服务器 /voice，
  * 避免模拟器和真机落在不同 COS 分区后互相反向下载超时。
  *
  * 地址优先使用 .dev.vars 中的 QJQP_PUBLIC_BASE_URL，供真机在任意网络下访问。
