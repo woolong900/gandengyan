@@ -542,6 +542,15 @@ l.default.uiHelper.showTip(t);
   fs.copyFileSync(path.join(ROOT, 'assets', 'branding', 'login', 'login-logo.png'), path.join(brandingTarget, 'login-logo.png'));
   if (COCOS_BASE === 'ios') {
     applyIosBrandingAssets(app);
+  } else {
+    // R234 资源来自 Android APK，但 iOS 的中央东南西北灯盘必须保留。
+    // 用同一张桌面图的 iOS 专版覆盖 R234 的 3D 背景槽位，避免灯盘被
+    // Android 背景盖掉而只剩不完整的闪灯动画。
+    replaceCocosAsset(
+      path.join(ROOT, 'assets', 'branding', 'table', 'table-background-3d-ios.png'),
+      path.join(app, 'res', 'raw-assets', '0e', '0ed69516-3023-4cb0-947a-abd9aab04b9f.jpg'),
+    );
+    console.log('      已写入 iOS 专用 3D 桌面并保留中央灯盘');
   }
   fs.copyFileSync(path.join(ROOT, 'assets', 'branding', 'startup', 'splash-screen.png'), path.join(app, 'LaunchImage12.png'));
 
