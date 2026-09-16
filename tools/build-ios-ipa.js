@@ -211,6 +211,9 @@ const installIosVoiceFix = (app, executable) => {
     path.join(ROOT, 'tools', 'ios-voice-fix', 'QJVoiceFix.m'),
     '-o', output,
   ]);
+  // iOS 会独立校验嵌入的动态库。仅对 .app 使用 codesign --deep 在本机
+  // 校验可能通过，但真机会在 dyld 阶段拒绝没有独立签名的 dylib。
+  run('codesign', ['--force', '--sign', SIGN_IDENTITY, '--timestamp=none', output]);
   injectMachOLoadDylib(executable, '@executable_path/Frameworks/QJVoiceFix.dylib');
 };
 
