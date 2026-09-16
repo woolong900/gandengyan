@@ -73,6 +73,22 @@ const nextCard = (card) => {
  */
 /** 从存档或发牌结果拼回一面能继续摸的牌墙 */
 const makeWall = ({ dun, taken, starts, sizes, total }) => {
+  const cardAt = (position) => {
+    let i = 0;
+    while (i < DUN_COUNT - 1 && position >= starts[i + 1]) i += 1;
+    return dun[i][position - starts[i]];
+  };
+  const setCardAt = (position, card) => {
+    let i = 0;
+    while (i < DUN_COUNT - 1 && position >= starts[i + 1]) i += 1;
+    dun[i][position - starts[i]] = card;
+  };
+  const swap = (a, b) => {
+    if (a === b) return;
+    const card = cardAt(a);
+    setCardAt(a, cardAt(b));
+    setCardAt(b, card);
+  };
   const wall = {
     remain: () => total - wall.taken,
     taken: taken || 0,
@@ -83,6 +99,33 @@ const makeWall = ({ dun, taken, starts, sizes, total }) => {
       const card = dun[i][wall.taken - starts[i]];
       wall.taken++;
       return card;
+    },
+    /** 调试牌序：将指定的剩余牌换到下一摸位置，不改变牌墙格子或总张数。 */
+    drawSelected(card) {
+      for (let position = wall.taken; position < total; position++) {
+        if (cardAt(position) !== card) continue;
+        swap(wall.taken, position);
+        return wall.draw();
+      }
+      return null;
+    },
+    /** 其他玩家摸牌时跳过已经为目标玩家预留的牌。 */
+    drawAvoid(reservedCards) {
+      if (wall.taken >= total) return { card: null, preserved: true };
+      const reserved = new Map();
+      for (const card of reservedCards) reserved.set(card, (reserved.get(card) || 0) + 1);
+      const available = new Map();
+      for (let position = wall.taken; position < total; position++) {
+        const card = cardAt(position);
+        available.set(card, (available.get(card) || 0) + 1);
+      }
+      for (let position = wall.taken; position < total; position++) {
+        const card = cardAt(position);
+        if (available.get(card) <= (reserved.get(card) || 0)) continue;
+        swap(wall.taken, position);
+        return { card: wall.draw(), preserved: true };
+      }
+      return { card: wall.draw(), preserved: false };
     },
     masks() {
       const masks = new Array(DUN_COUNT).fill(0);

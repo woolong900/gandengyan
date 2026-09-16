@@ -39,6 +39,7 @@ class Round {
     this.hotSeat = -1;
     this.passPeng = [];
     this.passHu = [];
+    this.drawPlan = null;
   }
 
   get n() {
@@ -313,6 +314,7 @@ class Round {
     this.hotSeat = -1;
     this.passPeng = Array.from({ length: this.n }, () => new Set());
     this.passHu = new Array(this.n).fill(false);
+    this.drawPlan = null;
     // 总结算要的统计：暗杠、明杠、自摸、点炮、接炮、飘癞有奖
     this.stat = Array.from({ length: this.n }, () => ({ ag: 0, mg: 0, zm: 0, dg: 0, jg: 0, plyj: 0 }));
 
@@ -418,8 +420,59 @@ class Round {
 
   // ---------------------------------------------------------------- 摸牌
 
+  /** 牌序只作用于本局，按玩家 UID 绑定，避免座位变动影响目标。 */
+  setDrawPlan(uid, cards) {
+    if (this.over || !this.wall) return { error: '牌局未在进行中' };
+    const seat = this.seatOf(Number(uid));
+    if (seat < 0) return { error: '目标玩家不在本局座位中' };
+    if (!Array.isArray(cards) || cards.length < 1 || cards.length > this.wall.remain()
+      || !cards.every((card) => Number.isInteger(card))) return { error: '所选牌数量或牌号无效' };
+    const available = new Map();
+    for (const card of this.wall.remainCards()) available.set(card, (available.get(card) || 0) + 1);
+    for (const card of cards) {
+      const count = available.get(card) || 0;
+      if (!count) return { error: `剩余牌堆中没有足够的 ${card}` };
+      available.set(card, count - 1);
+    }
+    this.drawPlan = { uid: Number(uid), cards: cards.slice(), total: cards.length,
+      delivered: 0, createdAt: Date.now() };
+    this.io.log(`后台设置摸牌顺序 uid=${uid} 牌=${cards.join(',')}`);
+    return { ...this.drawPlan, cards: this.drawPlan.cards.slice() };
+  }
+
+  clearDrawPlan() {
+    const previous = this.drawPlan;
+    this.drawPlan = null;
+    if (previous) this.io.log(`后台取消摸牌顺序 uid=${previous.uid} 剩余=${previous.cards.join(',')}`);
+    return previous;
+  }
+
   draw(seat) {
-    const card = this.wall.draw();
+    let card;
+    const plan = this.drawPlan;
+    if (plan && plan.cards.length) {
+      if (this.uid(seat) === plan.uid) {
+        const selected = plan.cards[0];
+        card = this.wall.drawSelected(selected);
+        if (card == null) {
+          this.io.log(`后台摸牌顺序失效 uid=${plan.uid} 牌=${selected}`);
+          this.drawPlan = null;
+          card = this.wall.draw();
+        } else {
+          plan.cards.shift();
+          plan.delivered++;
+          this.io.log(`后台指定摸牌 uid=${plan.uid} 牌=${card} 进度=${plan.delivered}/${plan.total}`);
+          if (!plan.cards.length) this.drawPlan = null;
+        }
+      } else {
+        const result = this.wall.drawAvoid(plan.cards);
+        card = result.card;
+        if (!result.preserved) {
+          this.io.log(`后台摸牌顺序提前失效 uid=${plan.uid}：剩余牌全被预留，其他玩家仍需摸牌`);
+          this.drawPlan = null;
+        }
+      }
+    } else card = this.wall.draw();
     if (card == null) return this.drawOut();
 
     this.clearPassed(seat);
@@ -1186,6 +1239,7 @@ class Round {
       melds: this.melds,
       discards: this.discards,
       wall: this.wall.dump(),
+      drawPlan: this.drawPlan,
       laizi: this.laizi,
       pizi: this.pizi,
       pzPos: this.pzPos,
@@ -1218,6 +1272,7 @@ class Round {
     r.melds = data.melds;
     r.discards = data.discards;
     r.wall = mahjong.makeWall(data.wall);
+    r.drawPlan = data.drawPlan || null;
     r.laizi = data.laizi;
     r.pizi = data.pizi;
     r.pzPos = data.pzPos || [];

@@ -131,10 +131,33 @@ class AdminData {
   room(id) {
     const table = this.app.tables.get(Number(id));
     if (!table || table.closed) return fail('房间不存在或已结束', 404);
+    const round = table.round && !table.round.over ? table.round : null;
     return { ...this.roomSummary(table), config: table.config,
+      wall: round ? { remaining: round.wall.remain(), cards: round.wall.remainCards(),
+        drawPlan: round.drawPlan ? { ...round.drawPlan, cards: round.drawPlan.cards.slice() } : null } : null,
       members: table.members.map((member) => ({ uid: member.player.uid, nickname: member.player.nickname,
         site: member.site, score: Number(member.score || 0) / rules.RATIO,
         bot: !!member.bot, spectator: !!member.view, online: !!member.online, trustee: !!member.trustee })) };
+  }
+
+  setRoomDrawPlan(id, body) {
+    const table = this.app.tables.get(Number(id));
+    if (!table || table.closed) return fail('房间不存在或已结束', 404);
+    if (!table.round || table.round.over) return fail('只有正在进行的牌局可以设置摸牌顺序');
+    const result = table.round.setDrawPlan(body.uid, body.cards);
+    if (result.error) return fail(result.error);
+    this.app.persist();
+    return { roomId: table.roomId, drawPlan: result };
+  }
+
+  clearRoomDrawPlan(id) {
+    const table = this.app.tables.get(Number(id));
+    if (!table || table.closed) return fail('房间不存在或已结束', 404);
+    if (!table.round || table.round.over) return fail('牌局未在进行中');
+    const previous = table.round.clearDrawPlan();
+    if (!previous) return fail('此房间当前没有指定摸牌顺序');
+    this.app.persist();
+    return { roomId: table.roomId, cleared: { ...previous, cards: previous.cards.slice() } };
   }
 
   dissolveRoom(id, body) {

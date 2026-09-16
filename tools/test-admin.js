@@ -6,6 +6,7 @@ const path = require('path');
 const http = require('http');
 const { GameApp } = require('../server/app');
 const { Table } = require('../server/table');
+const { Round } = require('../server/round');
 const rules = require('../server/rules');
 const { AdminAuth, passwordRecord } = require('../server/admin-auth');
 
@@ -72,6 +73,22 @@ const run = async () => {
     check('账号详情只显示脱敏字段', 'identityIdHash' in (await request(`/players/${player.uid}`)).body, false);
     check('房间列表有当前房间', (await request('/rooms')).body.total, 1);
     check('房间详情可读', (await request('/rooms/100000')).body.roomId, 100000);
+    const debugRound = new Round([{ player }, { player: { uid: 999999, nickname: '调试陪玩' } }],
+      { config, dealerSeat: 0 }, { log() {}, each() {}, all() {}, one() {} });
+    debugRound.start();
+    table.round = debugRound;
+    const chosen = debugRound.wall.remainCards().at(-1);
+    check('开局房间可读剩余牌堆', (await request('/rooms/100000')).body.wall.cards.length,
+      debugRound.wall.remain());
+    check('缺少 CSRF 不允许修改摸牌顺序', (await request('/rooms/100000/draw-plan', 'POST',
+      { uid: player.uid, cards: [chosen] }, true, false)).status, 403);
+    check('牌堆中不存在的牌不可指定', (await request('/rooms/100000/draw-plan', 'POST',
+      { uid: player.uid, cards: [999] })).status, 400);
+    check('后台可指定摸牌顺序', (await request('/rooms/100000/draw-plan', 'POST',
+      { uid: player.uid, cards: [chosen] })).body.drawPlan.cards, [chosen]);
+    check('房间详情显示指定摸牌顺序', (await request('/rooms/100000')).body.wall.drawPlan.uid, player.uid);
+    check('后台可取消摸牌顺序', (await request('/rooms/100000/draw-plan', 'DELETE')).body.cleared.uid, player.uid);
+    table.round = null;
     check('牌局明细可读', (await request('/records/R100000123')).body.details.length, 1);
     check('牌局列表使用历史归档', (await request('/records')).body.total, 1);
     check('历史归档按玩家 ID 查询', (await request(`/records?q=${player.uid}`)).body.total, 1);

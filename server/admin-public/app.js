@@ -7,6 +7,10 @@
   var modal = document.getElementById('modal');
   var modalCard = document.getElementById('modal-card');
   var toastNode = document.getElementById('toast');
+  var activeRoomId = null;
+  var roomDraft = { uid: 0, cards: [] };
+  var currentRoom = null;
+  var roomPollBusy = false;
   var escape = function (value) { return String(value == null ? '' : value).replace(/&/g, '&amp;')
     .replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); };
   var date = function (value) { return value ? new Date(Number(value)).toLocaleString('zh-CN', { hour12: false }) : '未记录'; };
@@ -48,11 +52,12 @@
     document.getElementById('workspace').classList.remove('hidden');
   }
   function openModal(title, body) {
+    activeRoomId = null;
     modalCard.innerHTML = '<div class="modal-head"><h3>' + escape(title) +
       '</h3><button type="button" data-action="close-modal" aria-label="关闭">×</button></div>' + body;
     modal.classList.remove('hidden');
   }
-  function closeModal() { modal.classList.add('hidden'); modalCard.innerHTML = ''; }
+  function closeModal() { activeRoomId = null; modal.classList.add('hidden'); modalCard.innerHTML = ''; }
   async function api(path, method, body) {
     var options = { method: method || 'GET', credentials: 'same-origin', headers: {} };
     if (body !== undefined) { options.headers['Content-Type'] = 'application/json'; options.body = JSON.stringify(body); }
@@ -254,19 +259,76 @@
       '<p class="button-row">' + button('player-cards', '调整房卡', p.uid, 'primary') +
       button('player-status', p.disabled ? '恢复账号' : '停用账号', p.uid, p.disabled ? '' : 'danger') + '</p>');
   }
-  async function detailRoom(id) {
-    var room = await api('/rooms/' + encodeURIComponent(id));
+  function tileName(card) {
+    var point = Number(card) % 10;
+    var suit = Math.floor(Number(card) / 10);
+    return (['一', '二', '三', '四', '五', '六', '七', '八', '九'][point - 1] || card) +
+      (['条', '筒', '万'][suit] || '');
+  }
+  function renderRoomModal(room) {
+    var scroll = modalCard.scrollTop;
     var members = room.members.map(function (member) { return '<tr><td>' + member.site + '</td><td>' +
       escape(member.nickname) + ' #' + member.uid + '</td><td>' + (member.bot ? badge('机器人') : badge(member.online ? '在线' : '离线', member.online ? 'green' : '')) +
       '</td><td>' + number(member.score) + '</td><td>' + (member.trustee ? '托管' : '手动') +
       '</td></tr>'; });
+    var wallHtml = '';
+    if (room.wall) {
+      var counts = new Map();
+      room.wall.cards.forEach(function (card) { counts.set(card, (counts.get(card) || 0) + 1); });
+      var picked = new Map();
+      roomDraft.cards.forEach(function (card) { picked.set(card, (picked.get(card) || 0) + 1); });
+      var targets = room.members.filter(function (member) { return !member.spectator; });
+      if (!targets.some(function (member) { return member.uid === roomDraft.uid; })) {
+        roomDraft.uid = targets.length ? targets[0].uid : 0;
+      }
+      var plan = room.wall.drawPlan;
+      var planHtml = plan ? '<p class="note">已设置玩家 #' + plan.uid + '：已按顺序摸到 ' +
+        plan.delivered + '/' + plan.total + ' 张；后续指定牌：' + plan.cards.map(tileName).join(' → ') +
+        '　' + button('room-plan-clear', '取消指定牌序', room.roomId, 'danger') + '</p>' :
+        '<p class="note">当前没有指定摸牌顺序。</p>';
+      var options = targets.map(function (member) { return '<option value="' + member.uid + '"' +
+        (member.uid === roomDraft.uid ? ' selected' : '') + '>' + escape(member.nickname) +
+        ' #' + member.uid + (member.bot ? '（机器人）' : '') + '</option>'; }).join('');
+      var choices = Array.from(counts.entries()).sort(function (a, b) { return a[0] - b[0]; })
+        .map(function (item) { var left = item[1] - (picked.get(item[0]) || 0);
+          return '<button type="button" class="wall-tile" data-action="room-card-add" data-target="' +
+            item[0] + '"' + (left <= 0 ? ' disabled' : '') + '>' + tileName(item[0]) +
+            '<small>剩 ' + item[1] + ' 张</small></button>'; }).join('');
+      var queue = roomDraft.cards.map(function (card, index) { return '<span class="draft-tile">' +
+        (index + 1) + '. ' + tileName(card) +
+        '<button type="button" data-action="room-card-up" data-target="' + index +
+        '" aria-label="前移"' + (index ? '' : ' disabled') + '>↑</button>' +
+        '<button type="button" data-action="room-card-down" data-target="' + index +
+        '" aria-label="后移"' + (index < roomDraft.cards.length - 1 ? '' : ' disabled') + '>↓</button>' +
+        '<button type="button" data-action="room-card-remove" data-target="' + index +
+        '" aria-label="删除">×</button></span>'; }).join('');
+      wallHtml = '<h4>剩余牌堆 <span class="muted">' + room.wall.remaining + ' 张 · 每 2.5 秒刷新</span></h4>' +
+        '<p class="note">实际剩余摸牌顺序：</p><div class="wall-order">' + room.wall.cards.map(function (card, index) {
+          return '<span>' + (index + 1) + '. ' + tileName(card) + '</span>'; }).join('') + '</div>' +
+        '<h4>指定玩家后续摸牌</h4>' + planHtml +
+        '<div class="field"><label for="room-target-select">目标玩家</label><select id="room-target-select">' +
+        options + '</select></div><p class="note">点击牌加入序列；可用箭头调整先后顺序。服务端会预留这些牌，不让其他玩家提前摸走。</p>' +
+        '<div class="wall-choices">' + choices + '</div><h4>拟指定的牌序（' + roomDraft.cards.length + ' 张）</h4>' +
+        '<div class="draft-order">' + (queue || '<span class="muted">尚未选择牌</span>') + '</div>' +
+        '<p class="button-row">' + button('room-plan-save', '应用指定牌序', room.roomId, 'primary') +
+        ' ' + button('room-draft-clear', '清空选择', room.roomId) + '</p>';
+    }
     openModal('房间 #' + room.roomId, '<div class="detail-grid">' +
       detail('状态', room.status) + detail('俱乐部', room.clubId || '普通房') +
       detail('局数', room.step + ' / ' + room.totalStep) + detail('入座', room.occupied + ' / ' + room.maxPlayers) +
       '</div><h4>座位</h4>' + table(['座位', '玩家', '类型', '累计积分', '操作状态'], members) +
       '<h4>房间设置</h4><div class="pill-list">' + Object.entries(room.config).map(function (item) {
         return '<span class="pill">' + escape(item[0]) + '：' + escape(item[1]) + '</span>';
-      }).join('') + '</div><p>' + button('room-dissolve', '解散此房间', room.roomId, 'danger') + '</p>');
+      }).join('') + '</div>' + wallHtml +
+      '<p>' + button('room-dissolve', '解散此房间', room.roomId, 'danger') + '</p>');
+    activeRoomId = room.roomId;
+    modalCard.scrollTop = scroll;
+  }
+  async function detailRoom(id) {
+    if (String(activeRoomId) !== String(id)) roomDraft = { uid: 0, cards: [] };
+    var room = await api('/rooms/' + encodeURIComponent(id));
+    currentRoom = room;
+    renderRoomModal(room);
   }
   async function detailRecord(id) {
     var record = await api('/records/' + encodeURIComponent(id));
@@ -317,6 +379,39 @@
       }
       if (action === 'player-detail') return detailPlayer(target);
       if (action === 'room-detail') return detailRoom(target);
+      if (action === 'room-card-add') {
+        var card = Number(target);
+        var count = currentRoom.wall.cards.filter(function (tile) { return tile === card; }).length;
+        var used = roomDraft.cards.filter(function (tile) { return tile === card; }).length;
+        if (used < count) roomDraft.cards.push(card);
+        renderRoomModal(currentRoom); return;
+      }
+      if (action === 'room-card-remove') {
+        roomDraft.cards.splice(Number(target), 1); renderRoomModal(currentRoom); return;
+      }
+      if (action === 'room-card-up' || action === 'room-card-down') {
+        var index = Number(target);
+        var other = index + (action === 'room-card-up' ? -1 : 1);
+        if (other >= 0 && other < roomDraft.cards.length) {
+          var selected = roomDraft.cards[index];
+          roomDraft.cards[index] = roomDraft.cards[other]; roomDraft.cards[other] = selected;
+        }
+        renderRoomModal(currentRoom); return;
+      }
+      if (action === 'room-draft-clear') {
+        roomDraft.cards = []; renderRoomModal(currentRoom); return;
+      }
+      if (action === 'room-plan-save') {
+        if (!roomDraft.uid || !roomDraft.cards.length) { toast('请选择目标玩家和至少一张牌', true); return; }
+        await api('/rooms/' + target + '/draw-plan', 'POST',
+          { uid: roomDraft.uid, cards: roomDraft.cards });
+        roomDraft.cards = [];
+        toast('指定摸牌顺序已生效'); await detailRoom(target); return;
+      }
+      if (action === 'room-plan-clear') {
+        await api('/rooms/' + target + '/draw-plan', 'DELETE');
+        toast('指定摸牌顺序已取消'); await detailRoom(target); return;
+      }
       if (action === 'record-detail') return detailRecord(target);
       if (action === 'club-detail') return detailClub(target);
       if (action === 'club-cards') {
@@ -423,7 +518,23 @@
     event.preventDefault();
     handleForm(event.target);
   });
+  document.addEventListener('change', function (event) {
+    if (event.target.id === 'room-target-select') roomDraft.uid = Number(event.target.value);
+  });
   document.addEventListener('keydown', function (event) { if (event.key === 'Escape') closeModal(); });
+  window.setInterval(async function () {
+    if (!activeRoomId || modal.classList.contains('hidden') || roomPollBusy) return;
+    var id = activeRoomId;
+    roomPollBusy = true;
+    try {
+      var room = await api('/rooms/' + id);
+      if (String(activeRoomId) !== String(id)) return;
+      currentRoom = room;
+      renderRoomModal(room);
+    } catch (error) {
+      if (String(activeRoomId) === String(id)) { closeModal(); toast(error.message, true); }
+    } finally { roomPollBusy = false; }
+  }, 2500);
   document.getElementById('current-time').textContent = date(Date.now());
   window.setInterval(function () { document.getElementById('current-time').textContent = date(Date.now()); }, 60000);
   api('/session').then(function (session) { state.csrf = session.csrf; showWorkspace(); render(); })

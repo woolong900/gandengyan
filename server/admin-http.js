@@ -143,6 +143,10 @@ const createAdminHttp = ({ app, store, flush, authFile, publicBaseUrl = '' }) =>
       target = pathname.split('/')[2]; action = 'player.status'; result = data.setStatus(target, body);
     } else if (req.method === 'POST' && /^\/rooms\/\d+\/dissolve$/.test(pathname)) {
       target = pathname.split('/')[2]; action = 'room.dissolve'; result = data.dissolveRoom(target, body);
+    } else if (req.method === 'POST' && /^\/rooms\/\d+\/draw-plan$/.test(pathname)) {
+      target = pathname.split('/')[2]; action = 'room.draw_plan_set'; result = data.setRoomDrawPlan(target, body);
+    } else if (req.method === 'DELETE' && /^\/rooms\/\d+\/draw-plan$/.test(pathname)) {
+      target = pathname.split('/')[2]; action = 'room.draw_plan_clear'; result = data.clearRoomDrawPlan(target);
     } else if (req.method === 'POST' && /^\/clubs\/\d+\/settings$/.test(pathname)) {
       target = pathname.split('/')[2]; action = 'club.settings'; result = data.updateClub(target, body);
     } else if (req.method === 'POST' && /^\/clubs\/\d+\/cards$/.test(pathname)) {
