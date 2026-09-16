@@ -18,6 +18,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const { toJs, toJsc } = require('./jsc');
 const { applyIosSyncPatches } = require('./ios-sync-patches');
+const { injectMachOLoadDylib } = require('./inject-macho-dylib');
 const u2b = (value) => Buffer.from(value, 'utf8').toString('binary');
 
 const ROOT = path.join(__dirname, '..');
@@ -194,6 +195,25 @@ const disableManualLaunchOverlay = (executable) => {
   fs.writeFileSync(executable, binary);
 };
 
+const installIosVoiceFix = (app, executable) => {
+  const frameworkDir = path.join(app, 'Frameworks');
+  const output = path.join(frameworkDir, 'QJVoiceFix.dylib');
+  fs.mkdirSync(frameworkDir, { recursive: true });
+  run('xcrun', [
+    '--sdk', 'iphoneos', 'clang',
+    '-arch', 'arm64',
+    '-dynamiclib',
+    '-fobjc-arc',
+    '-miphoneos-version-min=12.0',
+    '-framework', 'Foundation',
+    '-framework', 'AVFoundation',
+    '-install_name', '@executable_path/Frameworks/QJVoiceFix.dylib',
+    path.join(ROOT, 'tools', 'ios-voice-fix', 'QJVoiceFix.m'),
+    '-o', output,
+  ]);
+  injectMachOLoadDylib(executable, '@executable_path/Frameworks/QJVoiceFix.dylib');
+};
+
 const lanIPv4 = () => {
   const all = [];
   for (const [name, addresses] of Object.entries(os.networkInterfaces())) {
@@ -297,6 +317,7 @@ try {
     run('install_name_tool', ['-change', '@executable_path/cike.dylib', '/usr/lib/libSystem.B.dylib', executable]);
   }
   disableManualLaunchOverlay(executable);
+  installIosVoiceFix(app, executable);
   fs.rmSync(path.join(app, 'cike.dylib'), { force: true });
   fs.rmSync(path.join(app, '_CodeSignature'), { recursive: true, force: true });
   fs.rmSync(path.join(app, 'embedded.mobileprovision'), { force: true });
@@ -484,6 +505,7 @@ l.default.uiHelper.showTip(t);
     `d['version']='1.0.5'\n` +
     `d['NSLocationWhenInUseUsageDescription']=sys.argv[4]+'需要访问位置信息，以提供房间防作弊功能。'\n` +
     `d['NSMicrophoneUsageDescription']=sys.argv[4]+'需要使用麦克风，以发送游戏语音。'\n` +
+    `d['QJQPVoiceBaseURL']=sys.argv[9]\n` +
     `d['NSPhotoLibraryUsageDescription']=sys.argv[4]+'需要访问相册，以保存或选择分享图片。'\n` +
     `d['NSLocalNetworkUsageDescription']=sys.argv[4]+'需要访问本地网络，以连接游戏服务器。'\n` +
     `d['CFBundleURLTypes']=[{'CFBundleTypeRole':'Editor','CFBundleURLName':'weixin','CFBundleURLSchemes':[sys.argv[5]]},{'CFBundleTypeRole':'Editor','CFBundleURLName':'gandengyan','CFBundleURLSchemes':['gandengyan']}]\n` +
@@ -501,7 +523,7 @@ l.default.uiHelper.showTip(t);
     `  icon.pop('CFBundleIconName',None)\n` +
     `with open(p,'wb') as f: plistlib.dump(d,f,fmt=plistlib.FMT_BINARY,sort_keys=False)\n`);
   run('python3', [plistScript, path.join(app, 'Info.plist'), EXECUTABLE_NAME, APP_ID, APP_NAME, WECHAT_APPID,
-    WECHAT_APPLINK, process.env.QJQP_VOICE_APPID || '', process.env.QJQP_VOICE_APPKEY || '']);
+    WECHAT_APPLINK, process.env.QJQP_VOICE_APPID || '', process.env.QJQP_VOICE_APPKEY || '', HTTP_BASE]);
 
   const iconSource = path.join(ROOT, 'assets', 'branding', 'icon.png');
   for (const name of fs.readdirSync(app).filter((name) => /^AppIcon.*\.png$/.test(name))) {
