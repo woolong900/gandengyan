@@ -17,8 +17,10 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { toJs, toJsc } = require('./jsc');
+const { buildReleaseProjectSource } = require('./client-release-project');
 const { applyIosSyncPatches } = require('./ios-sync-patches');
 const { injectMachOLoadDylib } = require('./inject-macho-dylib');
+const { LOGIN_SCENE_ASSET, patchLoginScene } = require('./client-login-scene');
 const u2b = (value) => Buffer.from(value, 'utf8').toString('binary');
 
 const ROOT = path.join(__dirname, '..');
@@ -178,6 +180,35 @@ const applyIosBrandingAssets = (app) => {
   patchIosSerializedAssets(app);
 };
 
+const patchWskTotalEndCell = (app) => {
+  const file = path.join(app, 'res', 'import', 'c9', 'c94a0fd3-4986-461e-84f9-82e8ed06697c.json');
+  if (!fs.existsSync(file)) throw new Error(`iOS 资源缺少说胡子总结算统计项：${file}`);
+  const { body, key } = readCocosAsset(file);
+  const prefab = JSON.parse(body.toString('utf8'));
+  const infoBg = prefab[9];
+  const keyNode = prefab[10];
+  const keyLabel = prefab[11];
+  const valueNode = prefab[12];
+  const valueLabel = prefab[13];
+  if (!infoBg || infoBg._name !== 'total_cell_info_bg' || infoBg._contentSize?.height !== 236
+      || !keyNode || keyNode._name !== 'New Label' || keyLabel?.__type__ !== 'cc.Label'
+      || !valueNode || valueNode._name !== 'New Label copy' || valueLabel?.__type__ !== 'cc.Label') {
+    throw new Error('iOS 说胡子总结算统计区节点异常');
+  }
+  keyLabel._lineHeight = 45;
+  valueLabel._lineHeight = 45;
+  keyNode._contentSize.height = 180;
+  valueNode._contentSize.height = 180;
+  writeCocosBody(file, Buffer.from(JSON.stringify(prefab)), key);
+};
+
+const patchLoginSceneAsset = (app) => {
+  const file = path.join(app, LOGIN_SCENE_ASSET);
+  if (!fs.existsSync(file)) throw new Error(`iOS 资源缺少登录场景：${file}`);
+  const { body, key } = readCocosAsset(file);
+  writeCocosBody(file, patchLoginScene(body), key);
+};
+
 // 原厂壳在 iOS 系统启动页之上又手动添加了一层 LaunchImage12，
 // 并依赖 JS 在登录组件 start() 中调用 removeLaunchImg 移除。资源迁移后
 // 这个回调可能不能及时执行，导致游戏已运行但启动图一直盖在最上层。
@@ -249,7 +280,7 @@ const R234_MANIFEST_FILE = path.join(ROOT, 'originals', 'ios', 'qjqp-r234-projec
 const APP_ID = 'com.haoke.gandengyan';
 const APP_NAME = '潜江干瞪眼';
 const EXECUTABLE_NAME = 'QianjiangGandengyan';
-const WECHAT_APPID = process.env.QJQP_WECHAT_APPID || 'wx71fea3b8e75b232b';
+const WECHAT_APPID = process.env.QJQP_WECHAT_APPID || 'wx296b8ef20e6de62f';
 const normalizeWechatAppLink = (value) => {
   const raw = String(value || '').trim();
   if (!raw) return '';
@@ -352,7 +383,29 @@ try {
 
   console.log('4/7 应用 iOS 专用脚本桥接');
   const projectJsc = path.join(app, 'src', 'project.jsc');
-  let projectJs = toJs(fs.readFileSync(projectJsc)).toString('binary');
+  const embeddedProjectJs = toJs(fs.readFileSync(projectJsc)).toString('binary');
+  const embeddedVersion = embeddedProjectJs.match(/assertVer: (\d+),\npackageVer: "[^"]+",/);
+  const defaultAssetVersion = Math.max(235, Number(embeddedVersion?.[1] || 235));
+  const requestedAssetVersion = Number(arg('asset-version', String(defaultAssetVersion)));
+  let projectJs = buildReleaseProjectSource({
+    root: ROOT,
+    workDir: stage,
+    assetVersion: requestedAssetVersion,
+    packageVersion: '1.0.6',
+    serviceBaseUrl: HTTP_BASE,
+    allowPrivateServiceUrl: true,
+  });
+  const settingsJsc = path.join(app, 'src', 'settings.jsc');
+  let settingsJs = toJs(fs.readFileSync(settingsJsc)).toString('binary');
+  if (settingsJs.includes('platform:"android"')) {
+    settingsJs = settingsJs.replace('platform:"android"', 'platform:"ios"');
+    fs.writeFileSync(settingsJsc, toJsc(Buffer.from(settingsJs, 'binary')));
+  } else if (!settingsJs.includes('platform:"ios"')) {
+    throw new Error('iOS settings 平台标记异常');
+  }
+  // 旧的分支补丁仅保留作为原厂 iOS 结构的迁移记录。新包和热更
+  // 现在都从同一恢复源码生成，不再执行这套易漏项的差分补丁。
+  if (false) {
   if (COCOS_BASE !== 'ios') {
   const guestVisibility = 'this.guestNode.active = v.default.isDebug();';
   const guestVisibilityCount = projectJs.split(guestVisibility).length - 1;
@@ -380,16 +433,20 @@ try {
   const http = HTTP_BASE;
   const ws = WS_BASE;
   projectJs = projectJs
+    .replace(/https?:\/\/game\.auxvv\.com/g, http)
+    .replace(/wss?:\/\/game\.auxvv\.com/g, ws)
     .replace(/https?:\/\/192\.168\.\d+\.\d+:8899/g, http)
     .replace(/wss?:\/\/192\.168\.\d+\.\d+:8899/g, ws);
   if (!projectJs.includes(http) || !projectJs.includes(ws)) throw new Error('没有写入 iPhone 可访问的局域网地址');
   if (projectJs.includes('com/yuanlai/external/Utils')) throw new Error('iOS 脚本里仍有 Android Utils 调用');
   const requiredUiPatches = [
     ['游客登录按钮', 'this.guestNode.active = true;'],
+    ['测试账号输入框隐藏', 'this.ebTestAccount.node.active = false;'],
+    ['测试ID登录按钮隐藏', 'this.btnTestLogin.node.active = false;'],
     ['手机登录入口隐藏', 'this.mobileNode.active = !1;'],
     ['钉钉分享隐藏', 'this.ddNode.active = !1;'],
     ['默往分享隐藏', 'this.mwNode.active = !1;'],
-    ['大厅仅保留潜江干瞪眼', 'gameList: [ c.eGameIds.QJHH ],'],
+    ['大厅显示干瞪眼和说胡子', 'gameList: [ c.eGameIds.QJHH, c.eGameIds.QJSHZ ],'],
   ];
   for (const [label, snippet] of requiredUiPatches) {
     if (!projectJs.includes(snippet)) throw new Error(`当前资源未包含“${label}”修改`);
@@ -446,10 +503,10 @@ l.default.uiHelper.showTip(t);
     const http = HTTP_BASE;
     const ws = WS_BASE;
     projectJs = projectJs
-      .replace(/https:\/\/(?:test2\.yuanlaihuyu\.com|qj\.yuanlaiqipai\.net)\/version/g, `${http}/version`)
-      .replace(/https:\/\/(?:test2\.yuanlaihuyu\.com|qj\.yuanlaiqipai\.net)\/login/g, `${http}/login`)
-      .replace(/wss:\/\/(?:test2\.yuanlaihuyu\.com|qj\.yuanlaiqipai\.net)\/ws/g, `${ws}/ws`)
-      .replace(/https:\/\/(?:test2\.yuanlaihuyu\.com|qj\.yuanlaiqipai\.net)/g, http);
+      .replace(/https:\/\/(?:game\.auxvv\.com|test2\.yuanlaihuyu\.com|qj\.yuanlaiqipai\.net)\/version/g, `${http}/version`)
+      .replace(/https:\/\/(?:game\.auxvv\.com|test2\.yuanlaihuyu\.com|qj\.yuanlaiqipai\.net)\/login/g, `${http}/login`)
+      .replace(/wss:\/\/(?:game\.auxvv\.com|test2\.yuanlaihuyu\.com|qj\.yuanlaiqipai\.net)\/ws/g, `${ws}/ws`)
+      .replace(/https:\/\/(?:game\.auxvv\.com|test2\.yuanlaihuyu\.com|qj\.yuanlaiqipai\.net)/g, http);
     if (!projectJs.includes(`${http}/login`) || !projectJs.includes(`${ws}/ws`)) {
       throw new Error('原厂 iOS 脚本没有写入本地服务地址');
     }
@@ -470,7 +527,7 @@ l.default.uiHelper.showTip(t);
   }
   const wxFriendFunction = 't.prototype.onClickShareWxFriend = function() {\n';
   const wxInstallGuard = u2b('if (!s.default.isInstallWX()) return l.default.uiHelper.showTip("您尚未安装微信客户端！");\n');
-  const wxShareConfigGuard = u2b('if (cc.sys.os === cc.sys.OS_IOS && !d.default.sdkInfo("SDK_WX_APPLINK")) return l.default.uiHelper.showTip("iOS 微信分享需先配置 Universal Link");\n');
+  const wxShareConfigGuard = u2b('if (cc.sys.os === cc.sys.OS_IOS && !s.default.sdkInfo("SDK_WX_APPLINK")) return l.default.uiHelper.showTip("iOS 微信分享需先配置 Universal Link");\n');
   const wxFriendStart = wxFriendFunction + wxInstallGuard;
   const wxFriendGuard = wxFriendStart + wxShareConfigGuard;
   if (!projectJs.includes(wxFriendGuard)) {
@@ -492,6 +549,7 @@ l.default.uiHelper.showTip(t);
     if (circleCount !== 1) throw new Error(`iOS 微信朋友圈配置提示补丁匹配到 ${circleCount} 处，预期 1 处`);
     projectJs = projectJs.replace(circleStart, circleGuard);
   }
+  }
   fs.writeFileSync(projectJsc, toJsc(Buffer.from(projectJs, 'binary')));
 
   console.log('5/7 写入应用信息、微信配置、图标和启动图');
@@ -503,9 +561,9 @@ l.default.uiHelper.showTip(t);
     `d['CFBundleIdentifier']=sys.argv[3]\n` +
     `d['CFBundleDisplayName']=sys.argv[4]\n` +
     `d['CFBundleName']=sys.argv[4]\n` +
-    `d['CFBundleShortVersionString']='1.0.5'\n` +
-    `d['CFBundleVersion']='234'\n` +
-    `d['version']='1.0.5'\n` +
+    `d['CFBundleShortVersionString']='1.0.6'\n` +
+    `d['CFBundleVersion']='238'\n` +
+    `d['version']='1.0.6'\n` +
     `d['NSLocationWhenInUseUsageDescription']=sys.argv[4]+'需要访问位置信息，以提供房间防作弊功能。'\n` +
     `d['NSMicrophoneUsageDescription']=sys.argv[4]+'需要使用麦克风，以发送游戏语音。'\n` +
     `d['QJQPVoiceBaseURL']=sys.argv[9]\n` +
@@ -552,29 +610,42 @@ l.default.uiHelper.showTip(t);
     );
     console.log('      已写入 iOS 专用 3D 桌面并保留中央灯盘');
   }
+  patchWskTotalEndCell(app);
+  console.log('      已固化说胡子总结算四项统计行距');
+  patchLoginSceneAsset(app);
+  console.log('      已在登录场景层永久隐藏测试账号入口');
   fs.copyFileSync(path.join(ROOT, 'assets', 'branding', 'startup', 'splash-screen.png'), path.join(app, 'LaunchImage12.png'));
 
   if (COCOS_BASE === 'ios-r234') {
     const official = JSON.parse(fs.readFileSync(R234_MANIFEST_FILE, 'utf8'));
     const local = {
       ...official,
-      packageUrl: `${HTTP_BASE}/disabled-hot-update/`,
-      remoteManifestUrl: `${HTTP_BASE}/disabled-hot-update/project.manifest`,
-      remoteVersionUrl: `${HTTP_BASE}/disabled-hot-update/version.manifest`,
+      packageUrl: `${HTTP_BASE}/hot-update/ios/${requestedAssetVersion}/`,
+      remoteManifestUrl: `${HTTP_BASE}/hot-update/ios/${requestedAssetVersion}/project.manifest`,
+      remoteVersionUrl: `${HTTP_BASE}/hot-update/ios/${requestedAssetVersion}/version.manifest`,
+      version: String(requestedAssetVersion),
       assets: {},
     };
     const rawManifest = 'res/raw-assets/2c/2c8a7447-5900-4cca-b1ef-51d750d90396.manifest';
-    for (const asset of Object.keys(official.assets)) {
-      if (asset === rawManifest) continue; // 清单不能记录自身的新 MD5。
-      const data = fs.readFileSync(path.join(app, asset));
-      local.assets[asset] = { size: data.length, md5: crypto.createHash('md5').update(data).digest('hex') };
+    for (const directory of ['src', 'res', 'branding']) {
+      const root = path.join(app, directory);
+      if (!fs.existsSync(root)) continue;
+      walkFiles(root, (file) => {
+        const asset = path.relative(app, file).split(path.sep).join('/');
+        if (asset === rawManifest) return; // 清单不能记录自身的新 MD5。
+        const data = fs.readFileSync(file);
+        local.assets[asset] = { size: data.length, md5: crypto.createHash('md5').update(data).digest('hex') };
+      });
     }
     fs.writeFileSync(path.join(app, rawManifest), JSON.stringify(local));
-    console.log('      已生成与当前修改资源一致的 iOS R234 本地清单');
+    console.log(`      已生成与当前修改资源一致的 iOS 热更新基线清单 R${requestedAssetVersion}`);
   }
 
   console.log('6/7 签名并校验应用结构');
   let entitlements = null;
+  const associatedDomains = WECHAT_APPLINK
+    ? [`applinks:${new URL(WECHAT_APPLINK).hostname}`]
+    : [];
   if (SIGN_IDENTITY !== '-') {
     const profile = path.resolve(PROFILE);
     fs.copyFileSync(profile, path.join(app, 'embedded.mobileprovision'));
@@ -585,12 +656,18 @@ l.default.uiHelper.showTip(t);
       if (!Object.prototype.hasOwnProperty.call(profileEntitlements, 'com.apple.developer.associated-domains')) {
         throw new Error('当前描述文件没有 Associated Domains 权限，无法启用 iOS 微信 Universal Link');
       }
-      profileEntitlements['com.apple.developer.associated-domains'] = [
-        `applinks:${new URL(WECHAT_APPLINK).hostname}`,
-      ];
+      profileEntitlements['com.apple.developer.associated-domains'] = associatedDomains;
     }
     entitlements = path.join(stage, 'entitlements.plist');
     fs.writeFileSync(entitlements, JSON.stringify(profileEntitlements));
+    run('plutil', ['-convert', 'xml1', entitlements]);
+  } else if (associatedDomains.length) {
+    // 待企业重签包先带上 Associated Domains 声明。最终重签时，
+    // 签名方的 provisioning profile 仍必须授权同一 entitlement。
+    entitlements = path.join(stage, 'entitlements.plist');
+    fs.writeFileSync(entitlements, JSON.stringify({
+      'com.apple.developer.associated-domains': associatedDomains,
+    }));
     run('plutil', ['-convert', 'xml1', entitlements]);
   }
   const signArgs = ['--force', '--deep', '--sign', SIGN_IDENTITY, '--timestamp=none'];

@@ -165,7 +165,7 @@ e.prototype.shareQrAssets = function() {
 return this._shareQrAsset;
 };
 e.prototype.downloadUrl = function(e) {
-var t = this.downloadBaseUrl() + "/download" + "/ylhy-activity";
+var t = this.downloadBaseUrl() + "/download";
 return a.default.formatUrl(t, e);
 };
 e.prototype.recordShareUrl = function(e) {

@@ -57,7 +57,7 @@ const buildRecord = (table, now) => {
     param1: table.param1,
     param2: table.param2,
     time: now,
-    scoreRatio: rules.RATIO,
+    scoreRatio: table.gameRules ? table.gameRules.RATIO : rules.RATIO,
     players,
     details,
     playbacks,

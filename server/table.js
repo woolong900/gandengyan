@@ -12,13 +12,18 @@
  *   onUidRoom(uid, roomId)
  */
 const { Round } = require('./round');
+const { WskRound } = require('./qjshz-round');
 const { randomBytes } = require('crypto');
 const rules = require('./rules');
+const qjshzRules = require('./qjshz-rules');
 const {
   maxStep, roomInfo, push, playerAction, emptyMember,
 } = require('./shared');
 
 const DISMISS_SEC = 60;
+const UNSTARTED_ROOM_TTL_MS = 60 * 60 * 1000;
+const STARTED_ROOM_TTL_MS = 12 * 60 * 60 * 1000;
+const ROOM_EXPIRE_TIMER = 'room-expire';
 /** 旁观位上限。客户端 LookOnLayer 按 person.view 列人，没有再限一次。 */
 const MAX_WATCH = 20;
 const MAX_CHAT_BYTES = 4096;
@@ -31,19 +36,40 @@ class Table {
     this.roomId = meta.roomId;
     this.shareCode = meta.shareCode || randomBytes(12).toString('hex');
     this.gameType = meta.gameType;
+    this.gameRules = rules.forGame(this.gameType);
     this.clubId = meta.clubId;
     this.schemeId = meta.schemeId || 0;
     this.num = meta.num;
     this.param1 = meta.param1;
     this.param2 = meta.param2;
     this.hostUid = meta.host;
+    // 创建者与当前房主分开保存。俱乐部自动桌由服务端创建，
+    // 后续首位入桌者可能成为房主，但不能因此获得陪玩机器人资格。
+    this.creatorUid = Number(meta.creatorUid != null
+      ? meta.creatorUid
+      : (meta.schemeId ? 0 : meta.host)) || 0;
     this.step = meta.step || 0;
+    const now = typeof this.host.now === 'function' ? this.host.now() : Date.now();
+    this.createdAt = Number(meta.createdAt) || now;
+    this.lastRoundStartedAt = Number(meta.lastRoundStartedAt) || 0;
+    // 旧存档没有生命周期时间。已经开过局的旧房间首次恢复时从恢复时刻
+    // 重新给 12 小时，避免按未知的历史创建时间误释放。
+    this.roomExpireAt = Number(meta.roomExpireAt) || (this.step > 0
+      ? (this.lastRoundStartedAt
+        ? this.lastRoundStartedAt + STARTED_ROOM_TTL_MS
+        : now + STARTED_ROOM_TTL_MS)
+      : this.createdAt + UNSTARTED_ROOM_TTL_MS);
     this.drawCount = meta.drawCount || 0;
     this.dealerUid = meta.dealerUid || 0;
     this.lastEnd = meta.lastEnd || null;
+    this.nextWskHandPlan = meta.nextWskHandPlan ? {
+      uid: Number(meta.nextWskHandPlan.uid),
+      counts: { ...(meta.nextWskHandPlan.counts || {}) },
+      total: Number(meta.nextWskHandPlan.total || 0),
+    } : null;
     this.dismiss = meta.dismiss || null;
     this.members = [];
-    this.config = meta.config || rules.parseConfig(meta.param1, meta.param2);
+    this.config = meta.config || this.gameRules.parseConfig(meta.param1, meta.param2);
     this.round = null;
     this.closed = !!meta.closed;
     this.cardCharges = meta.cardCharges ? meta.cardCharges.map((c) => ({ ...c })) : [];
@@ -53,6 +79,7 @@ class Table {
       playback: h.playback || null,
     })) : [];
     this.recordSaved = !!meta.recordSaved;
+    this.armRoomExpiry();
   }
 
   get host() { return this._host; }
@@ -66,8 +93,59 @@ class Table {
     return this.members.filter((m) => m.view);
   }
 
+  setNextWskHandPlan(uid, rawCounts) {
+    if (Number(this.gameType) !== 17) return { error: '只有说胡子房间可设置下一局起手牌' };
+    if (this.step >= maxStep(this)) return { error: '房间已没有下一局' };
+    const target = this.members.find((member) => !member.view && Number(member.player.uid) === Number(uid));
+    if (!target) return { error: '指定玩家不在座位上' };
+    if (!rawCounts || typeof rawCounts !== 'object' || Array.isArray(rawCounts)) return { error: '指定牌数据无效' };
+    const allowed = new Set([ '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', 'joker' ]);
+    const counts = {};
+    let total = 0;
+    for (const [rank, rawCount] of Object.entries(rawCounts)) {
+      if (!allowed.has(rank)) return { error: `不支持的牌面：${rank}` };
+      const count = Number(rawCount);
+      if (!Number.isInteger(count) || count < 0) return { error: '指定数量必须是非负整数' };
+      if (!count) continue;
+      const available = rank === 'joker' ? 4 : ((this.config.去掉34 && (rank === '3' || rank === '4')) ? 0 : 8);
+      const label = rank === 'joker' ? '鬼牌' : `${rank}点`;
+      if (count > available) return { error: `${label}最多可指定${available}张` };
+      counts[rank] = count;
+      total += count;
+    }
+    const handSize = qjshzRules.buildDeck(!!this.config.去掉34).length / this.config.人数;
+    if (!total) return { error: '请至少指定一张牌' };
+    if (total > handSize) return { error: `指定牌不能超过${handSize}张` };
+    this.nextWskHandPlan = { uid: Number(uid), counts, total };
+    this.host.log(`  [房${this.roomId}] 后台设置下一局起手牌 uid=${uid} ${JSON.stringify(counts)}`);
+    return { ...this.nextWskHandPlan, counts: { ...counts } };
+  }
+
+  clearNextWskHandPlan() {
+    const previous = this.nextWskHandPlan;
+    this.nextWskHandPlan = null;
+    if (previous) this.host.log(`  [房${this.roomId}] 后台取消下一局起手牌 uid=${previous.uid}`);
+    return previous ? { ...previous, counts: { ...previous.counts } } : null;
+  }
+
   hasOnlineHuman() {
     return this.members.some((m) => !m.bot && m.online);
+  }
+
+  hasHumanMember() {
+    return this.members.some((m) => !m.bot);
+  }
+
+  armRoomExpiry() {
+    if (typeof this.host.cancel === 'function') this.host.cancel(ROOM_EXPIRE_TIMER);
+    if (this.closed || !Number.isFinite(this.roomExpireAt) || this.roomExpireAt <= 0) return;
+    if (typeof this.host.schedule === 'function') this.host.schedule(ROOM_EXPIRE_TIMER, this.roomExpireAt);
+  }
+
+  releaseIfNoHumans() {
+    if (this.hasHumanMember()) return false;
+    this.dissolve();
+    return true;
   }
 
   canSit() {
@@ -165,7 +243,9 @@ class Table {
           playback: tape ? tape.finish() : null,
         });
         seats.forEach((m, s) => {
-          for (const k of Object.keys(result.stat[s])) m.stat[k] += result.stat[s][k];
+          for (const k of Object.keys(result.stat[s])) {
+            m.stat[k] = (Number(m.stat[k]) || 0) + (Number(result.stat[s][k]) || 0);
+          }
         });
         for (const m of table.members) {
           m.ready = !!m.bot;
@@ -203,16 +283,25 @@ class Table {
     this.broadcast('game_bye', {
       time: Math.floor(this.host.now() / 1000),
       normal_end: normal,
-      info: seated.map((m) => ({
-        uid: m.player.uid,
-        score: m.score || 0,
-        winner: (m.score || 0) === top && top > 0,
-        ...m.stat,
-        hz_count: this.drawCount,
-      })),
+      info: seated.map((m) => {
+        // 客户端按字段名决定总战绩里画哪些统计项。说胡子只显示这四项，
+        // 不能把 emptyMember 的麻将统计字段一并发下去。
+        const stat = Number(this.gameType) === 17 ? {
+          wsk_winner_count: Number(m.stat.wsk_winner_count) || 0,
+          wsk_lose_count: Number(m.stat.wsk_lose_count) || 0,
+          wsk_first_count: Number(m.stat.wsk_first_count) || 0,
+          wsk_last_count: Number(m.stat.wsk_last_count) || 0,
+        } : { ...m.stat, hz_count: this.drawCount };
+        return {
+          uid: m.player.uid,
+          score: m.score || 0,
+          winner: (m.score || 0) === top && top > 0,
+          ...stat,
+        };
+      }),
     });
     this.host.log(`  房 ${this.roomId} 总结算${normal ? '' : '（中途散了）'}：`
-      + seated.map((m) => `${m.player.uid}=${(m.score || 0) / rules.RATIO}`).join(' '));
+      + seated.map((m) => `${m.player.uid}=${(m.score || 0) / this.gameRules.RATIO}`).join(' '));
     if (this.host.saveRecord) this.host.saveRecord(this);
   }
 
@@ -220,6 +309,7 @@ class Table {
     for (const m of this.members) this.cancelTurn(m);
     this.host.cancel('dismiss');
     this.host.cancel('empty');
+    this.host.cancel(ROOM_EXPIRE_TIMER);
     for (const m of this.members) this.host.cancel(`kick-${m.player.uid}`);
   }
 
@@ -284,7 +374,7 @@ class Table {
 
   takeRoomCards() {
     if (this.cardCharges.length) return null;
-    const cost = rules.roomCardCost({
+    const cost = this.gameRules.roomCardCost({
       num: this.num,
       人数: this.config.人数,
       房费: this.config.房费,
@@ -325,9 +415,31 @@ class Table {
     const dealerSeat = this.dealerUid
       ? Math.max(0, seats.findIndex((m) => m.player.uid === this.dealerUid))
       : Math.max(0, seats.findIndex((m) => m.player.uid === this.hostUid));
+    this.lastRoundStartedAt = this.host.now();
+    this.roomExpireAt = this.lastRoundStartedAt + STARTED_ROOM_TTL_MS;
+    this.armRoomExpiry();
     this.step += 1;
-    this.round = new Round(seats, { config: this.config, dealerSeat }, this.makeIo());
-    this.round.start();
+    const RoundClass = Number(this.gameType) === 17 ? WskRound : Round;
+    this.round = new RoundClass(seats, { config: this.config, dealerSeat }, this.makeIo());
+    // 开局后准备态即已消费，不能带到行牌中的重连快照。
+    for (const member of seats) member.ready = false;
+    let deckOverride = null;
+    let appliedHandPlan = null;
+    if (Number(this.gameType) === 17 && this.nextWskHandPlan) {
+      const targetSeat = seats.findIndex((member) => Number(member.player.uid) === Number(this.nextWskHandPlan.uid));
+      if (targetSeat < 0) {
+        this.host.log(`  [房${this.roomId}] 下一局起手牌已失效：玩家 ${this.nextWskHandPlan.uid} 已不在座位`);
+        this.nextWskHandPlan = null;
+      } else {
+        deckOverride = qjshzRules.buildDeckForSeat(this.config, this.nextWskHandPlan.counts, targetSeat, seats.length);
+        appliedHandPlan = this.nextWskHandPlan;
+      }
+    }
+    this.round.start(deckOverride);
+    if (appliedHandPlan) {
+      this.host.log(`  [房${this.roomId}] 已发放后台指定起手牌 uid=${appliedHandPlan.uid} ${JSON.stringify(appliedHandPlan.counts)}`);
+      this.nextWskHandPlan = null;
+    }
     this.armTurns();
     this.host.persist();
     return null;
@@ -343,7 +455,15 @@ class Table {
   }
 
   handleDismiss(uid, agree) {
-    if (agree && this.clubId && !this.round && this.step < 1) {
+    if (agree && !this.round && this.step < 1) {
+      // 客户端的“退出房间”和“申请解散”共用 dissmissroom 消息，
+      // 未开局时要由服务端按身份区分：普通房房主解散整房，
+      // 其他玩家只退出自己。俱乐部房没有固定房主，首位玩家
+      // 退出后继续沿用原有的桌主移交逻辑。
+      if (!this.clubId && uid === this.hostUid) {
+        this.dissolve();
+        return;
+      }
       const member = this.members.find((m) => m.player.uid === uid && !m.view);
       if (!member) return;
       this.members = this.members.filter((m) => m !== member);
@@ -356,7 +476,7 @@ class Table {
         const nextHost = this.seats().find((m) => !m.bot);
         this.hostUid = nextHost ? nextHost.player.uid : 0;
       }
-      if (this.members.every((m) => m.bot || m.view)) this.dissolve();
+      if (this.releaseIfNoHumans()) return;
       else {
         this.broadcast('roominfo', roomInfo(this));
         this.host.persist();
@@ -368,10 +488,6 @@ class Table {
       this.host.cancel('dismiss');
       this.broadcast('nodissmissroom', { uid });
       this.host.log(`  [房${this.roomId}] ${uid} 拒绝解散`);
-      return;
-    }
-    if (!this.round && this.step < 1 && uid === this.hostUid) {
-      this.dissolve();
       return;
     }
     if (!this.dismiss) {
@@ -435,6 +551,42 @@ class Table {
     return bots.length;
   }
 
+  /**
+   * WSK 客户端即使在开局前也会按完整 game_info 解析进房数据，不能像麻将一样回空对象。
+   * 这里给说胡子构造一份“等待中”的快照，避免读取 players.length 时直接中断切场。
+   */
+  waitingGameSnapshot() {
+    if (Number(this.gameType) !== 17) return {};
+    return {
+      begin: false,
+      players: this.seats().map((member) => ({
+        uid: member.player.uid,
+        ready: !!member.ready,
+        total: member.score || 0,
+        score: 0,
+        card_step_out: 0,
+        grasp_score: 0,
+        bomb_score: 0,
+        show_xi_card: [],
+        pass: false,
+        card: {
+          hand_card: [],
+          hand_card_num: 0,
+          last_dis_card: [],
+        },
+      })),
+      step: this.step || 0,
+      game_stage: 0,
+      friend_card: 0,
+      hard_card_uid: 0,
+      banker_uid: this.dealerUid || 0,
+      friend_uid: 0,
+      desktop_score: 0,
+      desk_card_scores: [],
+      step_card_info: [],
+    };
+  }
+
   join(player, connId) {
     let mine = this.members.find((m) => m.player.uid === player.uid);
     const rejoining = !!mine;
@@ -466,11 +618,10 @@ class Table {
     if (!this.hostUid && mine && !mine.view) this.hostUid = player.uid;
     player.roomId = this.roomId;
     this.host.onUidRoom(player.uid, this.roomId);
-    if (!mine.bot) this.host.cancel('empty');
     const how = rejoining ? '重连' : mine.view ? '观战' : '进房';
     this.host.log(`  202 ${how} ${this.roomId}，在座 ${this.seats().length} 观战 ${this.watchers().length}`);
 
-    let game = {};
+    let game = this.waitingGameSnapshot();
     if (this.round && !this.round.over) {
       const seat = this.round.seatOf(player.uid);
       game = this.round.snapshot(seat >= 0 ? seat : -1, { begin: true });
@@ -485,6 +636,19 @@ class Table {
   afterJoin(uid) {
     this.broadcast('lineperson', { uid, line: true });
     this.broadcast('roominfo', roomInfo(this));
+    // 旧版客户端的 roominfo 解析器不读 ready 字段。对刚进房/重连的
+    // 连接重放已准备座位，避免服务端认为已入座，界面却显示未准备。
+    const mine = this.members.find((member) => Number(member.player.uid) === Number(uid));
+    if (mine && (!this.round || this.round.over)) {
+      for (const member of this.seats()) {
+        if (member.ready) {
+          this.sendTo(mine, push('game_ready', {
+            uid: member.player.uid,
+            site: member.site,
+          }));
+        }
+      }
+    }
     if (this.round && !this.round.over) {
       const seat = this.round.seatOf(uid);
       if (seat >= 0) this.round.replayOps(seat);
@@ -501,6 +665,7 @@ class Table {
     this.host.cancel(`kick-${uid}`);
     this.host.log(`  [房${this.roomId}] ${uid} ${notify ? '离开观战' : '观战掉线'}`);
     if (notify) this.sendTo(mine, push('exitroom', { reason: 0 }));
+    if (this.releaseIfNoHumans()) return;
     this.broadcast('roominfo', roomInfo(this));
     this.host.persist();
   }
@@ -516,7 +681,7 @@ class Table {
     this.cancelTurn(member);
     this.sendTo(member, push('exitroom', { reason: 2 }));
     this.host.log(`  [房${this.roomId}] 管理员踢出 ${uid}`);
-    if (this.members.every((m) => m.bot || m.view)) this.dissolve();
+    if (this.releaseIfNoHumans()) return { error: null };
     else {
       this.broadcast('roominfo', roomInfo(this));
       this.host.persist();
@@ -533,7 +698,7 @@ class Table {
     this.host.onUidRoom(uid, 0);
     this.host.cancel(`kick-${uid}`);
     this.cancelTurn(member);
-    if (this.members.every((m) => m.bot)) this.dissolve();
+    if (this.releaseIfNoHumans()) return true;
     else {
       this.broadcast('roominfo', roomInfo(this));
       this.host.persist();
@@ -589,8 +754,6 @@ class Table {
     const kickSec = this.round ? 0 : (this.config.踢人 || 0);
     if (kickSec > 0) {
       this.host.schedule(`kick-${uid}`, this.host.now() + kickSec * 1000);
-    } else if (!this.hasOnlineHuman() && !this.round) {
-      this.host.schedule('empty', this.host.now() + 60000);
     }
     this.host.persist();
   }
@@ -602,8 +765,14 @@ class Table {
       this.dissolve();
       return;
     }
-    if (name === 'empty') {
-      if (!this.hasOnlineHuman() && !this.round) this.dissolve();
+    if (name === ROOM_EXPIRE_TIMER) {
+      // 生命周期与在线状态无关。旧回调如果早于当前截止时间，只重挂机制，
+      // 不能释放被新一局延长过的房间。
+      if (this.host.now() < this.roomExpireAt) this.armRoomExpiry();
+      else {
+        this.host.log(`  [房${this.roomId}] 生命周期到期，自动释放`);
+        this.dissolve();
+      }
       return;
     }
     if (name.startsWith('kick-')) {
@@ -614,12 +783,9 @@ class Table {
       still.player.roomId = 0;
       this.host.onUidRoom(uid, 0);
       this.host.log(`  [房${this.roomId}] ${uid} 离线超时，请出`);
-      if (this.seats().length === 0) this.dissolve();
+      if (this.releaseIfNoHumans()) return;
       else {
         this.broadcast('roominfo', roomInfo(this));
-        if (!this.hasOnlineHuman() && !this.round) {
-          this.host.schedule('empty', this.host.now() + 60000);
-        }
         this.host.persist();
       }
       return;
@@ -717,7 +883,8 @@ class Table {
   restoreRound(rawRound) {
     if (!rawRound) return;
     try {
-      this.round = Round.restore(rawRound, this.seats(), this.makeIo(), this.config);
+      const RoundClass = rawRound.kind === 'qjshz' || Number(this.gameType) === 17 ? WskRound : Round;
+      this.round = RoundClass.restore(rawRound, this.seats(), this.makeIo(), this.config);
     } catch (err) {
       this.host.log(`  房 ${this.roomId} 牌局恢复失败，房间留下、当局作废`);
       console.error(err);
@@ -732,10 +899,8 @@ class Table {
       else this.dissolve();
     }
     if (this.closed) return;
+    this.armRoomExpiry();
     if (this.round && !this.round.over) this.armTurns();
-    else if (this.members.some((m) => !m.bot) && !this.hasOnlineHuman()) {
-      this.host.schedule('empty', this.host.now() + 60000);
-    }
   }
 
   dump() {
@@ -749,10 +914,17 @@ class Table {
       param1: this.param1,
       param2: this.param2,
       host: this.hostUid,
+      creatorUid: this.creatorUid,
       step: this.step,
+      createdAt: this.createdAt,
+      lastRoundStartedAt: this.lastRoundStartedAt,
+      roomExpireAt: this.roomExpireAt,
       drawCount: this.drawCount,
       dealerUid: this.dealerUid || 0,
       lastEnd: this.lastEnd || null,
+      nextWskHandPlan: this.nextWskHandPlan ? {
+        ...this.nextWskHandPlan, counts: { ...this.nextWskHandPlan.counts },
+      } : null,
       dismiss: this.dismiss ? { agree: this.dismiss.agree, time: this.dismiss.time } : null,
       cardCharges: this.cardCharges,
       hands: this.hands,
@@ -786,10 +958,15 @@ class Table {
       param1: raw.param1,
       param2: raw.param2,
       host: raw.host,
+      creatorUid: raw.creatorUid,
       step: raw.step || 0,
+      createdAt: raw.createdAt,
+      lastRoundStartedAt: raw.lastRoundStartedAt,
+      roomExpireAt: raw.roomExpireAt,
       drawCount: raw.drawCount || 0,
       dealerUid: raw.dealerUid || 0,
       lastEnd: raw.lastEnd || null,
+      nextWskHandPlan: raw.nextWskHandPlan || null,
       dismiss: raw.dismiss || null,
       cardCharges: raw.cardCharges || [],
       hands: raw.hands || [],
@@ -822,4 +999,11 @@ class Table {
   }
 }
 
-module.exports = { Table, DISMISS_SEC, MAX_WATCH };
+module.exports = {
+  Table,
+  DISMISS_SEC,
+  MAX_WATCH,
+  UNSTARTED_ROOM_TTL_MS,
+  STARTED_ROOM_TTL_MS,
+  ROOM_EXPIRE_TIMER,
+};

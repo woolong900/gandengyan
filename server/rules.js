@@ -10,6 +10,8 @@
  */
 
 /** 底分。param1 的千位是档次编号，对应客户端那张 1/2/2.5/5/10/20/25 的表 */
+const qjshzRules = require('./qjshz-rules');
+
 const BASE_SCORE = { 1: 1, 2: 2, 3: 2.5, 4: 5, 5: 10, 6: 20, 7: 25 };
 
 /** 喜钱档次，单位是底分的倍数。0 是关闭 */
@@ -73,7 +75,7 @@ function parseConfig(param1, param2) {
     清一色: digit(param2, 5) === 1, // (18)
     少三张: digit(param2, 6) === 1, // (19)
     只许自摸: digit(param2, 7) === 1, // (20)
-    热铳: digit(param2, 8) === 1, // (21)
+    热铳: digit(param2, 8) === 1, // (21)，同时控制热铳和抢杠
     语音房: digit(param2, 10) === 1, // (22)
     双大胡: digit(param2, 11) === 1, // (23)
     观战: digit(param2, 12) === 1, // (24)
@@ -86,6 +88,9 @@ function parseConfig(param1, param2) {
 
 /** 建房只接受当前服务端真正实现的玩法和人数范围。 */
 function validateRoomConfig({ gameType, num, param1, param2 } = {}) {
+  if (Number(gameType) === qjshzRules.GAME_TYPE) {
+    return qjshzRules.validateRoomConfig({ gameType, num, param1, param2 });
+  }
   if (Number(gameType) !== 2) return '暂不支持该玩法';
   if (!Number.isInteger(Number(num)) || Number(num) < 1 || Number(num) > 2) {
     return '局数参数无效';
@@ -97,6 +102,11 @@ function validateRoomConfig({ gameType, num, param1, param2 } = {}) {
   if (config.人数 < 2 || config.人数 > 4) return '人数只支持 2 至 4 人';
   if (config.语音房) return '暂不支持语音房';
   return null;
+}
+
+/** 按游戏 ID 取对应规则；未登记的玩法仍落到潜江晃晃并由建房校验拒绝。 */
+function forGame(gameType) {
+  return Number(gameType) === qjshzRules.GAME_TYPE ? qjshzRules : module.exports;
 }
 
 /**
@@ -169,5 +179,5 @@ function roomCardCost({ num, 人数, 房费 }) {
 
 module.exports = {
   parseConfig, validateRoomConfig, buildParam, roomCardCost,
-  huMultiplier, gangScore, unit, HU, FAN, RATIO, hasBit,
+  huMultiplier, gangScore, unit, HU, FAN, RATIO, hasBit, forGame,
 };

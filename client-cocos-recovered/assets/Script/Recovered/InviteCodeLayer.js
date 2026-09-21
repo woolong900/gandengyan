@@ -27,7 +27,7 @@ return i > 3 && a && Object.defineProperty(t, o, a), a;
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var i = require("./gContext"), a = require("./BaseComponent"), s = require("./SoundUtils"), l = require("./UserData"), c = require("./CenterMsg"), u = require("./WindowConfig"), d = cc._decorator, p = d.ccclass, f = d.property, h = function(e) {
+var i = require("./gContext"), a = require("./BaseComponent"), s = require("./SoundUtils"), l = require("./UserData"), c = require("./CenterMsg"), u = require("./WindowConfig"), m = require("./ExUtils"), d = cc._decorator, p = d.ccclass, f = d.property, h = function(e) {
 n(t, e);
 function t() {
 var t = null !== e && e.apply(this, arguments) || this;
@@ -43,7 +43,7 @@ return t;
 t.prototype.start = function() {
 var e = this, n = function() {
 var o = l.default.myInviteCode || "", h = e.inactiveNode;
-e.inviteTipLabel.string = "绑定推荐人邀请码，可获得" + l.default.inviteCodeAward + "张房卡哦！";
+e.inviteTipLabel.string = l.default.inviteTipText || "绑定推荐人邀请码，可获得" + l.default.inviteCodeAward + "张房卡！";
 if (!h) return;
 var tip = e.inviteTipLabel.node, name = h.getChildByName("LabelName"), input = h.getChildByName("InputName"), hint = h.getChildByName("LabelTip");
 if (tip) tip.y = 171;
@@ -102,7 +102,7 @@ if (lab && lab.getComponent(cc.Label)) lab.getComponent(cc.Label).string = "复 
 row.addChild(copy);
 copy.on(cc.Node.EventType.TOUCH_END, function() {
 s.default.clickBtn();
-jsb.reflection.callStaticMethod("com/yuanlai/external/Utils", "copyText", "(Ljava/lang/String;)Ljava/lang/String;", l.default.myInviteCode || "");
+m.default.copyText(l.default.myInviteCode || "");
 i.default.uiHelper.showTip("复制成功！");
 });
 }

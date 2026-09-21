@@ -11,7 +11,7 @@ const { WebSocketServer } = require('ws');
 const devVars = path.join(__dirname, '..', '.dev.vars');
 if (process.env.QJQP_LOAD_DEV_VARS !== '0' && fs.existsSync(devVars)) {
   for (const line of fs.readFileSync(devVars, 'utf8').split('\n')) {
-    const match = line.match(/^(QJQP_WECHAT_APPID|QJQP_WECHAT_APPSECRET|QJQP_ID_HASH_KEY|QJQP_APPLE_TEAM_ID|QJQP_PUBLIC_BASE_URL)=(.*)$/);
+    const match = line.match(/^(QJQP_WECHAT_APPID|QJQP_WECHAT_APPSECRET|QJQP_WECHAT_APPS|QJQP_ID_HASH_KEY|QJQP_APPLE_TEAM_ID|QJQP_PUBLIC_BASE_URL)=(.*)$/);
     if (match && !process.env[match[1]]) process.env[match[1]] = match[2].trim();
   }
 }
@@ -21,18 +21,67 @@ const { GameApp } = require('./app');
 const { createVoice } = require('./voice');
 const { authorizeWechat } = require('./wechat');
 const { createAdminHttp } = require('./admin-http');
+const { HotUpdateService } = require('./hot-update');
+const { clientIp, IpGeoService } = require('./ip-geo');
 
 const voice = createVoice(path.join(path.dirname(store.FILE), 'voice'));
+const hotUpdate = new HotUpdateService({
+  root: process.env.QJQP_HOT_UPDATE_ROOT || path.join(path.dirname(store.FILE), 'hot-update'),
+  configFile: process.env.QJQP_HOT_UPDATE_CONFIG || path.join(path.dirname(store.FILE), 'hot-update.json'),
+});
+const ipGeo = new IpGeoService();
 
 const PORT = Number(process.env.PORT) || 8080;
 const LISTEN_HOST = process.env.HOST || '0.0.0.0';
 const APP_BUNDLE_ID = 'com.haoke.gandengyan';
 const APPLE_TEAM_ID = process.env.QJQP_APPLE_TEAM_ID || '4CSMM3394C';
 const SHARE_ICON = fs.readFileSync(path.join(__dirname, 'public', 'share-icon.png'));
+const LEGAL_PAGES = new Map([
+  ['/legal/user-agreement', fs.readFileSync(path.join(__dirname, 'public', 'legal', 'user-agreement.html'))],
+  ['/legal/privacy-policy', fs.readFileSync(path.join(__dirname, 'public', 'legal', 'privacy-policy.html'))],
+]);
+const DOWNLOAD_ROOT = path.join(__dirname, 'public', 'download');
+const DOWNLOAD_ASSETS = new Map([
+  ['/download', { filename: 'index.html', type: 'text/html; charset=utf-8', cache: 'public, max-age=300' }],
+  ['/download/', { filename: 'index.html', type: 'text/html; charset=utf-8', cache: 'public, max-age=300' }],
+  ['/download/app.css', { filename: 'app.css', type: 'text/css; charset=utf-8', cache: 'public, max-age=3600' }],
+  ['/download/app.js', { filename: 'app.js', type: 'text/javascript; charset=utf-8', cache: 'public, max-age=3600' }],
+  ['/download/app-icon.webp', { filename: 'app-icon.webp', type: 'image/webp', cache: 'public, max-age=86400' }],
+  ['/download/app-icon-v2.webp', { filename: 'app-icon-v2.webp', type: 'image/webp', cache: 'public, max-age=86400' }],
+  ['/download/game-logo.webp', { filename: 'game-logo.webp', type: 'image/webp', cache: 'public, max-age=86400' }],
+]);
+for (const asset of DOWNLOAD_ASSETS.values()) {
+  if (!asset.body) asset.body = fs.readFileSync(path.join(DOWNLOAD_ROOT, asset.filename));
+}
 const operatorKeyFile = process.env.QJQP_OPERATOR_KEY_FILE || path.join(path.dirname(store.FILE), 'operator.key');
 const operatorKey = String(process.env.QJQP_OPERATOR_KEY || (
   fs.existsSync(operatorKeyFile) ? fs.readFileSync(operatorKeyFile, 'utf8') : ''
 )).trim();
+
+const wechatCredentials = (requestedAppId) => {
+  const configuredAppId = String(process.env.QJQP_WECHAT_APPID || '').trim();
+  const apps = new Map();
+  if (configuredAppId && process.env.QJQP_WECHAT_APPSECRET) {
+    apps.set(configuredAppId, String(process.env.QJQP_WECHAT_APPSECRET));
+  }
+  const extra = String(process.env.QJQP_WECHAT_APPS || '').trim();
+  if (extra) {
+    try {
+      const parsed = JSON.parse(extra);
+      for (const [appId, secret] of Object.entries(parsed || {})) {
+        if (/^wx[0-9A-Za-z]{16}$/.test(appId) && String(secret || '').trim()) {
+          apps.set(appId, String(secret).trim());
+        }
+      }
+    } catch (error) { console.error(`QJQP_WECHAT_APPS 配置无效：${error.message}`); }
+  }
+  const appId = String(requestedAppId || configuredAppId).trim();
+  const appSecret = apps.get(appId) || '';
+  return appId && appSecret ? { appId, appSecret } : null;
+};
+const hasWechatCredentials = () => !!(
+  String(process.env.QJQP_WECHAT_APPID || '').trim() && String(process.env.QJQP_WECHAT_APPSECRET || '').trim()
+) || !!String(process.env.QJQP_WECHAT_APPS || '').trim();
 
 let saveTimer = null;
 let saveQueue = Promise.resolve();
@@ -64,10 +113,38 @@ const app = new GameApp({
   persist: () => persistSoon(),
   now: Date.now,
   onRecord: (record) => store.archiveRecord(record),
+  onAgentApplication: (application) => store.appendAgentApplication(application),
+  onAccountMigration: (entry) => store.appendAudit({
+    at: entry.linkedAt, actor: '系统', action: 'wechat_appid_migration', target: String(entry.uid),
+    details: {
+      appId: entry.appId,
+      openidAliasCount: entry.openidAliasCount,
+      unionidAliasCount: entry.unionidAliasCount,
+    },
+  }),
 });
-const adminHttp = createAdminHttp({ app, store, flush,
+const adminHttp = createAdminHttp({ app, store, flush, hotUpdate,
   publicBaseUrl: String(process.env.QJQP_PUBLIC_BASE_URL || '').replace(/\/$/, ''),
 });
+
+const recordLoginNetwork = (player, req) => {
+  if (!player || player.bot) return;
+  const ip = clientIp(req);
+  if (!ip) return;
+  const needsLookup = player.lastIp !== ip || !player.lastIpCity;
+  player.lastIp = ip;
+  player.lastIpAt = app.now();
+  if (needsLookup) player.lastIpCity = '';
+  app.persist();
+  if (!needsLookup) return;
+  void ipGeo.lookup(ip).then((location) => {
+    const current = app.playerByUid(player.uid);
+    if (!current || current.lastIp !== ip || !location) return;
+    current.lastIpCity = location;
+    current.lastIpLocatedAt = app.now();
+    app.persist();
+  });
+};
 
 const json = (res, body, status = 200) => {
   const s = JSON.stringify(body);
@@ -150,7 +227,7 @@ const aasa = () => ({
 
 const logUrl = (url) => {
   const query = new URLSearchParams(url.searchParams);
-  for (const key of ['token', 'code', 'deviceId', 'access_token', 'authorization']) {
+  for (const key of ['token', 'code', 'migrationTicket', 'deviceId', 'device_id', 'rollout_key', 'access_token', 'authorization']) {
     if (query.has(key)) query.set(key, '[redacted]');
   }
   const suffix = query.toString();
@@ -190,6 +267,15 @@ const server = http.createServer(async (req, res) => {
     return json(res, { err_code: 1, err_msg: 'invalid URL' }, 400);
   }
   console.log(`HTTP ${req.method} ${logUrl(url)}`);
+
+  if (req.method === 'GET' && url.pathname === '/version') {
+    return json(res, hotUpdate.versionBody(url.searchParams, publicOrigin(req), {
+      forwardedFor: req.headers['x-forwarded-for'],
+      remoteAddress: req.socket.remoteAddress,
+      userAgent: req.headers['user-agent'],
+    }));
+  }
+  if (url.pathname.startsWith('/hot-update/')) return hotUpdate.serve(req, res, url);
 
   if (url.pathname === '/admin' || url.pathname.startsWith('/admin/')) {
     try { return await adminHttp.handler(req, res, url); }
@@ -236,6 +322,23 @@ const server = http.createServer(async (req, res) => {
       'X-Content-Type-Options': 'nosniff',
     });
     return res.end(SHARE_ICON);
+  }
+  if (req.method === 'GET' && LEGAL_PAGES.has(url.pathname)) {
+    return html(res, LEGAL_PAGES.get(url.pathname));
+  }
+  if ((req.method === 'GET' || req.method === 'HEAD') && DOWNLOAD_ASSETS.has(url.pathname)) {
+    const asset = DOWNLOAD_ASSETS.get(url.pathname);
+    const headers = {
+      'Content-Type': asset.type,
+      'Content-Length': asset.body.length,
+      'Cache-Control': asset.cache,
+      'X-Content-Type-Options': 'nosniff',
+    };
+    if (asset.filename === 'index.html') {
+      headers['Content-Security-Policy'] = "default-src 'none'; img-src 'self'; style-src 'self'; script-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+    }
+    res.writeHead(200, headers);
+    return res.end(req.method === 'HEAD' ? undefined : asset.body);
   }
   if (req.method === 'GET' && /^\/avatars\/(0[1-9]|10)\.png$/.test(url.pathname)) {
     const filename = path.join(__dirname, 'public', 'avatars', path.basename(url.pathname));
@@ -294,17 +397,39 @@ const server = http.createServer(async (req, res) => {
     return fs.createReadStream(file).pipe(res);
   }
 
+  if (req.method === 'GET' && url.pathname === '/login'
+      && url.searchParams.get('accountType') === 'wxMigration') {
+    try {
+      const credentials = wechatCredentials(url.searchParams.get('appId'));
+      if (!credentials) return json(res, hasWechatCredentials()
+        ? { err_code: 4, err_msg: '微信 AppID 不匹配，请更新客户端' }
+        : { err_code: 3, err_msg: '服务器尚未配置微信登录' }, 400);
+      const migration = app.issueWechatMigrationTicket(url.searchParams.get('token'), credentials.appId);
+      return json(res, {
+        err_code: 0, data: { migrationTicket: migration.ticket, expiresIn: migration.expiresIn },
+      });
+    } catch (err) {
+      console.error(`微信账号迁移准备失败：${err.message}`);
+      return json(res, { err_code: err.code || 1, err_msg: err.message }, 400);
+    }
+  }
+
   if (req.method === 'GET' && url.pathname === '/login' && url.searchParams.get('accountType') === 'wx') {
     try {
-      const requestedAppId = String(url.searchParams.get('appId') || '');
-      const configuredAppId = process.env.QJQP_WECHAT_APPID || '';
-      if (requestedAppId && configuredAppId && requestedAppId !== configuredAppId) {
-        return json(res, { err_code: 4, err_msg: '微信 AppID 不匹配，请更新客户端' }, 400);
+      const credentials = wechatCredentials(url.searchParams.get('appId'));
+      if (!credentials) {
+        return json(res, hasWechatCredentials()
+          ? { err_code: 4, err_msg: '微信 AppID 不匹配，请更新客户端' }
+          : { err_code: 3, err_msg: '服务器尚未配置微信登录' }, 400);
       }
-      const profile = await authorizeWechat(url.searchParams.get('code'));
-      const login = app.loginWechat(profile);
-      console.log(`  微信登录 uid=${login.player.uid}`);
-      return json(res, { err_code: 0, data: { token: login.token } });
+      const profile = await authorizeWechat(url.searchParams.get('code'), credentials);
+      const login = app.loginWechat(profile, {
+        appId: credentials.appId,
+        migrationTicket: url.searchParams.get('migrationTicket'),
+      });
+      recordLoginNetwork(login.player, req);
+      console.log(`  微信登录 uid=${login.player.uid}${login.migrated ? ' AppID迁移' : ''}`);
+      return json(res, { err_code: 0, data: { token: login.token, migrated: !!login.migrated } });
     } catch (err) {
       console.error(`微信登录失败：${err.message}`);
       return json(res, { err_code: err.code || 1, err_msg: err.message }, 400);
@@ -312,6 +437,10 @@ const server = http.createServer(async (req, res) => {
   }
 
   const out = app.http(url.pathname, url.searchParams);
+  if (url.pathname === '/login' && out.body && Number(out.body.err_code) === 0) {
+    const token = out.body.data && out.body.data.token;
+    recordLoginNetwork(app.playerForToken(token), req);
+  }
   if (out.status === 404) return res.writeHead(404).end();
   return json(res, out.body);
 });
@@ -328,7 +457,7 @@ wss.on('connection', (ws) => {
   console.log('WS 连上');
   app.attach(connId, (buf) => {
     if (ws.readyState === 1) ws.send(buf);
-  }, () => ws.close(4003, 'account disabled'));
+  }, (code = 4003, reason = 'account disabled') => ws.close(code, reason));
   ws.on('error', (err) => console.error('WS 错误', err));
   ws.on('message', (data) => {
     try {

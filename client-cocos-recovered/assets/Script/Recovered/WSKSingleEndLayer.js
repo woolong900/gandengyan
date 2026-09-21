@@ -87,35 +87,32 @@ a.default.gameInfoWSK.is1V3() ? c[p].getChildByName("pick").getComponent(cc.Labe
 }
 };
 t.prototype._udpateQJSHZ = function() {
-var e = y.default.getInstance(), t = a.default.gameInfoWSK.curStep === a.default.config.gameCount(), o = this.node.getChildByName("qjshz"), n = o.getChildByName("BtnGameOver"), r = o.getChildByName("BtnGameNext"), i = o.getChildByName("bgNode").getChildByName("btn_exit"), s = o.getChildByName("BtnShare"), l = [];
-l.push(o.getChildByName("pos0"));
-l.push(o.getChildByName("pos1"));
-l.push(o.getChildByName("pos2"));
-l.push(o.getChildByName("pos3"));
+var e = y.default.getInstance(), t = a.default.gameInfoWSK.curStep === a.default.config.gameCount(), o = this.node.getChildByName("qjshz"), n = o.getChildByName("BtnGameOver"), r = o.getChildByName("BtnGameNext"), i = o.getChildByName("BtnExitBottom"), s = [];
+s.push(o.getChildByName("pos0"));
+s.push(o.getChildByName("pos1"));
+s.push(o.getChildByName("pos2"));
+s.push(o.getChildByName("pos3"));
 if (t) {
-n.active = !0;
-r.active = !1;
-i.active = !1;
+n && (n.active = !0);
+r && (r.active = !1);
+i && (i.active = !1);
 } else {
-n.active = !1;
-r.active = !0;
-i.active = !0;
+n && (n.active = !1);
+r && (r.active = !0);
+i && (i.active = !0);
 }
-if (a.default.isWatcher()) {
-s.active = !1;
-r.active = !1;
-}
+if (a.default.isWatcher()) r && (r.active = !1);
 for (var c = a.default.config.peopleCount(), u = 0; u < c; u++) {
 var d = g.default.getInstance().deskPos2ViewPos(u), p = e.score(u), f = e.pickUpScore(u);
 e.bombScore(u);
 if (p > 0) {
-l[d].getChildByName("win").getComponent(cc.Label).string = "+" + p;
-l[d].getChildByName("lose").getComponent(cc.Label).string = "";
+s[d].getChildByName("win").getComponent(cc.Label).string = "+" + p;
+s[d].getChildByName("lose").getComponent(cc.Label).string = "";
 } else {
-l[d].getChildByName("win").getComponent(cc.Label).string = "";
-l[d].getChildByName("lose").getComponent(cc.Label).string = "" + p;
+s[d].getChildByName("win").getComponent(cc.Label).string = "";
+s[d].getChildByName("lose").getComponent(cc.Label).string = "" + p;
 }
-l[d].getChildByName("pick").getComponent(cc.Label).string = "抓分：" + f;
+s[d].getChildByName("pick").getComponent(cc.Label).string = "抓分：" + f;
 }
 };
 t.prototype.start = function() {

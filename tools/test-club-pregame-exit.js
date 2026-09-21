@@ -57,6 +57,19 @@ const fixture = (clubId) => {
 }
 
 {
+  const { app, table, players } = fixture(0);
+  table.handle200(players[1].player.uid, 'dissmissroom', {});
+  assert.equal(app.tables.has(table.roomId), true, '普通房非房主未开局退出后房间保留');
+  assert.equal(table.seats().length, 1);
+  assert.equal(table.hostUid, players[0].player.uid, '普通房房主保持不变');
+  assert.equal(players[1].player.roomId, 0);
+  assert.equal(app.uidRoom.has(players[1].player.uid), false);
+  assert.equal(table.dismiss, null, '普通房非房主未开局退出不发起解散投票');
+  assert.ok(pushHeads(players[1].sent).includes('exitroom'));
+  assert.ok(!pushHeads(players[0].sent).includes('exitroom'));
+}
+
+{
   const { app, table, players } = fixture(100001);
   table.step = 1;
   table.handle200(players[0].player.uid, 'dissmissroom', {});
@@ -66,4 +79,4 @@ const fixture = (clubId) => {
   app.cancel(`${table.roomId}:dismiss`);
 }
 
-console.log('俱乐部未开局退出规则 ✓');
+console.log('未开局退出规则 ✓');

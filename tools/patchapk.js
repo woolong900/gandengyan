@@ -9,7 +9,7 @@
  *
  * 热更地址也一并改掉：留着原厂的地址，客户端有可能把我们的脚本覆盖回去。
  *
- * `--guest` 把登录页的游客按钮放出来。原版是 `guestNode.active = isDebug()`，
+ * 正式包默认把登录页的游客按钮放出来。原版是 `guestNode.active = isDebug()`，
  * 而 `isDebug()` 走 Java 桥问这个包是不是 debuggable——与其去改二进制 manifest，
  * 不如就在这里改 JS，反正 project.jsc 本来就要重新加密。别顺手把 `isDebug()`
  * 整个改成 true：那会把 gameMode 切到 debug，牵动的地方远不止一个按钮。
@@ -22,14 +22,17 @@
  * 地址优先使用 .dev.vars 中的 QJQP_PUBLIC_BASE_URL，供真机在任意网络下访问。
  * 未配置公网地址时才回退到局域网 IP。不要打 10.0.2.2：那是模拟器回环，真机连不上。
  *
- * usage: node tools/patchapk.js --apk <原始.apk> [--host <主机[:端口]>] [--tls] [--guest]
+ * usage: node tools/patchapk.js --apk <原始.apk> [--host <主机[:端口]>] [--tls]
  *   [--package <包名>] [--app-name <应用名>] [--wechat-appid <微信AppID>] [--out <输出.apk>]
  */
 const fs = require('fs');
+const crypto = require('crypto');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { toJs, toJsc } = require('./jsc');
+const { buildReleaseProjectSource } = require('./client-release-project');
+const { LOGIN_SCENE_ASSET, patchLoginScene } = require('./client-login-scene');
 
 const argv = process.argv.slice(2);
 const arg = (name, def) => {
@@ -94,8 +97,8 @@ if (HOST && /^10\.0\.2\.2(?::|$)/.test(HOST)) {
   HOST = `${LAN}:8899`;
 }
 if (!HOST) HOST = LAN ? `${LAN}:8899` : '';
-// HTTPS 公网域名默认走443；局域网 IP 才补本地服务端的 8899。
-if (HOST && !/:\d+$/.test(HOST) && (!TLS || /^(?:\d{1,3}\.){3}\d{1,3}$/.test(HOST))) HOST = `${HOST}:8899`;
+// HTTPS 默认走 443；仅未显式指定端口的 HTTP 测试地址补本地服务端 8899。
+if (HOST && !/:\d+$/.test(HOST) && !TLS) HOST = `${HOST}:8899`;
 const OUT = arg('out', APK && APK.replace(/\.apk$/, '-patched.apk'));
 const SDK = process.env.ANDROID_SDK_ROOT || '/opt/homebrew/share/android-commandlinetools';
 const KEYSTORE = arg('keystore', path.join(os.homedir(), '.android-qjqp.keystore'));
@@ -107,6 +110,7 @@ const WECHAT_APPID = arg('wechat-appid', process.env.QJQP_WECHAT_APPID);
 const ORIGINAL_PACKAGE = 'com.yuanlai.qjqp';
 const APP_PACKAGE = arg('package', 'com.haoke.gandengyan');
 const APP_NAME = arg('app-name', '潜江干瞪眼');
+const ASSET_VERSION = Number(arg('asset-version', '235'));
 const ICON_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'icon.png');
 const LOGIN_LOGO_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'login', 'login-logo.png');
 const LOGIN_BACKGROUND_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'login', 'login-background.jpg');
@@ -117,6 +121,13 @@ const CLUB_CHARACTER_SOURCE = path.join(__dirname, '..', 'assets', 'branding', '
 const TABLE_BACKGROUND_2D_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'table', 'table-background-2d.jpg');
 const TABLE_BACKGROUND_3D_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'table', 'table-background-3d.jpg');
 const SPLASH_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'startup', 'splash-screen.png');
+const QJSHZ_TABLE_SOURCE = path.join(__dirname, '..', 'client-cocos-recovered', 'assets', 'resources', '_RecoveredDependencies', 'Textures', '609a7ea7-dcd3-4770-9830-847e4aecacbf.jpg');
+const QJSHZ_ACTION_SOURCE = path.join(__dirname, '..', 'client-cocos-recovered', 'assets', 'resources', '_RecoveredDependencies', 'Textures', '19c83aa89.png');
+const QJSHZ_QUICK_SOURCE = path.join(__dirname, '..', 'client-cocos-recovered', 'assets', 'resources', '_RecoveredDependencies', 'Textures', '0968299a-e998-4a49-9435-69aa1a61b8ff.png');
+const QJSHZ_BUSY_EXIT_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'settlement', 'btn-exit-busy-orange-v4.png');
+const QJSHZ_BUSY_EXIT_TEXTURE_UUID = 'e07c10f8-e75a-5ae8-d2f6-40c4b109d372';
+const QJSHZ_BUSY_EXIT_SPRITE_UUID = 'e9e4084a-b40b-f780-a5dd-ed4476da7ba7';
+const QJSHZ_BUSY_EXIT_SPRITE_PACKED_UUID = 'e95AhKtAv3gKXd7UR22nun';
 const LEGACY_CLEANUP_DIR = path.join(__dirname, '..', 'assets', 'branding', 'legacy-cleanup');
 const APKTOOL = process.env.APKTOOL
   || (fs.existsSync('/tmp/apktool.jar') ? '/tmp/apktool.jar' : '/opt/homebrew/bin/apktool');
@@ -136,6 +147,10 @@ if (!/^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+$/.test(APP_PACKAGE)) {
 }
 if (!APP_NAME.trim()) {
   console.error('应用名称不能为空');
+  process.exit(1);
+}
+if (!Number.isSafeInteger(ASSET_VERSION) || ASSET_VERSION < 235) {
+  console.error('--asset-version 必须是不小于 235 的整数');
   process.exit(1);
 }
 
@@ -163,6 +178,8 @@ const RULES = [
   ['ws://10.0.2.2:8899', ws],
   ['http://10.0.2.2', http],
   ['ws://10.0.2.2', ws],
+  ['wss://game.auxvv.com', ws],
+  ['https://game.auxvv.com', http],
   ['wss://qj.yuanlaiqipai.net', ws],
   ['wss://test2.yuanlaihuyu.com', ws],
   ['https://qj.yuanlaiqipai.net', http],
@@ -251,9 +268,14 @@ RULES.push([
   u2b('var e = i.default.gameInfo.singleEndInfo, t = i.default.config.gameCount(), o = i.default.config.index === m.eGameIds.QJHH ? "干瞪眼" : i.default.config.gameName(), n ='),
   true,
 ]);
-if (argv.includes('--guest')) {
-  RULES.push(['this.guestNode.active = v.default.isDebug();', 'this.guestNode.active = true;']);
-}
+// 原厂重启代码没有把热更新目录真正插入搜索路径，更新完成后会反复下载。
+RULES.push([
+  'Array.prototype.unshift(e, t);',
+  'Array.prototype.unshift.apply(e, t);',
+  true,
+]);
+// 游客账号是正式登录方式，Android 和 iOS 发布包都应显示入口。
+RULES.push(['this.guestNode.active = v.default.isDebug();', 'this.guestNode.active = true;', true]);
 
 // 游客登录携带 Android ID。已有游客 token 也一并发送，服务端会先把旧账号
 // 绑定到当前设备；以后即使应用数据被清除，同一设备仍能找回这个游客账号。
@@ -421,12 +443,12 @@ RULES.push([
 ]);
 RULES.push([
   't.prototype.onClickShareWxFriend = function() {\nthis.share(c.eAccountType.wechat, c.eShareScene.Friend);',
-  u2b('t.prototype.onClickShareWxFriend = function() {\nif (!s.default.isInstallWX()) return l.default.uiHelper.showTip("您尚未安装微信客户端！");\nif (cc.sys.os === cc.sys.OS_IOS && !d.default.sdkInfo("SDK_WX_APPLINK")) return l.default.uiHelper.showTip("iOS 微信分享需先配置 Universal Link");\nthis.share(c.eAccountType.wechat, c.eShareScene.Friend);'),
+  u2b('t.prototype.onClickShareWxFriend = function() {\nif (!s.default.isInstallWX()) return l.default.uiHelper.showTip("您尚未安装微信客户端！");\nif (cc.sys.os === cc.sys.OS_IOS && !s.default.sdkInfo("SDK_WX_APPLINK")) return l.default.uiHelper.showTip("iOS 微信分享需先配置 Universal Link");\nthis.share(c.eAccountType.wechat, c.eShareScene.Friend);'),
   true,
 ]);
 RULES.push([
   't.prototype.onClickShareWxCircle = function() {\nthis.share(c.eAccountType.wechat, c.eShareScene.Circle);',
-  u2b('t.prototype.onClickShareWxCircle = function() {\nif (!s.default.isInstallWX()) return l.default.uiHelper.showTip("您尚未安装微信客户端！");\nif (cc.sys.os === cc.sys.OS_IOS && !d.default.sdkInfo("SDK_WX_APPLINK")) return l.default.uiHelper.showTip("iOS 微信分享需先配置 Universal Link");\nthis.share(c.eAccountType.wechat, c.eShareScene.Circle);'),
+  u2b('t.prototype.onClickShareWxCircle = function() {\nif (!s.default.isInstallWX()) return l.default.uiHelper.showTip("您尚未安装微信客户端！");\nif (cc.sys.os === cc.sys.OS_IOS && !s.default.sdkInfo("SDK_WX_APPLINK")) return l.default.uiHelper.showTip("iOS 微信分享需先配置 Universal Link");\nthis.share(c.eAccountType.wechat, c.eShareScene.Circle);'),
   true,
 ]);
 
@@ -447,14 +469,14 @@ RULES.push([
 // 登录页：去掉许可证编号那一排文字，并用不含旧品牌角标的新标题图。
 RULES.push([
   'u.default.setImg("Hall/Res/Texture/Login/login_logo", this.logo);',
-  'var e = this, t = this.node.getChildByName("login_bg"), o = t && t.getChildByName("IBSA");\no && (o.active = !1);\nif (cc.sys.isNative) {\nvar n = jsb.fileUtils.fullPathForFilename("branding/login-logo.png");\ncc.loader.load({ url: n, type: "png" }, function(t, o) {\nt ? u.default.setImg("Hall/Res/Texture/Login/login_logo", e.logo) : e.logo && e.logo.isValid && (e.logo.spriteFrame = new cc.SpriteFrame(o));\n});\n} else u.default.setImg("Hall/Res/Texture/Login/login_logo", this.logo);',
+  'var e = this, t = this.node.getChildByName("login_bg"), o = t && t.getChildByName("IBSA"), n = t && t.getChildByName("DescBg");\no && (o.active = !1);\nn && (n.height = 50, n.y = -335);\nif (cc.sys.isNative) {\nvar r = jsb.fileUtils.fullPathForFilename("branding/login-logo.png");\ncc.loader.load({ url: r, type: "png" }, function(t, o) {\nt ? u.default.setImg("Hall/Res/Texture/Login/login_logo", e.logo) : e.logo && e.logo.isValid && (e.logo.spriteFrame = new cc.SpriteFrame(o));\n});\n} else u.default.setImg("Hall/Res/Texture/Login/login_logo", this.logo);',
   true,
 ]);
 
-// Android 发布版本仍为 1.0.5，资源版本显示实际的原厂 R234。
+// 1.0.6 是自己的热更新引导包；235 是其内置资源基线。
 RULES.push([
   'assertVer: 234,\npackageVer: "1.0.2",',
-  'assertVer: 234,\npackageVer: "1.0.5",',
+  `assertVer: ${ASSET_VERSION},\npackageVer: "1.0.6",`,
   true,
 ]);
 
@@ -502,27 +524,90 @@ RULES.push([
   'g ? m.removeHandCards(u.default.gameLogic().is3CardGang(D) ? [ D, D ] : [ D, D, D ], !0) : m.removeHandCards(u.default.gameLogic().is3CardGang(D) ? [ a.MJ_BACK_ID, a.MJ_BACK_ID ] : [ a.MJ_BACK_ID, a.MJ_BACK_ID, a.MJ_BACK_ID ], !0);\no();',
   true,
 ]);
-// 临时：创房/大厅只露出潜江晃晃。要恢复就把这一段删掉。
+
+// 不能只用手牌数量 3n+2 判断“最后一张是刚摸的牌”：碰后剩下的
+// 手牌也恰好是 3n+2，会导致最右一张被错画成摸牌间距。单独记录是否真的
+// 收到过摸牌消息；碰/杠/出牌移除手牌时清掉该标记。2D、3D 和回放共用。
 RULES.push([
-  'gameList: [ c.eGameIds.QJHH, c.eGameIds.QJHZ, c.eGameIds.PDKAA, c.eGameIds.DDZ, c.eGameIds.TMHH, c.eGameIds.QJSHZ, c.eGameIds.QJWSKBD, c.eGameIds.GD ]',
-  'gameList: [ c.eGameIds.QJHH ]',
-]);
-// 大厅游戏名保持“潜江晃晃”；只保留原“土豪必杠”规则，
-// 对玩家将这个唯一玩法显示为“干瞪眼”。
-RULES.push([
-  u2b('desc: "潜江癞晃",\nreject: [ 1, 2, 26 ]'),
-  u2b('desc: "潜江癞晃",\nreject: [ 1, 2, 26 ],\nisHide: !0'),
+  'this._handCardsSorted = [];\nthis._handSelectIndex = -1;',
+  'this._handCardsSorted = [];\nthis._handDrawnCard = !1;\nthis._handSelectIndex = -1;',
   true,
 ]);
+RULES.push([
+  'this._initPaiDunCard(d);\nthis._sordHandCards(!0);\nthis._handSelectIndex = -1;',
+  'this._initPaiDunCard(d);\nthis._sordHandCards(!0);\nthis._handDrawnCard = this.handCards.length % 3 == 2;\nthis._handSelectIndex = -1;',
+  true,
+]);
+RULES.push([
+  'c.default.applyAgent(o, function(t, o) {\nif (!o) {\ne.input.string = "";\na.default.uiHelper.showTip("åéæåï¼");\n}',
+  'c.default.applyAgent(o, function(t, o) {\nif (o) a.default.uiHelper.showTip("ç½ç»è¯·æ±å¤±è´¥ï¼è¯·ç¨åéè¯ï½"); else if (t.res.error) a.default.uiHelper.showTip(t.res.what); else {\ne.input.string = "";\na.default.uiHelper.showTip("åéæåï¼");\n}',
+  true,
+]);
+RULES.push([
+  'this.handCards.push(e);\nthis._sordHandCards(!0);\nthis.cleanSelectHandCard();',
+  'this.handCards.push(e);\nthis._sordHandCards(!0);\nthis._handDrawnCard = !0;\nthis.cleanSelectHandCard();',
+  true,
+]);
+RULES.push([
+  'this._sordHandCards(!1);\nt && a.default.eventUtils.emit(s.default.data_hand_card_remove, {',
+  'this._sordHandCards(!1);\nthis._handDrawnCard = !1;\nt && a.default.eventUtils.emit(s.default.data_hand_card_remove, {',
+  true,
+]);
+RULES.push([
+  'i = e.getSortedHandCards(), a = i.length, c = h.default.b3N2(a), d = 0, p = a;',
+  'i = e.getSortedHandCards(), a = i.length, c = h.default.b3N2(a) && e._handDrawnCard, d = 0, p = a;',
+  true,
+]);
+RULES.push([
+  'i = e.getSortedHandCards(), c = h.default.b3N2(i.length), d = 0, f = i.length;',
+  'i = e.getSortedHandCards(), c = h.default.b3N2(i.length) && e._handDrawnCard, d = 0, f = i.length;',
+  true,
+]);
+RULES.push([
+  'r = e.huCard(), i = this._handBeginIndex(o), a = 0, s = n.length;',
+  'r = e.huCard(), i = this._handBeginIndex(o, e._handDrawnCard), a = 0, s = n.length;',
+  true,
+]);
+RULES.push([
+  'var o = e.handCards.length, n = c.default.b3N2(o);\nt === a.eViewPos.Down && this.cardsManage3D.updateHandDownPos(o);\nfor (var r = this._handBeginIndex(o), i = e.getSortedHandCards(), s = [], l = 0; l < o; l++) {',
+  'var o = e.handCards.length, n = c.default.b3N2(o) && e._handDrawnCard;\nt === a.eViewPos.Down && this.cardsManage3D.updateHandDownPos(o);\nfor (var r = this._handBeginIndex(o, e._handDrawnCard), i = e.getSortedHandCards(), s = [], l = 0; l < o; l++) {',
+  true,
+]);
+RULES.push([
+  't.prototype._handBeginIndex = function(e) {\nc.default.b3N2(e) && (e -= 1);',
+  't.prototype._handBeginIndex = function(e, t) {\nt && c.default.b3N2(e) && (e -= 1);',
+  true,
+]);
+// 当前服务端支持潜江晃晃和说胡子，只展示这两个已完成的玩法。
+RULES.push([
+  'gameList: [ c.eGameIds.QJHH, c.eGameIds.QJHZ, c.eGameIds.PDKAA, c.eGameIds.DDZ, c.eGameIds.TMHH, c.eGameIds.QJSHZ, c.eGameIds.QJWSKBD, c.eGameIds.GD ]',
+  'gameList: [ c.eGameIds.QJHH, c.eGameIds.QJSHZ ]',
+]);
+RULES.push([
+  'gameList: [ c.eGameIds.QJHH ]',
+  'gameList: [ c.eGameIds.QJHH, c.eGameIds.QJSHZ ]',
+]);
+// 大厅游戏名保持“潜江晃晃”；开放“潜江癞晃”和原“土豪必杠”两种玩法，
+// 对玩家将后者显示为“干瞪眼”。“堆癞子”仍然隐藏。
 RULES.push([
   u2b('desc: "土豪必杠",\nreject: [ 1, 2, 26 ]'),
   u2b('desc: "干瞪眼",\nreject: [ 1, 2, 26 ]'),
   true,
 ]);
-// 只在潜江晃晃的“其它设置”里隐藏这一项；保留旧房间参数和其它游戏配置。
+// 旧的自有包曾把“只许自摸”隐藏；重新打包时恢复显示。
 RULES.push([
-  u2b('20: {\nvalue: 2,\ndesc: "只许自摸"\n}'),
   u2b('20: {\nvalue: 2,\ndesc: "只许自摸",\nisHide: !0\n}'),
+  u2b('20: {\nvalue: 2,\ndesc: "只许自摸"\n}'),
+]);
+// 取消“只许自摸”时恢复热铳；热铳同时控制热铳胡和抢杠。
+RULES.push([
+  '} else this._checkbox(e);\n};\ne.prototype._checkbox = function(e) {',
+  '} else {\nthis._checkbox(e);\nif (this.index === l.eGameIds.QJHH && 20 === e && !this.isChecked(20) && !this.isChecked(21)) this._checkbox(21);\n}\nif (this.index === l.eGameIds.QJHH && 2 === e) {\nfor (var q = [ 20, 21, 23 ], p = 0; p < q.length; p++) if (!this.isChecked(q[p])) this._checkbox(q[p]);\n}\n};\ne.prototype._checkbox = function(e) {',
+  true,
+]);
+RULES.push([
+  'defCheck: [ 21, 23, 24 ],\ndetailIds: [ 20, 21, 23 ],',
+  'defCheck: [ 20, 21, 23, 24 ],\ndetailIds: [ 20, 21, 23 ],',
   true,
 ]);
 RULES.push([
@@ -541,7 +626,7 @@ RULES.push([
 ]);
 RULES.push([
   u2b('desc: "玩法",\nweight: 1,\nlineCount: 3,\ndefCheck: [ 1 ],\ndetailIds: [ 1, 2, 26 ]'),
-  u2b('desc: "玩法",\nweight: 1,\nlineCount: 3,\ndefCheck: [ 2 ],\ndetailIds: [ 2 ]'),
+  u2b('desc: "玩法",\nweight: 1,\nlineCount: 3,\ndefCheck: [ 2 ],\ndetailIds: [ 2, 1 ]'),
   true,
 ]);
 
@@ -554,7 +639,7 @@ RULES.push([
 ]);
 RULES.push([
   'r.default.inviteCode = t.inviteCode || "";\nr.default.inviteCodeAward = t.giveCard || 0;',
-  'r.default.inviteCode = t.inviteCode || "";\nr.default.myInviteCode = t.username || "";\nr.default.inviteCodeAward = t.giveCard || 0;',
+  u2b('r.default.inviteCode = t.inviteCode || "";\nr.default.myInviteCode = t.username || "";\nr.default.inviteCodeAward = t.giveCard || 0;\nr.default.inviteTipText = t.mobile || "绑定推荐人邀请码，可获得" + r.default.inviteCodeAward + "张房卡！";'),
 ]);
 RULES.push([
   'a.default.isBindInviteCode() ? i.default.uiHelper.showWithNode(l.eWindowID.InviteCodeOK, this.bindInviteCodeOkPre) : i.default.uiHelper.showWithNode(l.eWindowID.InviteCode, this.bindInviteCodePre);',
@@ -568,6 +653,10 @@ RULES.push([
 RULES.push([
   u2b('i.default.uiHelper.showTip("绑定成功！");\ni.default.uiHelper.remove(e);\ni.default.uiHelper.show(u.eWindowID.InviteCodeOK);'),
   u2b('i.default.uiHelper.showTip("绑定成功！");\ne.start();'),
+]);
+RULES.push([
+  u2b('e.inviteTipLabel.string = "绑定推荐人邀请码，可获得" + l.default.inviteCodeAward + "张房卡哦！";'),
+  u2b('e.inviteTipLabel.string = l.default.inviteTipText || "绑定推荐人邀请码，可获得" + l.default.inviteCodeAward + "张房卡！";'),
 ]);
 
 RULES.push([
@@ -584,7 +673,7 @@ RULES.push([
 ]);
 RULES.push([
   'e.prototype.replaceDYJPay = function() {\nvar e = this._storageData.ids;\nif (e.length > 0) {\nvar t = 14, o = 12;',
-  'e.prototype.replaceDYJPay = function() {\nvar e = this._storageData.ids;\nif (2 === this.index && e) {\nfor (var q = e.length - 1; q >= 0; q--) (1 === e[q] || 26 === e[q]) && (e[q] = 2);\nthis._storageData.ids = this._unique(e);\ne = this._storageData.ids;\n}\nif (e.length > 0) {\nvar t = 14, o = 12;',
+  'e.prototype.replaceDYJPay = function() {\nvar e = this._storageData.ids;\nif (2 === this.index && e) {\nfor (var q = e.length - 1; q >= 0; q--) 26 === e[q] && (e[q] = 2);\nthis._storageData.ids = this._unique(e);\ne = this._storageData.ids;\n}\nif (e.length > 0) {\nvar t = 14, o = 12;',
 ]);
 
 // 创房页：高度仍交给 Layout CONTAINER（和原包一样），只关掉 ScrollView 回弹，
@@ -827,16 +916,31 @@ const replaceLegacyArtwork = (decoded) => {
     '1b3339a9-7323-4d7a-bc29-a0541f03ebc0.png': ['1b', '1b3339a9-7323-4d7a-bc29-a0541f03ebc0.png'],
     '1d602e4c2.png': ['1d', '1d602e4c2.png'],
     '1f821cda2.png': ['1f', '1f821cda2.png'],
+    '02108912-ccb8-4dd0-ad93-95c7eeb0ee8c.png': ['02', '02108912-ccb8-4dd0-ad93-95c7eeb0ee8c.png'],
+    '0dfd7eef-0c01-49dc-9ea5-6a064dd043a4.png': ['0d', '0dfd7eef-0c01-49dc-9ea5-6a064dd043a4.png'],
     '352ea258-16a5-4785-9a93-7dcd168211b4.jpg': ['35', '352ea258-16a5-4785-9a93-7dcd168211b4.jpg'],
     '735a1b69-bef3-4257-9942-773def542b50.png': ['73', '735a1b69-bef3-4257-9942-773def542b50.png'],
     '7a66c68d-c67b-4977-881c-c9e860a9556f.png': ['7a', '7a66c68d-c67b-4977-881c-c9e860a9556f.png'],
     '7b0ebbdf-d404-42ab-9c8e-85ad2b828ae9.png': ['7b', '7b0ebbdf-d404-42ab-9c8e-85ad2b828ae9.png'],
     '9272ef06-deee-4241-b004-64c282072754.jpg': ['92', '9272ef06-deee-4241-b004-64c282072754.jpg'],
     'af282322-83b5-482f-9f1a-9f7c5e822465.png': ['af', 'af282322-83b5-482f-9f1a-9f7c5e822465.png'],
+    '416bd497-d77c-4156-86c3-119055d8ddc1.png': ['41', '416bd497-d77c-4156-86c3-119055d8ddc1.png'],
+    '4da95e83-9a7e-44c5-9b68-af22d3976ad9.png': ['4d', '4da95e83-9a7e-44c5-9b68-af22d3976ad9.png'],
+    '5f082ba6-924b-4816-859d-11652ace23c7.png': ['5f', '5f082ba6-924b-4816-859d-11652ace23c7.png'],
+    '82be7cfd-7645-48fb-be16-ca5614445206.png': ['82', '82be7cfd-7645-48fb-be16-ca5614445206.png'],
+    '86115981-b1e7-4574-88c0-6adf4563f91e.png': ['86', '86115981-b1e7-4574-88c0-6adf4563f91e.png'],
+    '9e1d8bd6-cd26-4e22-a927-e3cab8f662f2.png': ['9e', '9e1d8bd6-cd26-4e22-a927-e3cab8f662f2.png'],
+    'c148b136-46b0-434e-aab0-af56831c6811.png': ['c1', 'c148b136-46b0-434e-aab0-af56831c6811.png'],
+    'c2f63047-687e-418a-8b49-d3d2b9a9037a.png': ['c2', 'c2f63047-687e-418a-8b49-d3d2b9a9037a.png'],
     'c8f530ab-040c-4919-b8c6-fa74703c8b06.png': ['c8', 'c8f530ab-040c-4919-b8c6-fa74703c8b06.png'],
     'f80f7e41-3748-4fee-99cf-8066229ff1aa.png': ['f8', 'f80f7e41-3748-4fee-99cf-8066229ff1aa.png'],
     'f89eca2a-97a6-4480-9d24-bdf2fec1e807.png': ['f8', 'f89eca2a-97a6-4480-9d24-bdf2fec1e807.png'],
+    'ea477dc4-ec95-408b-9f36-4fce061f860b.png': ['ea', 'ea477dc4-ec95-408b-9f36-4fce061f860b.png'],
+    'edc0c639-e30d-4c2d-8913-0a2097900a18.png': ['ed', 'edc0c639-e30d-4c2d-8913-0a2097900a18.png'],
+    'fefaa479-cae1-4e8e-9cb3-2c80b77e45c0.png': ['fe', 'fefaa479-cae1-4e8e-9cb3-2c80b77e45c0.png'],
     'ff4a224b-c762-451f-badc-e999f4d4f91d.png': ['ff', 'ff4a224b-c762-451f-badc-e999f4d4f91d.png'],
+    'ffc64a37-3667-407d-990a-9e5625f3152d.png': ['ff', 'ffc64a37-3667-407d-990a-9e5625f3152d.png'],
+    'fffc6144-172f-464a-8f28-237747531559.png': ['ff', 'fffc6144-172f-464a-8f28-237747531559.png'],
   };
   for (const [sourceName, targetParts] of Object.entries(assets)) {
     const source = path.join(LEGACY_CLEANUP_DIR, sourceName);
@@ -858,19 +962,248 @@ const replaceLegacyArtwork = (decoded) => {
   console.log(`      已替换旧品牌图片 ${Object.keys(assets).length} 张`);
 };
 
-const disableLegacyHotUpdate = (decoded) => {
+/**
+ * 说胡子界面资源直接写进原 APK，不经过 Cocos Creator 重构工程。
+ * 图片沿用原包的加密方式；场景只改明确校验过的节点，避免影响牌局逻辑。
+ */
+const replaceQjshzArtwork = (decoded) => {
+  for (const source of [QJSHZ_TABLE_SOURCE, QJSHZ_ACTION_SOURCE, QJSHZ_QUICK_SOURCE, QJSHZ_BUSY_EXIT_SOURCE]) {
+    if (!fs.existsSync(source)) throw new Error(`缺少说胡子界面素材：${source}`);
+  }
+
+  fs.copyFileSync(
+    QJSHZ_TABLE_SOURCE,
+    path.join(decoded, 'assets', 'res', 'raw-assets', '60', '609a7ea7-dcd3-4770-9830-847e4aecacbf.jpg'),
+  );
+  writeEncryptedAsset(
+    QJSHZ_ACTION_SOURCE,
+    path.join(decoded, 'assets', 'res', 'raw-assets', '19', '19c83aa89.png'),
+  );
+  writeEncryptedAsset(
+    QJSHZ_QUICK_SOURCE,
+    path.join(decoded, 'assets', 'res', 'raw-assets', '09', '0968299a-e998-4a49-9435-69aa1a61b8ff.png'),
+  );
+  writeEncryptedAsset(
+    QJSHZ_BUSY_EXIT_SOURCE,
+    path.join(decoded, 'assets', 'res', 'raw-assets', QJSHZ_BUSY_EXIT_TEXTURE_UUID.slice(0, 2),
+      `${QJSHZ_BUSY_EXIT_TEXTURE_UUID}.png`),
+  );
+  const busyExitTextureImport = path.join(decoded, 'assets', 'res', 'import',
+    QJSHZ_BUSY_EXIT_TEXTURE_UUID.slice(0, 2), `${QJSHZ_BUSY_EXIT_TEXTURE_UUID}.json`);
+  fs.mkdirSync(path.dirname(busyExitTextureImport), { recursive: true });
+  fs.writeFileSync(busyExitTextureImport, JSON.stringify({
+    __type__: 'cc.Texture2D', content: '0,9729,9729,33071,33071,0,0,1',
+  }));
+  const busyExitSpriteImport = path.join(decoded, 'assets', 'res', 'import',
+    QJSHZ_BUSY_EXIT_SPRITE_UUID.slice(0, 2), `${QJSHZ_BUSY_EXIT_SPRITE_UUID}.json`);
+  fs.mkdirSync(path.dirname(busyExitSpriteImport), { recursive: true });
+  fs.writeFileSync(busyExitSpriteImport, JSON.stringify({
+    __type__: 'cc.SpriteFrame',
+    content: {
+      name: 'btn_exit_busy', texture: 'e0fBD451pa6NL2QMSxCdNy',
+      rect: [0, 0, 309, 95], offset: [0, 0], originalSize: [309, 95], capInsets: [0, 0, 0, 0],
+    },
+  }));
+  const singleEndPrefabFile = path.join(
+    decoded,
+    'assets', 'res', 'import', '63', '637f38e8-9c8c-424f-ba6c-8b738e0467c7.json',
+  );
+  const singleEndPrefab = JSON.parse(fs.readFileSync(singleEndPrefabFile, 'utf8'));
+  const expectSettlementNode = (index, name) => {
+    const node = singleEndPrefab[index];
+    if (!node || node.__type__ !== 'cc.Node' || node._name !== name) {
+      throw new Error(`单局结算节点异常：${index} 预期 ${name}`);
+    }
+    return node;
+  };
+  const continueNode = expectSettlementNode(5, 'BtnNext');
+  const exitNode = expectSettlementNode(8, 'BtnQuit');
+  const handlerOf = (node) => node._components
+    .find((component) => component.__type__ === 'cc.Button')
+    ?.clickEvents?.[0]?.handler;
+  if (handlerOf(continueNode) !== 'onNext' || handlerOf(exitNode) !== 'onQuitRoom') {
+    throw new Error('单局结算继续/退出事件绑定异常');
+  }
+  continueNode._name = 'BtnContinueBottom';
+  continueNode._position = { __type__: 'cc.Vec3', x: 125, y: -303 };
+  continueNode._scale = { __type__: 'cc.Vec3', x: 0.5, y: 0.5, z: 1 };
+  exitNode._name = 'BtnExitBottom';
+  exitNode._position = { __type__: 'cc.Vec3', x: 290, y: -303 };
+  exitNode._scale = { __type__: 'cc.Vec3', x: 0.9, y: 0.9, z: 1 };
+  if (singleEndPrefab.some((item) => item && item.__type__ === 'cc.Node' && item._name === 'BtnQuit')) {
+    throw new Error('单局结算右上角旧退出按钮删除失败');
+  }
+  fs.writeFileSync(singleEndPrefabFile, JSON.stringify(singleEndPrefab));
+
+  const wskSingleEndPrefabFile = path.join(
+    decoded,
+    'assets', 'res', 'import', '5c', '5c282881-ef01-4d39-8c09-c1df292a8db3.json',
+  );
+  const wskSingleEndPrefab = JSON.parse(fs.readFileSync(wskSingleEndPrefabFile, 'utf8'));
+  const expectWskSettlementNode = (index, name) => {
+    const node = wskSingleEndPrefab[index];
+    if (!node || node.__type__ !== 'cc.Node' || node._name !== name) {
+      throw new Error(`说胡子单局结算节点异常：${index} 预期 ${name}`);
+    }
+    return node;
+  };
+  const wskBg = expectWskSettlementNode(32, 'bgNode');
+  const wskTopExit = expectWskSettlementNode(33, 'btn_exit');
+  const wskContinue = expectWskSettlementNode(34, 'BtnGameNext');
+  const wskShare = expectWskSettlementNode(35, 'BtnShare');
+  if (handlerOf(wskTopExit) !== 'onClickExit' || handlerOf(wskContinue) !== 'onClickNext'
+      || handlerOf(wskShare) !== 'onClickShare') {
+    throw new Error('说胡子单局结算按钮事件绑定异常');
+  }
+  wskBg._children = (wskBg._children || []).filter((child) => child.__id__ !== 33);
+  wskTopExit._name = 'RemovedTopExit';
+  wskTopExit._parent = null;
+  wskTopExit._components = [];
+  wskTopExit._active = false;
+  wskContinue._position = { __type__: 'cc.Vec3', x: -418, y: -222 };
+  wskShare._name = 'BtnExitBottom';
+  wskShare._position = { __type__: 'cc.Vec3', x: 418, y: -222 };
+  wskShare._components.find((component) => component.__type__ === 'cc.Sprite')._spriteFrame = {
+    __uuid__: QJSHZ_BUSY_EXIT_SPRITE_PACKED_UUID,
+  };
+  wskShare._components.find((component) => component.__type__ === 'cc.Button')
+    .clickEvents[0].handler = 'onClickExit';
+  fs.writeFileSync(wskSingleEndPrefabFile, JSON.stringify(wskSingleEndPrefab));
+
+  const quickFrameFile = path.join(
+    decoded,
+    'assets', 'res', 'import', 'ee', 'ee9dd0eb-c83f-4802-bfca-98e27e9cc2d5.json',
+  );
+  const quickFrame = JSON.parse(fs.readFileSync(quickFrameFile, 'utf8'));
+  const quickContent = quickFrame && quickFrame.content;
+  if (!quickContent || quickContent.name !== 'btn_blue'
+      || !Array.isArray(quickContent.rect) || quickContent.rect[2] !== 128
+      || !Array.isArray(quickContent.originalSize) || quickContent.originalSize[0] !== 128) {
+    throw new Error('说胡子快捷按钮 SpriteFrame 数据异常');
+  }
+  quickContent.rect = [0, 0, 128, 39];
+  quickContent.originalSize = [128, 39];
+  quickContent.offset = [0, 0];
+  fs.writeFileSync(quickFrameFile, JSON.stringify(quickFrame));
+
+  const sceneFile = path.join(
+    decoded,
+    'assets', 'res', 'import', 'dc', 'dc294676-c185-4f9d-89a5-4085ac3a9175.json',
+  );
+  const scene = JSON.parse(fs.readFileSync(sceneFile, 'utf8'));
+  const expectNode = (index, name) => {
+    const node = scene[index];
+    if (!node || node.__type__ !== 'cc.Node' || node._name !== name) {
+      throw new Error(`说胡子场景节点异常：${index} 预期 ${name}`);
+    }
+    return node;
+  };
+
+  delete expectNode(5, 'bg2')._active;
+  const playerBottom = expectNode(136, 'db');
+  const oldComponentCount = playerBottom._components.length;
+  playerBottom._components = playerBottom._components.filter((component) => component.__type__ !== 'cc.Sprite');
+  if (oldComponentCount - playerBottom._components.length !== 1) {
+    throw new Error('说胡子底部半透明底板数量异常');
+  }
+
+  const configureActionButton = (button, name) => {
+    if (!button || button.__type__ !== 'cc.Button') {
+      throw new Error(`说胡子${name}按钮组件异常`);
+    }
+    button._N$transition = 1;
+    button.transition = 1;
+    button._N$normalColor = { __type__: 'cc.Color', r: 255, g: 255, b: 255, a: 255 };
+    button._N$pressedColor = { __type__: 'cc.Color', r: 220, g: 220, b: 220, a: 255 };
+    button.pressedColor = { __type__: 'cc.Color', r: 220, g: 220, b: 220, a: 255 };
+    button._N$hoverColor = { __type__: 'cc.Color', r: 255, g: 255, b: 255, a: 255 };
+    button._N$disabledColor = { __type__: 'cc.Color', r: 76, g: 76, b: 76, a: 255 };
+  };
+  configureActionButton(expectNode(237, 'BtnPutPass')._components[0], '不出');
+  configureActionButton(expectNode(251, 'BtnTip')._components[0], '提示');
+  configureActionButton(scene[257], '出牌');
+
+  const quickButtons = [272, 276, 280, 284, 288, 292, 296, 300];
+  for (const index of quickButtons) {
+    const node = expectNode(index, 'btn_blue');
+    if (!node._contentSize || node._contentSize.width !== 128) {
+      throw new Error(`说胡子快捷按钮尺寸异常：${index}`);
+    }
+    node._contentSize.height = 39;
+    const labelNode = scene[index + 1];
+    const label = scene[index + 2];
+    if (!labelNode || labelNode._name !== 'New Label' || !label || label.__type__ !== 'cc.Label') {
+      throw new Error(`说胡子快捷按钮文字异常：${index}`);
+    }
+    labelNode._contentSize.height = 25.2;
+    label._fontSize = 20;
+    label._lineHeight = 20;
+  }
+  // 同一张目标按钮底图通过节点染色得到截图里的橙、铜红、深红三组，
+  // 不引入新 UUID，旧版资源索引可以直接加载。
+  for (const index of [284, 288]) {
+    expectNode(index, 'btn_blue')._color = { __type__: 'cc.Color', r: 210, g: 170, b: 215, a: 255 };
+  }
+  for (const index of [292, 296, 300]) {
+    expectNode(index, 'btn_blue')._color = { __type__: 'cc.Color', r: 240, g: 110, b: 225, a: 255 };
+  }
+  fs.writeFileSync(sceneFile, JSON.stringify(scene));
+
+  // 说胡子总结算页四项统计必须收紧到黄色区域内。这项曾只在
+  // 热更发布器中处理，导致新安装的整包立即回归旧行距。
+  const totalEndCellFile = path.join(
+    decoded,
+    'assets', 'res', 'import', 'c9', 'c94a0fd3-4986-461e-84f9-82e8ed06697c.json',
+  );
+  const totalEndCell = JSON.parse(fs.readFileSync(totalEndCellFile, 'utf8'));
+  const infoBg = totalEndCell[9];
+  const keyNode = totalEndCell[10];
+  const keyLabel = totalEndCell[11];
+  const valueNode = totalEndCell[12];
+  const valueLabel = totalEndCell[13];
+  if (!infoBg || infoBg._name !== 'total_cell_info_bg' || infoBg._contentSize?.height !== 236
+      || !keyNode || keyNode._name !== 'New Label' || keyLabel?.__type__ !== 'cc.Label'
+      || !valueNode || valueNode._name !== 'New Label copy' || valueLabel?.__type__ !== 'cc.Label') {
+    throw new Error('说胡子总结算统计区节点异常');
+  }
+  keyLabel._lineHeight = 45;
+  valueLabel._lineHeight = 45;
+  keyNode._contentSize.height = 180;
+  valueNode._contentSize.height = 180;
+  fs.writeFileSync(totalEndCellFile, JSON.stringify(totalEndCell));
+  console.log('      已替换说胡子桌面、8 个快捷按钮及提示/不出/出牌按钮');
+  console.log('      已移除自己视角底部半透明异形底板');
+  console.log('      已固化说胡子总结算四项统计行距');
+};
+
+const configureLocalHotUpdate = (decoded) => {
   const manifestFile = path.join(
     decoded,
     'assets', 'res', 'raw-assets', '2c', '2c8a7447-5900-4cca-b1ef-51d750d90396.manifest',
   );
-  let source = fs.readFileSync(manifestFile, 'utf8');
-  const legacyBase = 'http://hotupgrade.yuanlaihuyu.com/hgmj/update/114';
-  const count = source.split(legacyBase).length - 1;
-  if (count !== 3) throw new Error(`旧热更新地址匹配到 ${count} 处，预期 3 处`);
-  source = source.split(legacyBase).join(`${http}/disabled-hot-update`);
-  if (/yuanlai(?:huyu|qipai)/i.test(source)) throw new Error('热更新清单仍含旧公司域名');
-  fs.writeFileSync(manifestFile, source);
-  console.log('      已禁用原公司的热更新地址');
+  JSON.parse(fs.readFileSync(manifestFile, 'utf8')); // 先确认原清单仍是有效 JSON。
+  const base = `${http}/hot-update/android/${ASSET_VERSION}/`;
+  const assets = {};
+  const assetRoot = path.join(decoded, 'assets');
+  for (const directory of ['src', 'res', 'branding']) {
+    const root = path.join(assetRoot, directory);
+    if (!fs.existsSync(root)) continue;
+    walkFiles(root, (file) => {
+      const name = path.relative(assetRoot, file).split(path.sep).join('/');
+      if (name === 'res/raw-assets/2c/2c8a7447-5900-4cca-b1ef-51d750d90396.manifest') return;
+      const data = fs.readFileSync(file);
+      assets[name] = { size: data.length, md5: crypto.createHash('md5').update(data).digest('hex') };
+    });
+  }
+  fs.writeFileSync(manifestFile, JSON.stringify({
+    packageUrl: base,
+    remoteManifestUrl: `${base}project.manifest`,
+    remoteVersionUrl: `${base}version.manifest`,
+    version: String(ASSET_VERSION),
+    assets,
+    searchPaths: [],
+  }));
+  console.log(`      已生成 Android 热更新基线清单 R${ASSET_VERSION}`);
 };
 
 const applyBranding = (decoded) => {
@@ -902,9 +1235,9 @@ const applyBranding = (decoded) => {
   const apktoolFile = path.join(decoded, 'apktool.yml');
   let apktool = fs.readFileSync(apktoolFile, 'utf8');
   apktool = apktool
-    .replace(/(^\s*versionCode:\s*)\d+$/m, '$1105')
-    .replace(/(^\s*versionName:\s*).*$/m, '$11.0.5');
-  if (!/^\s*versionCode:\s*105$/m.test(apktool) || !/^\s*versionName:\s*1\.0\.5$/m.test(apktool)) {
+    .replace(/(^\s*versionCode:\s*)\d+$/m, '$1106')
+    .replace(/(^\s*versionName:\s*).*$/m, '$11.0.6');
+  if (!/^\s*versionCode:\s*106$/m.test(apktool) || !/^\s*versionName:\s*1\.0\.6$/m.test(apktool)) {
     throw new Error('Android 版本号替换失败');
   }
   fs.writeFileSync(apktoolFile, apktool);
@@ -1034,11 +1367,12 @@ const applyBranding = (decoded) => {
   fs.copyFileSync(momentsPoster, momentsTarget);
   sanitizeCocosText(decoded);
   replaceLegacyArtwork(decoded);
-  disableLegacyHotUpdate(decoded);
+  replaceQjshzArtwork(decoded);
+  configureLocalHotUpdate(decoded);
   fs.copyFileSync(SPLASH_SOURCE, path.join(decoded, 'res', 'mipmap', 'splash_screen.png'));
   console.log(`      包名 ${ORIGINAL_PACKAGE} -> ${APP_PACKAGE}`);
   console.log(`      应用名称 -> ${APP_NAME}`);
-  console.log('      Android 版本 -> 1.0.5，资源版本 -> R234');
+  console.log(`      Android 版本 -> 1.0.6，资源版本 -> R${ASSET_VERSION}`);
   console.log('      已替换各分辨率应用图标');
   console.log('      已替换登录标题、登录背景和启动画面');
   console.log('      已替换大厅背景和卡通人物');
@@ -1046,7 +1380,7 @@ const applyBranding = (decoded) => {
   console.log('      已替换 2D / 3D 牌桌背景花纹');
   console.log('      已替换微信分享缩略图、朋友圈海报、战绩背景和下载二维码');
   console.log('      已移除用户可见的旧品牌名称、公告和客服信息');
-  console.log('      协议页面已改为待补充真实运营主体的内部测试提示');
+  console.log('      已写入正式用户协议、隐私政策和儿童个人信息保护规则');
   console.log('      已禁用不再使用的钉钉 SDK 启动初始化');
   console.log('      已加入游客设备标识原生接口');
 };
@@ -1142,22 +1476,23 @@ const injectNativeConfig = (apkPath, { voiceAppid, voiceAppkey, wechatAppid }) =
 
 const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'qjqp-patch-'));
 const rel = 'assets/src/project.jsc';
+const loginSceneRel = `assets/${LOGIN_SCENE_ASSET}`;
 
 console.log('1/6 取出 project.jsc');
-run('unzip', ['-q', '-o', APK, rel, '-d', stage]);
+run('unzip', ['-q', '-o', APK, rel, loginSceneRel, '-d', stage]);
 
-console.log('2/6 解密并替换地址');
-let js = toJs(fs.readFileSync(path.join(stage, rel))).toString('binary');
-for (const [from, to, required] of RULES) {
-  const n = js.split(from).length - 1;
-  if (required && n !== 1) {
-    throw new Error(`必要的客户端界面补丁匹配到 ${n} 处，预期 1 处：${from}`);
-  }
-  if (n) console.log(`      ${from} -> ${to}  (${n} 处)`);
-  js = js.split(from).join(to);
-}
-js = js.replace(/https?:\/\/192\.168\.\d+\.\d+:8899/g, (m) => (m === http ? m : http));
-js = js.replace(/wss?:\/\/192\.168\.\d+\.\d+:8899/g, (m) => (m === ws ? m : ws));
+console.log('2/6 写入客户端单一源码及服务地址');
+if (!toJs(fs.readFileSync(path.join(stage, rel)))) throw new Error('基包 project.jsc 无法解码');
+// 整包与热更使用同一份恢复源码和兼容补丁。RULES 仅作为旧基包
+// 迁移历史保留，不再决定新整包的脚本内容。
+const js = buildReleaseProjectSource({
+  root: path.join(__dirname, '..'),
+  workDir: stage,
+  assetVersion: ASSET_VERSION,
+  packageVersion: '1.0.6',
+  serviceBaseUrl: http,
+  allowPrivateServiceUrl: true,
+});
 if (js.includes('10.0.2.2')) {
   throw new Error('jsc 里还留着 10.0.2.2，真机连不上');
 }
@@ -1170,16 +1505,29 @@ if (js.includes(u2b('元来'))) {
 if (!js.includes(http)) {
   throw new Error(`jsc 里没有写进局域网地址 ${http}`);
 }
+const qianjiangLaihuang = u2b('desc: "潜江癞晃",\nreject: [ 1, 2, 26 ]');
+if (!js.includes(qianjiangLaihuang) || js.includes(`${qianjiangLaihuang},\nisHide: !0`)) {
+  throw new Error('潜江癞晃选项未正确开放');
+}
+if (!js.includes(u2b('desc: "玩法",\nweight: 1,\nlineCount: 3,\ndefCheck: [ 2 ],\ndetailIds: [ 2, 1 ]'))) {
+  throw new Error('潜江晃晃玩法列表没有同时包含潜江癞晃和干瞪眼');
+}
+if (js.includes('(1 === e[q] || 26 === e[q]) && (e[q] = 2)')) {
+  throw new Error('客户端仍会把已保存的潜江癞晃强制迁移成干瞪眼');
+}
 // iOS JavaScriptCore 会拒绝加载含非 UTF-8 字节的整个脚本。在这里提前
 // 校验，也防止后续新增中文规则时忘记通过 u2b 转成 UTF-8 字节。
 new TextDecoder('utf-8', { fatal: true }).decode(Buffer.from(js, 'binary'));
 console.log(`      已写入 ${http}  (${js.split(http).length - 1} 处)`);
 fs.writeFileSync(path.join(stage, rel), toJsc(Buffer.from(js, 'binary')));
+fs.writeFileSync(path.join(stage, loginSceneRel), patchLoginScene(
+  fs.readFileSync(path.join(stage, loginSceneRel)),
+));
 
 console.log('3/6 复制并替换 APK 内的条目');
 const out = path.resolve(OUT);
 fs.copyFileSync(APK, out);
-run('zip', ['-q', '-0', '-X', out, rel], stage);
+run('zip', ['-q', '-0', '-X', out, rel, loginSceneRel], stage);
 
 console.log('3b/6 写入包名、应用名称、图标及原生 SDK 配置');
 injectNativeConfig(out, {

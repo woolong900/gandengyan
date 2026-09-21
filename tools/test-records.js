@@ -146,6 +146,69 @@ const fakeTable = (extra = {}) => ({
 }
 
 {
+  const app = new GameApp({ persist: () => {}, now: () => NOON, allowUnregisteredTokens: true });
+  const club = app.clubStore.create(100099, '战绩测试俱乐部').club;
+  app.clubStore.joinMember(club, 100088);
+  app.clubStore.joinMember(club, 100001);
+  app.clubStore.joinMember(club, 100002);
+  app.clubStore.joinMember(club, 100003);
+  const rec = app.saveRecord(fakeTable({ clubId: club.id }));
+  rec.playbacks['100000010001'] = { players: [], roomInfo: {}, gameInfo: {}, steps: [] };
+
+  const adminBox = { sent: [] };
+  app.attach('club-admin', (bytes) => adminBox.sent.push(Buffer.from(bytes)));
+  app.onMessage('club-admin', packCs(100, { token: 't_record_club_admin' }));
+  app.conns.get('club-admin').player.uid = 100099;
+  adminBox.sent.length = 0;
+  app.onMessage('club-admin', packCs(125, {
+    type: 1, clubId: club.id, time: DAY, userCode: '', startTime: 0, endTime: 0,
+  }));
+  let list = last(adminBox, 125);
+  t('俱乐部管理员能看全部战绩', list.records.length, 1);
+  t('俱乐部战绩房号正确', Number(list.records[0].roomId), 100000);
+
+  adminBox.sent.length = 0;
+  app.onMessage('club-admin', packCs(146, {
+    clubId: club.id, userCode: '', date: DAY, startDate: 0, endDate: 0,
+  }));
+  const stats = last(adminBox, 146);
+  t('俱乐部统计默认按所选日期', Number(stats.data.find((item) => item.code === '100001').number), 1);
+  t('俱乐部统计返回当日参与成员', stats.data.length, 3);
+
+  adminBox.sent.length = 0;
+  app.onMessage('club-admin', packCs(125, {
+    type: 1, clubId: club.id, time: DAY, userCode: '100002', startTime: 0, endTime: 0,
+  }));
+  t('俱乐部战绩可按用户ID查询', last(adminBox, 125).records.length, 1);
+
+  adminBox.sent.length = 0;
+  app.onMessage('club-admin', packCs(125, {
+    type: 1, clubId: club.id, time: DAY, userCode: '乙', startTime: 0, endTime: 0,
+  }));
+  t('俱乐部战绩可按昵称查询', last(adminBox, 125).records.length, 1);
+
+  adminBox.sent.length = 0;
+  app.onMessage('club-admin', packCs(126, { id: rec.id }));
+  t('管理员可查看成员战绩明细', Number(last(adminBox, 126).res.error), 0);
+
+  adminBox.sent.length = 0;
+  app.onMessage('club-admin', packCs(127, { id: '100000010001' }));
+  t('管理员可查看成员战绩回放', Number(last(adminBox, 127).res.error), 0);
+
+  const memberBox = { sent: [] };
+  app.attach('club-member', (bytes) => memberBox.sent.push(Buffer.from(bytes)));
+  app.onMessage('club-member', packCs(100, { token: 't_record_club_member' }));
+  app.conns.get('club-member').player.uid = 100088;
+  memberBox.sent.length = 0;
+  app.onMessage('club-member', packCs(125, {
+    type: 1, clubId: club.id, time: DAY, userCode: '', startTime: 0, endTime: 0,
+  }));
+  list = last(memberBox, 125);
+  t('普通成员不能看全员战绩', Number(list.res.error), 1);
+  t('普通成员无权时不泄露列表', list.records.length, 0);
+}
+
+{
   const dumped = {
     nextUid: 100010,
     nextRoomId: 100001,

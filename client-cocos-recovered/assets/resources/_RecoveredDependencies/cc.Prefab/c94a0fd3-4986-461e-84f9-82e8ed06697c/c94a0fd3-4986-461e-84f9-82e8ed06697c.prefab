@@ -387,10 +387,10 @@
       "g": 70,
       "b": 26
     },
-    "_contentSize": {
-      "__type__": "cc.Size",
-      "width": 96,
-      "height": 180.8
+  "_contentSize": {
+    "__type__": "cc.Size",
+    "width": 96,
+    "height": 180
     },
     "_position": {
       "__type__": "cc.Vec3",
@@ -411,7 +411,7 @@
     "_string": "胜利局数\n失败局数",
     "_N$string": "胜利局数\n失败局数",
     "_fontSize": 24,
-    "_lineHeight": 80,
+      "_lineHeight": 45,
     "_N$file": {
       "__uuid__": "07b55d88-7b64-4981-b677-58b37b92c0d6"
     },
@@ -446,10 +446,10 @@
       "g": 70,
       "b": 26
     },
-    "_contentSize": {
-      "__type__": "cc.Size",
-      "width": 13.69,
-      "height": 180.8
+  "_contentSize": {
+    "__type__": "cc.Size",
+    "width": 13.69,
+    "height": 180
     },
     "_position": {
       "__type__": "cc.Vec3",
@@ -470,7 +470,7 @@
     "_string": "0\n0",
     "_N$string": "0\n0",
     "_fontSize": 24,
-    "_lineHeight": 80,
+      "_lineHeight": 45,
     "_N$file": {
       "__uuid__": "2b191936-73f4-4677-ba64-61330d30b6f1"
     },

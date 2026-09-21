@@ -5,6 +5,7 @@ const path = require('path');
 const SESSION_MS = 8 * 60 * 60 * 1000;
 const WINDOW_MS = 15 * 60 * 1000;
 const MAX_FAILURES = 8;
+const hashSessionId = (sid) => crypto.createHash('sha256').update(String(sid || '')).digest('hex');
 
 const passwordRecord = (password) => {
   const plain = String(password || '');
@@ -21,16 +22,17 @@ const secureEqual = (left, right) => {
 };
 
 class AdminAuth {
-  constructor({ file, now = Date.now } = {}) {
+  constructor({ file, now = Date.now, sessionStore = null } = {}) {
     this.file = file;
     this.now = now;
+    this.sessionStore = sessionStore;
     this.sessions = new Map();
     this.failures = new Map();
     this.record = null;
     this.reload();
   }
 
-  reload() {
+  reload({ invalidateSessions = false } = {}) {
     try {
       const record = JSON.parse(fs.readFileSync(this.file, 'utf8'));
       if (!/^[0-9a-f]{64}$/.test(record.salt) || !/^[0-9a-f]{128}$/.test(record.hash)) throw new Error('密码记录格式错误');
@@ -40,6 +42,9 @@ class AdminAuth {
       this.record = null;
     }
     this.sessions.clear();
+    if (invalidateSessions && this.sessionStore && this.sessionStore.clearAdminSessions) {
+      this.sessionStore.clearAdminSessions();
+    }
   }
 
   configured() { return !!this.record; }
@@ -62,8 +67,13 @@ class AdminAuth {
     this.failures.delete(key);
     const sid = crypto.randomBytes(32).toString('hex');
     const csrf = crypto.randomBytes(32).toString('hex');
-    const session = { sid, csrf, expiresAt: this.now() + SESSION_MS, actor: '管理员' };
+    const createdAt = this.now();
+    const session = { sid, csrf, createdAt, expiresAt: createdAt + SESSION_MS, actor: '管理员' };
     this.sessions.set(sid, session);
+    if (this.sessionStore && this.sessionStore.saveAdminSession) {
+      if (this.sessionStore.pruneAdminSessions) this.sessionStore.pruneAdminSessions(createdAt);
+      this.sessionStore.saveAdminSession({ ...session, sidHash: hashSessionId(sid) });
+    }
     return { session };
   }
 
@@ -71,10 +81,21 @@ class AdminAuth {
     const cookie = String(req.headers.cookie || '').split(';').map((part) => part.trim())
       .find((part) => part.startsWith('qj_admin_sid='));
     const sid = cookie ? cookie.slice('qj_admin_sid='.length) : '';
-    const session = this.sessions.get(sid);
+    let session = this.sessions.get(sid);
+    if (!session && sid && this.sessionStore && this.sessionStore.getAdminSession) {
+      const restored = this.sessionStore.getAdminSession(hashSessionId(sid), this.now());
+      if (restored) {
+        session = { sid, csrf: restored.csrf, createdAt: restored.createdAt,
+          expiresAt: restored.expiresAt, actor: restored.actor };
+        this.sessions.set(sid, session);
+      }
+    }
     if (!session) return null;
     if (session.expiresAt <= this.now()) {
       this.sessions.delete(sid);
+      if (this.sessionStore && this.sessionStore.deleteAdminSession) {
+        this.sessionStore.deleteAdminSession(hashSessionId(sid));
+      }
       return null;
     }
     return session;
@@ -84,7 +105,13 @@ class AdminAuth {
     return !!session && secureEqual(req.headers['x-csrf-token'], session.csrf);
   }
 
-  logout(session) { if (session) this.sessions.delete(session.sid); }
+  logout(session) {
+    if (!session) return;
+    this.sessions.delete(session.sid);
+    if (this.sessionStore && this.sessionStore.deleteAdminSession) {
+      this.sessionStore.deleteAdminSession(hashSessionId(session.sid));
+    }
+  }
 
   changePassword(current, next) {
     if (!this.verify(current)) return { error: '当前密码错误' };
@@ -95,7 +122,7 @@ class AdminAuth {
       fs.writeFileSync(temporary, JSON.stringify(record), { mode: 0o600 });
       fs.renameSync(temporary, this.file);
       fs.chmodSync(this.file, 0o600);
-      this.reload();
+      this.reload({ invalidateSessions: true });
       return { ok: true };
     } finally {
       if (fs.existsSync(temporary)) fs.unlinkSync(temporary);
@@ -107,4 +134,4 @@ class AdminAuth {
   }
 }
 
-module.exports = { AdminAuth, passwordRecord, secureEqual };
+module.exports = { AdminAuth, passwordRecord, secureEqual, hashSessionId };

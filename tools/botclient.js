@@ -175,17 +175,14 @@ function startBot(opts) {
           return scheduleDiscard(me.drawn);
         }
 
-        // 亮癞和报清一色都不换手牌，亮完还是轮到自己出
-        if ((msghead === 'game_showrazz' || msghead === 'game_noticeqys') && body.uid === me.uid) {
+        // 报清一色不换手牌，报完还是轮到自己出
+        if (msghead === 'game_noticeqys' && body.uid === me.uid) {
           return scheduleDiscard(me.drawn);
         }
 
         if (msghead === 'game_operator') {
           clearTimeout(me.timer); // 有得选就先别急着出牌
           if (body.hu > 0) return later(() => send('gamehu'));
-          // 飘癞是拿癞子的万能换喜钱，搏输了这局大概就流了。
-          // 隔一局搏一次，飘和不飘两条路都能走到。
-          if (body.show_razz && me.played % 2 === 0) return later(() => send('gameshowlz'));
           // 报清一色没代价，能报就报
           if (body.bright_qys) return later(() => send('gamenotice', { type: 0 }));
           if (body.gang && body.gang.length > 0) {

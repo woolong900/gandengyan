@@ -56,7 +56,7 @@ for (var r in t) {
 var i = t[r];
 if ("" !== i && null !== i && void 0 !== i) {
 "?" === n || (n += "&");
-n += r + "=" + t[r];
+n += encodeURIComponent(r) + "=" + encodeURIComponent(String(t[r]));
 } else cc.log("format url value is :", i);
 }
 e += n;

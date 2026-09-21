@@ -7,7 +7,7 @@ const rules = require('./rules');
 
 const GAME_COUNT_MUL = {
   1: 8, 2: 8, 3: 8, 4: 8, 5: 8, 6: 8, 7: 8, 8: 8, 9: 8, 10: 8, 11: 8, 12: 8,
-  13: 4, 14: 5, 15: 8, 16: 3, 18: 3, 19: 8, 20: 8, 21: 8, 22: 3, 23: 5,
+  13: 4, 14: 5, 15: 8, 16: 3, 17: 3, 18: 3, 19: 8, 20: 8, 21: 8, 22: 3, 23: 5,
 };
 
 const num = (v) => (v && typeof v === 'object' && 'low' in v ? v.toNumber() : Number(v || 0));
@@ -22,7 +22,7 @@ const roomInfo = (room) => ({
   host: room.hostUid,
   maxstep: maxStep(room),
   step: room.round && room.step < 1 ? 1 : room.step,
-  score_ratio: rules.RATIO,
+  score_ratio: room.gameRules ? room.gameRules.RATIO : rules.RATIO,
   param1: room.param1,
   param2: room.param2,
   person: room.members.map((m) => ({
@@ -36,6 +36,11 @@ const roomInfo = (room) => ({
     index: m.site,
     sex: m.player.sex,
     line: m.online !== false,
+    // 重连时客户端需要用快照还原“已准备”状态。
+    // 旧客户端会忽略未识别字段，可以向后兼容。
+    // 准备标记只属于局间等待态。断线重连时 roominfo 会广播给
+    // 全桌，若在行牌中仍下发 true，旧客户端会在每个玩家面前画 OK 手势。
+    ready: !(room.round && !room.round.over) && !!m.ready,
     view: !!m.view,
     force_close: false,
     trustee: { status: !!m.trustee, last_ts: m.turnDeadline || 0 },
@@ -53,6 +58,7 @@ const playerAction = (room, uid, msghead, body) => {
   if (!round) return '现在不在牌局里';
   const seat = round.seatOf(uid);
   if (seat < 0) return '你不在这局里';
+  if (typeof round.handleAction === 'function') return round.handleAction(seat, msghead, body || {});
 
   switch (msghead) {
     case 'gamestep':
@@ -66,7 +72,8 @@ const playerAction = (room, uid, msghead, body) => {
     case 'gamehu':
       return round.respond(seat, 'hu');
     case 'gameshowlz':
-      return round.respond(seat, 'razz');
+      // 潜江癞晃没有主动“亮癞”操作；拒绝旧客户端或伪造消息。
+      return '潜江癞晃没有亮癞操作';
     case 'gamenotice':
       if (body.type === 0) return round.respond(seat, 'qys');
       return null;
@@ -76,7 +83,7 @@ const playerAction = (room, uid, msghead, body) => {
 };
 
 /** 新建真人账号赠送的初始房卡。机器人创建时会显式传入 0。 */
-const NEW_PLAYER_CARDS = 10000;
+const NEW_PLAYER_CARDS = 200;
 
 /** 绑定邀请码：邀请人、被邀请人都加这么多。充值先关。 */
 const INVITE_GIVE = 1000;
@@ -93,6 +100,25 @@ const mintInviteCode = (used = new Set()) => {
   throw new Error('邀请码发完了');
 };
 
+const uniqueStrings = (...values) => [...new Set(values.flat().map((value) => String(value || '').trim()).filter(Boolean))];
+
+const normalizeWechatIdentities = (values) => {
+  const seen = new Set();
+  const out = [];
+  for (const raw of Array.isArray(values) ? values : []) {
+    if (!raw || typeof raw !== 'object') continue;
+    const appId = String(raw.appId || '').trim();
+    const openid = String(raw.openid || '').trim();
+    const unionid = String(raw.unionid || '').trim();
+    if (!appId || !openid) continue;
+    const key = `${appId}\n${openid}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ appId, openid, unionid, linkedAt: Number(raw.linkedAt || 0) });
+  }
+  return out;
+};
+
 const emptyPlayer = (uid, extra = {}) => ({
   uid,
   nickname: extra.nickname || `玩家${uid}`,
@@ -101,9 +127,17 @@ const emptyPlayer = (uid, extra = {}) => ({
   readMessageIds: Array.isArray(extra.readMessageIds) ? extra.readMessageIds.map(Number).filter(Number.isSafeInteger) : [],
   createdAt: Number(extra.createdAt || 0),
   lastLoginAt: Number(extra.lastLoginAt || 0),
+  lastIp: extra.lastIp || '',
+  lastIpCity: extra.lastIpCity || '',
+  lastIpAt: Number(extra.lastIpAt || 0),
+  lastIpLocatedAt: Number(extra.lastIpLocatedAt || 0),
   disabled: !!extra.disabled,
   wechatOpenid: extra.wechatOpenid || '',
   wechatUnionid: extra.wechatUnionid || '',
+  wechatOpenids: uniqueStrings(extra.wechatOpenids || [], extra.wechatOpenid || ''),
+  wechatUnionids: uniqueStrings(extra.wechatUnionids || [], extra.wechatUnionid || ''),
+  wechatIdentities: normalizeWechatIdentities(extra.wechatIdentities),
+  tokenAliases: uniqueStrings(extra.tokenAliases || []),
   identityVerified: !!extra.identityVerified,
   identityNameInitial: extra.identityNameInitial || '',
   identityNameHash: extra.identityNameHash || '',
@@ -115,6 +149,8 @@ const emptyPlayer = (uid, extra = {}) => ({
   cardNum: extra.cardNum == null ? NEW_PLAYER_CARDS : extra.cardNum,
   roomId: extra.roomId || 0,
   inviteCode: extra.inviteCode || '',
+  inviteCodeAliases: uniqueStrings(extra.inviteCodeAliases || [])
+    .map((code) => code.toUpperCase()).filter((code) => /^[A-Z]{5}$/.test(code)),
   invitedBy: extra.invitedBy || '',
   bot: !!extra.bot,
 });

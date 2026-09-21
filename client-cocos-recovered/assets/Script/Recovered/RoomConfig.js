@@ -17,13 +17,11 @@ options: {
 1: {
 value: 0,
 desc: "潜江癞晃",
-reject: [ 1, 2, 26 ],
-isHide: !0,
-isHide: !0
+reject: [ 1, 2, 26 ]
 },
 2: {
 value: 1,
-desc: "土豪必杠",
+desc: "干瞪眼",
 reject: [ 1, 2, 26 ]
 },
 26: {
@@ -140,8 +138,7 @@ desc: "少三张"
 },
 20: {
 value: 2,
-desc: "只许自摸",
-isHide: !0
+desc: "只许自摸"
 },
 21: {
 value: 2,
@@ -249,7 +246,7 @@ desc: "玩法",
 weight: 1,
 lineCount: 3,
 defCheck: [ 2 ],
-detailIds: [ 1, 2, 26 ]
+detailIds: [ 2, 1 ]
 },
 5: {
 desc: "底分",
@@ -277,7 +274,7 @@ detailIds: [ 22, 24, 25, 200 ]
 desc: "其它",
 weight: 7,
 lineCount: 3,
-defCheck: [ 21, 23, 24 ],
+defCheck: [ 20, 21, 23, 24 ],
 detailIds: [ 20, 21, 23 ],
 allIds: [ 18, 19, 20, 21, 23 ]
 },
@@ -3710,7 +3707,8 @@ reject: [ 11, 12, 13 ]
 },
 14: {
 value: 1,
-desc: "尾游可以捡分"
+desc: "尾游可以捡分",
+isHide: !0
 },
 15: {
 value: 1,
@@ -3719,6 +3717,10 @@ desc: "去掉34"
 16: {
 value: 1,
 desc: "真五十K大过四炸"
+},
+22: {
+value: 1,
+desc: "8张炸大过四大天王"
 },
 17: {
 value: 1,
@@ -3818,7 +3820,7 @@ desc: "其它",
 weight: 9,
 lineCount: 3,
 defCheck: [],
-detailIds: [ 14, 15, 16, 17, 20 ]
+detailIds: [ 15, 16, 22, 17, 20 ]
 },
 7: {
 desc: "功能",

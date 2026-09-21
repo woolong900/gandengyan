@@ -7,6 +7,8 @@
 const { Round } = require('../server/round');
 const rules = require('../server/rules');
 const mahjong = require('../server/mahjong');
+const mahjongBot = require('../server/mahjong-bot');
+const { IDX } = require('../server/playback');
 
 let pass = 0;
 let fail = 0;
@@ -47,6 +49,28 @@ const boot = (n, extra = {}) => {
   round.start();
   return { round, io, config };
 };
+
+// ---------------------------------------------------------------- 回放胡型语音数据
+
+{
+  const cases = [
+    ['黑摸', rules.HU.黑摸],
+    ['软摸', rules.HU.软摸],
+    ['屁胡', rules.HU.屁胡],
+    ['抢杠胡', rules.HU.抢杠胡],
+    ['热铳', rules.HU.热铳],
+    ['复合胡型', rules.HU.黑摸 | rules.HU.清一色],
+  ];
+  for (const [name, huType] of cases) {
+    const { round } = boot(2);
+    round.huType = () => huType;
+    round.win(0, 9, null);
+    const hu = round.tape.finish().steps
+      .flatMap((step) => step.operates)
+      .findLast((op) => op.index === IDX.HU);
+    t(`回放保留${name}胡型`, hu && hu.cards[1], huType);
+  }
+}
 
 // ---------------------------------------------------------------- 配置与番数
 
@@ -138,11 +162,14 @@ const boot = (n, extra = {}) => {
   round.wall.remain = remain;
 }
 
-// ---------------------------------------------------------------- 只许自摸：点炮不问
+// ---------------------------------------------------------------- 只许自摸：普通炮、热铳、抢杠都不问
 
 {
   const { round, io } = boot(2, { 只许自摸: true });
   // 下家听的是 1，庄家打 1 也不该问胡
+  // 固定皮子/癞子，避免随机癞子恰好为 1 时把本用例变成甩癞补摸。
+  round.pizi = 18;
+  round.laizi = 19;
   round.hands[1] = [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7];
   round.hands[0] = [8, 8, 8, 9, 9, 9, 11, 11, 11, 12, 12, 12, 13];
   round.drawn[0] = 1;
@@ -154,7 +181,64 @@ const boot = (n, extra = {}) => {
   t('只许自摸不点炮', asked.length, 0);
 }
 
+{
+  const { round } = boot(2, { 只许自摸: true, 热铳: true });
+  round.laizi = 19;
+  round.hands[1] = [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7];
+  round.hotSeat = 0;
+  t('只许自摸即使勾了热铳也不接热铳', round.discardHu(1, 1, 0), 0);
+}
+
+{
+  const { round, io } = boot(2, { 只许自摸: true, 热铳: true });
+  round.laizi = 19;
+  round.hands[0] = [2, 3, 4, 5, 6, 7, 8, 9, 11, 12];
+  round.drawn[0] = 1;
+  round.melds[0] = [{ type: 'peng', card: 1, from: 1 }];
+  round.hands[1] = [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7];
+  round.turn = 0;
+  round.pending = { kind: 'self', seat: 0, hu: false, gang: [1], qys: false };
+  io.sent.length = 0;
+  round.respond(0, 'gang', { card: 1 });
+  t('只许自摸不询问抢杠', !!(round.pending && round.pending.kind === 'qianggang'), false);
+  t('只许自摸不发送抢杠操作', io.sent.some((x) => x.to === 1 && x.h === 'game_operator' && x.d.hu === 1), false);
+}
+
 // ---------------------------------------------------------------- 抢杠胡
+
+{
+  const softWait = [1, 2, 3, 4, 5, 6, 11, 11, 11, 12, 12, 13, 19];
+  for (const [name, hotSeat] of [['普通点炮', -1], ['热铳', 0]]) {
+    const { round, io } = boot(2, { 玩法: '潜江癞晃', 热铳: hotSeat >= 0 });
+    round.laizi = 19;
+    round.hands[0] = [1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5];
+    round.drawn[0] = 13;
+    round.hands[1] = softWait.slice();
+    round.turn = 0;
+    round.pending = null;
+    round.hotSeat = hotSeat;
+    io.sent.length = 0;
+    t(`${name}软牌型本身能软胡`, round.canHu(1, 13), true);
+    t(`${name}软牌型不能硬胡`, round.canHardHu(1, 13), false);
+    t(`${name}不向软牌型询问胡牌`, round.discardHu(1, 13, 0), 0);
+  }
+}
+
+{
+  const { round, io } = boot(2, { 玩法: '潜江癞晃', 热铳: true });
+  round.laizi = 19;
+  round.hands[0] = [1, 2, 3, 4, 5, 6, 7, 8, 11, 12];
+  round.drawn[0] = 13;
+  round.melds[0] = [{ type: 'peng', card: 13, from: 1 }];
+  round.hands[1] = [1, 2, 3, 4, 5, 6, 11, 11, 11, 12, 12, 13, 19];
+  round.turn = 0;
+  round.pending = { kind: 'self', seat: 0, hu: false, gang: [13], qys: false };
+  io.sent.length = 0;
+  t('软牌型本身能抢这张杠牌', round.canHu(1, 13), true);
+  round.respond(0, 'gang', { card: 13 });
+  t('软牌型不能抢杠', !!(round.pending && round.pending.kind === 'qianggang'), false);
+  t('软牌型不收到抢杠询问', io.sent.some((x) => x.to === 1 && x.h === 'game_operator' && x.d.hu === 13), false);
+}
 
 {
   const { round, io } = boot(2);
@@ -165,7 +249,7 @@ const boot = (n, extra = {}) => {
   round.melds[0] = [{ type: 'peng', card: 1, from: 1 }];
   round.hands[1] = [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7];
   round.turn = 0;
-  round.pending = { kind: 'self', seat: 0, hu: false, gang: [1], razz: false, qys: false };
+  round.pending = { kind: 'self', seat: 0, hu: false, gang: [1], qys: false };
   io.sent.length = 0;
   t('补杠先问抢', round.respond(0, 'gang', { card: 1 }), null);
   t('回头笑先上桌', round.melds[0].some((m) => m.type === 'bu' && m.card === 1), true);
@@ -177,6 +261,22 @@ const boot = (n, extra = {}) => {
   t('被抢后回头笑仍在杠堆', round.melds[0].some((m) => m.type === 'bu' && m.card === 1), true);
   t('胡型带抢杠', (io.sent.over.huType & rules.HU.抢杠胡) > 0, true);
   t('点炮的是补杠那家', io.sent.over.from, 0);
+}
+
+{
+  const { round, io } = boot(2, { 热铳: false });
+  round.laizi = 19;
+  round.hands[0] = [2, 3, 4, 5, 6, 7, 8, 9, 11, 12];
+  round.drawn[0] = 1;
+  round.melds[0] = [{ type: 'peng', card: 1, from: 1 }];
+  round.hands[1] = [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7];
+  round.turn = 0;
+  round.pending = { kind: 'self', seat: 0, hu: false, gang: [1], qys: false };
+  io.sent.length = 0;
+  round.respond(0, 'gang', { card: 1 });
+  t('关闭热铳不询问抢杠', !!(round.pending && round.pending.kind === 'qianggang'), false);
+  t('关闭热铳不向下家发送抢杠胡', io.sent.some((x) => x.to === 1 && x.h === 'game_operator' && x.d.hu === 1), false);
+  t('关闭热铳直接完成补杠并补牌', round.drawn[0] != null, true);
 }
 
 // ---------------------------------------------------------------- 皮子三张杠
@@ -234,34 +334,42 @@ const boot = (n, extra = {}) => {
   t('接朝天后可以直接出牌', round.discard(1, 1), null);
 }
 
-// ---------------------------------------------------------------- 亮癞之后癞子不当万能
+// ---------------------------------------------------------------- 潜江癞晃没有主动亮癞操作
 
 {
-  const { round } = boot(2);
-  round.laizi = 19; // 固定一个手里没有的癞子，避免随机皮子把这手牌凑成硬胡
-  const lz = round.laizi;
-  // 差一张靠癞子凑顺子
-  round.hands[0] = [1, 2, 4, 5, 6, 11, 11, 11, 12, 12, 13, 13, lz];
-  round.drawn[0] = 3;
-  t('亮之前能胡', round.canHu(0), true);
-  round.razz[0] = 1;
-  t('亮之后不能胡', round.canHu(0), false);
+  const { round, io } = boot(2, { 玩法: '潜江癞晃', 喜钱: 10, 清一色: false });
+  round.laizi = 19;
+  round.pizi = 29;
+  round.hands[0] = [1, 1, 1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 19];
+  round.drawn[0] = 1;
+  round.pending = null;
+  io.sent.length = 0;
+  round.offerSelfOps(0);
+  const offer = io.sent.find((x) => x.to === 0 && x.h === 'game_operator');
+  t('有癞子时仍可收到正常操作', !!offer, true);
+  t('潜江癞晃不下发亮癞按钮', Object.hasOwn(offer.d, 'show_razz'), false);
+  t('潜江癞晃癞子始终可作万能牌', round.jokerFor(0), 19);
 }
 
-// ---------------------------------------------------------------- 结算：自摸每家出、点炮一家出、喜钱
+// ---------------------------------------------------------------- 结算：自摸每家出、点炮一家出
 
 {
-  const { round } = boot(2);
+  const { round, io } = boot(2);
+  round.laizi = 19;
   round.hands[0] = [1, 2, 3, 4, 5, 6, 11, 11, 11, 12, 12, 13, 13];
   round.drawn[0] = 14;
-  round.razz[0] = 1; // 亮过癞，胡了拿喜钱
   round.roundScore = [0, 0];
   round.seats.forEach((m) => { m.score = 0; });
+  io.sent.length = 0;
   round.win(0, 14, null);
-  // 底分 1，黑摸 4 倍（手里亮过癞，癞子不当万能，14 也不是癞子 → 黑摸）
-  // 再加喜钱 10 倍，每家付 (4+10)*10 = 140 内分
-  t('自摸赢家得分', round.seats[0].score, 140);
-  t('自摸输家出分', round.seats[1].score, -140);
+  // 底分 1，黑摸 4 倍，每家付 4×10 = 40 内分；喜钱配置不额外加在胡分上。
+  t('自摸赢家得分', round.seats[0].score, 40);
+  t('自摸输家出分', round.seats[1].score, -40);
+  const end = io.sent.find((x) => x.h === 'game_end');
+  t('自摸结算标记真实胡牌且保留完整手牌',
+    [end.d.info[0].card.draw_card, end.d.info[0].card.hand_card.length,
+      end.d.info[0].card.hand_card.includes(14), end.d.info[0].num],
+    [14, 14, true, 14]);
 }
 
 {
@@ -275,6 +383,10 @@ const boot = (n, extra = {}) => {
   t('点炮赢家 +2 底', round.seats[0].score, 20);
   t('点炮只放炮的出', round.seats[1].score, -20);
   const end = io.sent.filter((x) => x.h === 'game_end').pop();
+  t('点炮结算标记真实胡牌且保留完整手牌',
+    [end.d.info[0].card.draw_card, end.d.info[0].card.hand_card.length,
+      end.d.info[0].card.hand_card.filter((card) => card === 13).length, end.d.info[0].num],
+    [13, 13, 2, 13]);
   t('结算后没准备，下一局按钮才出得来', end && end.d.info.every((it) => it.ready === false), true);
   t('胡后余牌按摸牌顺序摊出', end && end.d.surplus_card, round.wall.remainCards());
   t('胡后还有余牌', end && end.d.surplus_card.length > 0, true);
@@ -317,7 +429,7 @@ const boot = (n, extra = {}) => {
   // 摆成能胡的 14 张
   round.hands[0] = [1, 2, 3, 4, 5, 6, 17, 18, 19, 11, 11, 11, 12];
   round.drawn[0] = 12;
-  round.pending = { kind: 'self', seat: 0, hu: true, gang: [], razz: false, qys: false };
+  round.pending = { kind: 'self', seat: 0, hu: true, gang: [], qys: false };
   io.sent.length = 0;
   round.autoPlay(0);
   t('托管自摸会胡', io.sent.over && io.sent.over.winner, 0);
@@ -327,6 +439,393 @@ const boot = (n, extra = {}) => {
   const { round } = boot(2);
   round.pending = { kind: 'discard', from: 0, card: 1, candidates: [{ seat: 1, ops: { hu: 0, peng: true, gang: false } }], replies: new Map() };
   t('等人碰时 waiting 是下家', round.waitingSeats(), [1]);
+}
+
+// ---------------------------------------------------------------- 干瞪眼（只许自摸）智能机器人
+
+{
+  const { round, io } = boot(2, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false });
+  round.seats[0].bot = true;
+  round.laizi = 18;
+  round.pizi = 17;
+  // 1-9 条已经是完整结构，19 是孤张。旧逻辑会把刚摸的 9 打掉。
+  round.hands[0] = [1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 15, 19];
+  round.drawn[0] = 9;
+  round.turn = 0;
+  round.pending = null;
+  round.melds[0] = [];
+  round.discards = [[], []];
+  round.shuai = [[], []];
+  round.baoQys = [false, false];
+  io.sent.length = 0;
+  round.autoPlay(0);
+  t('干瞪眼自摸房机器人保留完整顺子、打孤张',
+    io.sent.find((x) => x.h === 'game_step')?.d.card, 19);
+}
+
+{
+  const { round, io } = boot(2, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false });
+  round.seats[0].bot = true;
+  round.laizi = 5;
+  round.pizi = 4;
+  round.hands[0] = [26, 17, 22, 19, 23, 3, 2, 26, 18, 15, 23, 13, 3];
+  round.drawn[0] = 5;
+  round.turn = 0;
+  round.pending = null;
+  round.wall.remain = () => 0;
+  io.sent.length = 0;
+  round.autoPlay(0);
+  const step = io.sent.find((x) => x.h === 'game_step');
+  t('牌墙空时智能机器人不甩非法癞子', step && step.d.card === 5, false);
+  t('牌墙空时智能机器人仍能完成出牌', !!step, true);
+}
+
+{
+  const { round, io } = boot(4, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false });
+  round.seats[0].bot = true;
+  round.laizi = 19;
+  round.pizi = 18;
+  // 三向听的散牌：新策略应保留单癞，先正常行牌。
+  round.hands[0] = [2, 2, 8, 8, 9, 12, 13, 15, 17, 21, 22, 26, 28];
+  round.drawn[0] = 19;
+  round.turn = 0;
+  round.pending = null;
+  round.melds[0] = [];
+  round.gangs = [];
+  round.shuai = [[], [], [], []];
+  io.sent.length = 0;
+  round.autoPlay(0);
+  const step = io.sent.find((x) => x.h === 'game_step');
+  t('牌形较差时不再无脑甩癞', !!step && step.d.card !== 19, true);
+  t('牌形较差时没有播放甩癞', io.sent.some((x) => x.h === 'game_lzg'), false);
+}
+
+{
+  const { round } = boot(2, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false });
+  round.seats[0].bot = true;
+  round.laizi = 19;
+  round.pizi = 18;
+  // 甩掉 19 后听 5 条：123/456 + 123/456 + 77将。
+  round.hands[0] = [1, 2, 3, 4, 6, 11, 12, 13, 14, 15, 16, 17, 17];
+  round.drawn[0] = 19;
+  round.melds = [[], []];
+  round.discards = [[], []];
+  round.shuai = [[], []];
+  round.gangs = [];
+  const publicOuts = () => mahjongBot._test.analyze(
+    mahjongBot._test.context(round, 0),
+    round.hands[0],
+    0
+  ).winningOuts;
+  t('听5条且无公开消耗时还有4张', publicOuts(), 4);
+  t('好牌且听口充足时早甩癞',
+    mahjongBot._test.shuaiDecision(
+      mahjongBot._test.context(round, 0), round.looseTiles(0), 0
+    ).should, true);
+
+  round.melds[1] = [{ type: 'peng', card: 5, from: 0 }];
+  t('别人碰5条后听口只剩1张', publicOuts(), 1);
+  t('别人碰掉主要胡口后会改为保癞',
+    mahjongBot._test.shuaiDecision(
+      mahjongBot._test.context(round, 0), round.looseTiles(0), 0
+    ).should, false);
+
+  round.melds[1] = [{ type: 'an', card: 5, from: 1 }];
+  t('别人暗杠胡口后公开剩余张数归零', publicOuts(), 0);
+}
+
+{
+  const { round } = boot(2, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false });
+  round.seats[0].bot = true;
+  round.laizi = 19;
+  round.pizi = 18;
+  // 纯牌形像是听19，但再摸19会变成两癞，规则上不能胡。
+  const dead = [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 19];
+  round.hands[0] = dead.slice();
+  round.drawn[0] = null;
+  round.melds = [[], []];
+  round.discards = [[], []];
+  round.shuai = [[], []];
+  const analysis = mahjongBot._test.analyze(mahjongBot._test.context(round, 0), dead, 0);
+  t('多癞禁胡造成的假听会标记死听', analysis.deadWait, true);
+  t('死听不会把任意摸牌伪造成有效进张', analysis.outs, 0);
+}
+
+{
+  const { round } = boot(4, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false });
+  round.seats[0].bot = true;
+  round.laizi = 19;
+  round.pizi = 18;
+  round.hands[0] = [2, 2, 8, 8, 9, 12, 13, 15, 17, 19, 22, 26, 28];
+  round.drawn[0] = 19;
+  round.melds[0] = [];
+  round.shuai = [[], [], [], []];
+  round.gangs = [];
+  const decision = mahjongBot._test.shuaiDecision(
+    mahjongBot._test.context(round, 0), round.looseTiles(0), 0
+  );
+  t('手里多于一张癞子时必须先甩到剩一张',
+    { should: decision.should, reason: decision.reason },
+    { should: true, reason: '多癞子必须先甩' });
+}
+
+{
+  const { round } = boot(4, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false });
+  round.seats[0].bot = true;
+  round.laizi = 19;
+  round.pizi = 18;
+  round.hands[0] = [2, 2, 4, 5, 7, 7, 12, 13, 17, 19];
+  round.drawn[0] = 26;
+  round.melds[0] = [{ type: 'bu', card: 1, from: 1 }];
+  round.shuai = [[], [], [], []];
+  round.gangs = [];
+  const noGang = mahjongBot._test.shuaiDecision(
+    mahjongBot._test.context(round, 0), round.looseTiles(0), 1
+  );
+  round.gangs = [{ seat: 0, type: 'bu', from: null, burst: false }];
+  const ownGang = mahjongBot._test.shuaiDecision(
+    mahjongBot._test.context(round, 0), round.looseTiles(0), 1
+  );
+  t('普通差牌无杠账时保癞', noGang.should, false);
+  t('自己已有回头笑后可更积极甩癞', ownGang.should, true);
+  t('自己的杠账是正收益', ownGang.ledger.net > 0, true);
+}
+
+{
+  const { round } = boot(2, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false });
+  round.seats[0].bot = true;
+  round.pizi = 13;
+  round.laizi = 14;
+  // 暗杠后已有确定正杠账。甩癞会暂时退一向听，但补回来的进张
+  // 明显多于保留癞子路线，不应被“只剩最后一圈”的旧阈值卡住。
+  round.hands[0] = [2, 4, 7, 7, 11, 11, 12, 13, 14, 15];
+  round.drawn[0] = 3;
+  round.melds = [[{ type: 'an', card: 9, from: 0 }], []];
+  round.discards = [[], []];
+  round.shuai = [[], []];
+  round.gangs = [{ seat: 0, type: 'an', from: null, burst: false }];
+  const decision = mahjongBot._test.shuaiDecision(
+    mahjongBot._test.context(round, 0), round.looseTiles(0), 1
+  );
+  t('自己已有暗杠时正杠账能突破末圈限制', decision.should, true);
+  t('正杠账放宽仍只允许退一向听',
+    decision.throwAnalysis.shanten - decision.keep.shanten, 1);
+}
+
+{
+  const { round } = boot(4, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false });
+  round.seats[0].bot = true;
+  round.pizi = 22;
+  round.laizi = 23;
+  round.hands[0] = [1, 2, 3, 4, 16, 19, 19, 23, 24, 25, 26, 28, 29];
+  round.drawn[0] = 6;
+  round.melds = [[], [], [], []];
+  round.discards = [[], [], [], []];
+  round.shuai = [[], [], [], []];
+  round.gangs = [];
+  const noGang = mahjongBot._test.shuaiDecision(
+    mahjongBot._test.context(round, 0), round.looseTiles(0), 0
+  );
+  // 1 号明杠是 2 号点的，0 号本家没有直接杠债，但仍要考虑对手杠势。
+  round.gangs = [{ seat: 1, type: 'ming', from: 2, burst: false }];
+  const otherPlayersGang = mahjongBot._test.shuaiDecision(
+    mahjongBot._test.context(round, 0), round.looseTiles(0), 0
+  );
+  t('无别家杠势时边界好牌可甩癞', noGang.should, true);
+  t('别人点给别人的公杠也会降低甩癞意愿', otherPlayersGang.should, false);
+  t('间接对手杠势只轻扣一档', otherPlayersGang.opponentGangPressure, 1);
+}
+
+{
+  const { round } = boot(2, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false });
+  round.seats[0].bot = true;
+  round.laizi = 19;
+  round.pizi = 18;
+  round.hands[0] = [1, 2, 3, 4, 6, 11, 12, 13, 14, 15, 16, 17, 17];
+  round.drawn[0] = 19;
+  round.melds = [[], []];
+  round.discards = [[], []];
+  round.shuai = [[], []];
+  round.gangs = [];
+  const noGang = mahjongBot._test.shuaiDecision(
+    mahjongBot._test.context(round, 0), round.looseTiles(0), 0
+  );
+  round.melds[1] = [{ type: 'an', card: 9, from: 1 }];
+  round.gangs = [{ seat: 1, type: 'an', from: null, burst: false }];
+  const opponentGang = mahjongBot._test.shuaiDecision(
+    mahjongBot._test.context(round, 0), round.looseTiles(0), 0
+  );
+  t('无杠债时充足听口可甩癞', noGang.should, true);
+  t('别人已有暗杠、本家负债时改为保癞', opponentGang.should, false);
+  t('别人的全付杠账是负收益', opponentGang.ledger.net < 0, true);
+
+  round.gangs = [{ seat: 1, type: 'ming', from: 0, burst: false }];
+  round.melds[1] = [{ type: 'ming', card: 9, from: 0 }];
+  const pointGang = mahjongBot._test.shuaiDecision(
+    mahjongBot._test.context(round, 0), round.looseTiles(0), 0
+  );
+  t('自己点给别人杠后也会降低甩癞意愿', pointGang.should, false);
+}
+
+{
+  const { round, io } = boot(2, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false, 喜钱: 10 });
+  round.seats[0].bot = true;
+  round.laizi = 19;
+  round.pizi = 18;
+  round.hands[0] = [2, 2, 8, 8, 9, 12, 13, 15, 17, 21, 22, 26, 28];
+  round.drawn[0] = 19;
+  round.turn = 0;
+  round.pending = null;
+  round.shuai = [[19, 19, 19], []];
+  round.gangs = [];
+  round.seats.forEach((member) => { member.score = 0; });
+  io.sent.length = 0;
+  round.autoPlay(0);
+  t('第四癞有喜钱时即使牌差也会甩', io.sent.some((x) => x.h === 'game_lzg'), true);
+  t('第四癞喜钱立即入账', [round.seats[0].score, round.seats[1].score], [100, -100]);
+}
+
+{
+  const { round } = boot(4, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false });
+  round.seats[0].bot = true;
+  round.laizi = 19;
+  round.pizi = 18;
+  round.hands[0] = [1, 2, 3, 4, 5, 6, 17, 18, 19, 22, 22, 24, 25];
+  round.drawn[0] = 29;
+  round.melds = [[], [{ type: 'peng', card: 9, from: 2 }], [], []];
+  round.discards = [[11], [12], [], []];
+  round.shuai = [[], [], [], []];
+  round.gangs = [];
+
+  // 机器人只能使用自己的手牌和公开信息。把对手暗手与牌墙内容
+  // 改成“一读就抛错”的哨兵，以后如果策略偷看，这条回归会立即失败。
+  for (let seat = 1; seat < round.n; seat++) {
+    Object.defineProperty(round.hands, seat, {
+      configurable: true,
+      get() { throw new Error(`读取了对手${seat}的暗手`); },
+    });
+  }
+  const hiddenWall = round.wall;
+  round.wall = new Proxy(hiddenWall, {
+    get(target, key) {
+      if (key === 'remain') return Reflect.get(target, key);
+      throw new Error(`读取了牌墙内容 ${String(key)}`);
+    },
+  });
+
+  let choice = null;
+  let privacyError = '';
+  try {
+    choice = mahjongBot.chooseDiscard(round, 0);
+  } catch (error) {
+    privacyError = error.message;
+  }
+  t('智能策略不读取对手暗手或牌墙内容', privacyError, '');
+  t('隐私哨兵下仍能给出合法弃牌', round.looseTiles(0).includes(choice), true);
+}
+
+{
+  const { round, io } = boot(2, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false });
+  // 真人托管仍然保持原来的摸什么打什么。
+  round.seats[0].bot = false;
+  round.laizi = 18;
+  round.hands[0] = [1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 15, 19];
+  round.drawn[0] = 9;
+  round.turn = 0;
+  round.pending = null;
+  io.sent.length = 0;
+  round.autoPlay(0);
+  t('真人托管不受智能机器人改动影响',
+    io.sent.find((x) => x.h === 'game_step')?.d.card, 9);
+}
+
+{
+  const { round, io } = boot(2, { 玩法: '潜江癞晃', 只许自摸: true, 清一色: false });
+  round.seats[0].bot = true;
+  round.laizi = 18;
+  round.hands[0] = [1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 15, 19];
+  round.drawn[0] = 9;
+  round.turn = 0;
+  round.pending = null;
+  io.sent.length = 0;
+  round.autoPlay(0);
+  t('潜江癞晃机器人不在本次改动范围',
+    io.sent.find((x) => x.h === 'game_step')?.d.card, 9);
+}
+
+{
+  const { round, io } = boot(2, { 玩法: '土豪必杠', 只许自摸: false, 清一色: false });
+  round.seats[0].bot = true;
+  round.laizi = 18;
+  round.pizi = 17;
+  // 和上面的智能策略用例摆成同一手牌；未勾只许自摸时必须仍摸什么打什么。
+  round.hands[0] = [1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 15, 19];
+  round.drawn[0] = 9;
+  round.turn = 0;
+  round.pending = null;
+  round.melds[0] = [];
+  round.discards = [[], []];
+  round.shuai = [[], []];
+  round.baoQys = [false, false];
+  io.sent.length = 0;
+  round.autoPlay(0);
+  t('干瞪眼未勾只许自摸的机器人仍走旧策略',
+    io.sent.find((x) => x.h === 'game_step')?.d.card, 9);
+}
+
+{
+  const { round } = boot(2, { 玩法: '土豪必杠', 只许自摸: true, 清一色: true });
+  round.seats[0].bot = true;
+  round.laizi = 19;
+  round.hands[0] = [1, 2, 3, 4, 5, 6, 7, 7, 8, 8, 9, 9, 9];
+  round.drawn[0] = 1;
+  round.turn = 0;
+  round.pending = { kind: 'self', seat: 0, hu: false, gang: [], qys: true };
+  round.autoPlay(0);
+  t('干瞪眼自摸房机器人会报清一色', round.baoQys[0], true);
+}
+
+{
+  const { round, io } = boot(2, { 玩法: '土豪必杠', 只许自摸: true, 清一色: true });
+  round.seats[0].bot = true;
+  round.laizi = 19;
+  round.hands[0] = [1, 1, 2, 3, 4, 5, 6, 7, 7, 8, 9, 9, 9];
+  round.drawn[0] = null;
+  round.melds[0] = [];
+  round.discards[1] = [1];
+  round.turn = 1;
+  round.pending = null;
+  round.takePeng(0, 1, 1);
+  t('碰后只能报清一色、不能自摸',
+    { qys: round.pending && round.pending.qys, hu: round.pending && round.pending.hu },
+    { qys: true, hu: false });
+  round.autoPlay(0);
+  t('碰后报清一色不会重新开放自摸', !!(round.pending && round.pending.hu), false);
+  t('碰后报清一色没有违规结算', !!io.sent.over, false);
+}
+
+{
+  const { round } = boot(3, { 玩法: '土豪必杠', 只许自摸: true });
+  round.seats[1].bot = true;
+  round.seats[2].bot = true;
+  const candidates = [1, 2].map((seat) => ({ seat, ops: { hu: 0, peng: true, gang: false } }));
+  round.pending = { kind: 'discard', from: 0, card: 5, candidates, replies: new Map() };
+  round.respond(1, 'pass');
+  t('一个智能机器人表态不会替另一个机器人自动过',
+    round.pending.replies.has(2), false);
+}
+
+{
+  const { round } = boot(3, { 玩法: '土豪必杠', 只许自摸: true });
+  // 1 号座是真人，2 号座是目标模式的智能机器人。
+  round.seats[1].bot = false;
+  round.seats[2].bot = true;
+  const candidates = [1, 2].map((seat) => ({ seat, ops: { hu: 0, peng: true, gang: false } }));
+  round.pending = { kind: 'discard', from: 0, card: 5, candidates, replies: new Map() };
+  round.respond(1, 'pass');
+  t('真人先响应不会替智能机器人自动过',
+    round.pending.replies.has(2), false);
+  t('真人响应后仍等智能机器人决策', round.waitingSeats(), [2]);
 }
 
 {
@@ -504,7 +1003,31 @@ const boot = (n, extra = {}) => {
 }
 
 {
-  const { round, io } = boot(3, { 热铳: false, 喜钱: 0 });
+  const { round, io } = boot(3, { 玩法: '土豪必杠', 热铳: true, 喜钱: 0 });
+  round.laizi = 19;
+  round.hands[0] = [11, 11, 11, 11, 2, 3, 4, 5, 6, 7, 8, 9, 12];
+  round.drawn[0] = 13;
+  round.hands[1] = [1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5];
+  round.hands[2] = [1, 1, 6, 6, 6, 7, 7, 7, 8, 8, 8, 9, 9];
+  round.turn = 0;
+  round.pending = null;
+  round.doSelfGang(0, 11, false);
+  round.pending = null;
+  round.hands[0] = [2, 3, 4, 5, 6, 7, 8, 9, 12];
+  round.drawn[0] = 1;
+  round.turn = 0;
+  io.sent.length = 0;
+  round.discard(0, 1);
+  t('干瞪眼热铳同时询问两家', io.sent.filter((x) => x.h === 'game_operator' && x.d.hu === 1).length, 2);
+  round.respond(1, 'hu');
+  t('干瞪眼热铳第一家胡后等第二家', round.over, false);
+  round.respond(2, 'hu');
+  t('干瞪眼热铳一炮多响', io.sent.over && io.sent.over.winners, [1, 2]);
+  t('干瞪眼两家都是热铳', [1, 2].map((s) => (io.sent.over.huTypes[s] & rules.HU.热铳) > 0), [true, true]);
+}
+
+{
+  const { round, io } = boot(3, { 热铳: true, 喜钱: 0 });
   round.laizi = 19;
   // 庄家补杠 1，下家和对家都能抢
   round.hands[0] = [2, 3, 4, 5, 6, 7, 8, 9, 11, 12];
@@ -513,7 +1036,7 @@ const boot = (n, extra = {}) => {
   round.hands[1] = [1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5];
   round.hands[2] = [1, 1, 6, 6, 6, 7, 7, 7, 8, 8, 8, 9, 9];
   round.turn = 0;
-  round.pending = { kind: 'self', seat: 0, hu: false, gang: [1], razz: false, qys: false };
+  round.pending = { kind: 'self', seat: 0, hu: false, gang: [1], qys: false };
   round.seats.forEach((m) => { m.score = 0; });
   round.roundScore = [0, 0, 0];
   io.sent.length = 0;
@@ -529,8 +1052,29 @@ const boot = (n, extra = {}) => {
 }
 
 {
+  const { round, io } = boot(3, { 玩法: '土豪必杠', 热铳: true, 喜钱: 0 });
+  round.laizi = 19;
+  round.hands[0] = [2, 3, 4, 5, 6, 7, 8, 9, 11, 12];
+  round.drawn[0] = 1;
+  round.melds[0] = [{ type: 'peng', card: 1, from: 1 }];
+  round.hands[1] = [1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5];
+  round.hands[2] = [1, 1, 6, 6, 6, 7, 7, 7, 8, 8, 8, 9, 9];
+  round.turn = 0;
+  round.pending = { kind: 'self', seat: 0, hu: false, gang: [1], qys: false };
+  io.sent.length = 0;
+  round.respond(0, 'gang', { card: 1 });
+  t('干瞪眼抢杠同时询问两家', io.sent.filter((x) => x.h === 'game_operator' && x.d.hu === 1).length, 2);
+  round.respond(1, 'hu');
+  t('干瞪眼第一家抢杠后等第二家', round.over, false);
+  round.respond(2, 'hu');
+  t('干瞪眼多人抢杠', io.sent.over && io.sent.over.winners, [1, 2]);
+  t('干瞪眼两家都是抢杠胡', [1, 2].map((s) => (io.sent.over.huTypes[s] & rules.HU.抢杠胡) > 0), [true, true]);
+}
+
+{
   const { round, io } = boot(3);
   round.laizi = 19;
+  round.pizi = 18;
   // 下家只能碰，对家能胡
   round.hands[1] = [1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13];
   round.hands[2] = [1, 1, 6, 6, 6, 7, 7, 7, 8, 8, 8, 9, 9];
@@ -628,14 +1172,13 @@ const boot = (n, extra = {}) => {
   const { round } = boot(2, { 喜钱: 10 });
   round.laizi = 19;
   round.shuai[0] = [19];
-  round.razz[0] = 1;
   round.hands[0] = [1, 2, 3, 4, 5, 6, 11, 11, 11, 12, 12, 13, 13];
   round.drawn[0] = 14;
   round.seats.forEach((m) => { m.score = 0; });
   round.roundScore = [0, 0];
-  // 黑摸 4 + 亮癞喜钱 10，再乘赢家一张癞子 ×2 → 每家 28
+  // 黑摸 4，乘赢家甩出一张癞子 ×2 → 每家 8；喜钱只在甩出第四张时另结。
   round.win(0, 14, null);
-  t('亮癞喜钱也乘癞子翻倍', [round.seats[0].score, round.seats[1].score], [280, -280]);
+  t('甩癞翻倍但不额外加亮癞喜钱', [round.seats[0].score, round.seats[1].score], [80, -80]);
 }
 
 {

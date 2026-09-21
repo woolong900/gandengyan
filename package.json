@@ -12,13 +12,15 @@
     "apk:install": "node tools/build-install-apk.js",
     "apk:source": "node tools/build-cocos-source-apk.js",
     "ipa:build": "node tools/build-ios-ipa.js",
-    "test": "node tools/test-bot-settings.js && node tools/test-draw-plan.js && node tools/test-number-allocation.js && node tools/test-cards.js && node tools/test-clubs.js && node tools/test-club-pregame-exit.js && node tools/test-club-access.js && node tools/test-finished-room.js && node tools/test-store.js && node tools/test-http.js && node tools/test-admin.js && node tools/test-messages.js && node tools/test-wechat.js && node tools/test-guest-login.js && node tools/test-identity.js && node tools/test-playback.js && node tools/test-records.js && node tools/test-watch.js && node tools/test-net.js && node tools/test-trustee.js && node tools/test-round.js && node tools/rulestest.js"
+    "hot-update:publish": "node tools/publish-hot-update.js",
+    "test": "node tools/test-client-release.js && node tools/test-bot-settings.js && node tools/test-draw-plan.js && node tools/test-number-allocation.js && node tools/test-cards.js && node tools/test-clubs.js && node tools/test-club-pregame-exit.js && node tools/test-club-access.js && node tools/test-finished-room.js && node tools/test-store.js && node tools/test-agent-applications.js && node tools/test-hot-update.js && node tools/test-legal.js && node tools/test-client-room-options.js && node tools/test-http.js && node tools/test-admin.js && node tools/test-ip-geo.js && node tools/test-messages.js && node tools/test-wechat.js && node tools/test-account-merge.js && node tools/test-guest-login.js && node tools/test-identity.js && node tools/test-playback.js && node tools/test-records.js && node tools/test-watch.js && node tools/test-net.js && node tools/test-trustee.js && node tools/test-round.js && node tools/test-qjshz.js && node tools/rulestest.js"
   },
   "devDependencies": {
     "rollup": "^4.0.0"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
+    "ip2region": "^2.3.0",
     "protobufjs": "^8.8.0",
     "ws": "^8.21.3"
   }

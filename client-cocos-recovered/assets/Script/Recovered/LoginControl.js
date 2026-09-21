@@ -40,11 +40,12 @@ return t;
 t.prototype.onLoad = function() {
 c.default.cleanLocalCache();
 cc.audioEngine.uncacheAll();
-var e = this, t = this.node.getChildByName("login_bg"), o = t && t.getChildByName("IBSA");
+var e = this, t = this.node.getChildByName("login_bg"), o = t && t.getChildByName("IBSA"), n = t && t.getChildByName("DescBg");
 o && (o.active = !1);
+n && (n.height = 50, n.y = -335);
 if (cc.sys.isNative) {
-var n = jsb.fileUtils.fullPathForFilename("branding/login-logo.png");
-cc.loader.load({ url: n, type: "png" }, function(t, o) {
+var r = jsb.fileUtils.fullPathForFilename("branding/login-logo.png");
+cc.loader.load({ url: r, type: "png" }, function(t, o) {
 t ? u.default.setImg("Hall/Res/Texture/Login/login_logo", e.logo) : e.logo && e.logo.isValid && (e.logo.spriteFrame = new cc.SpriteFrame(o));
 });
 } else u.default.setImg("Hall/Res/Texture/Login/login_logo", this.logo);

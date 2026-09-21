@@ -7,37 +7,52 @@ const { Table } = require('./table');
 const rules = require('./rules');
 const { ClubStore, MASTER, ADMIN, PLAYER, MAX_CLUB_CARDS } = require('./clubs');
 const {
-  num, maxStep, roomInfo, versionBody, configBody, emptyPlayer, INVITE_GIVE, INVITE_AMBIGUOUS, mintInviteCode,
+  num, maxStep, roomInfo, versionBody, configBody, emptyPlayer, NEW_PLAYER_CARDS,
+  INVITE_GIVE, INVITE_AMBIGUOUS, mintInviteCode,
 } = require('./shared');
-const { buildRecord, listFor, keepLatest } = require('./records');
+const { buildRecord, listFor, toListItem, keepLatest, DAY_SEC } = require('./records');
 const { findPlayback, mintPlaybackId } = require('./playback');
 const { identityDigest, maskIdCard, validateIdentity } = require('./identity');
-const { assignAvatarIfMissing } = require('./avatars');
+const { avatarUrls, assignAvatarIfMissing } = require('./avatars');
+const { mintGuestNickname } = require('./nicknames');
 
 const FIRST_PLAYER_UID = 285633;
 const ROOM_ID_MIN = 100000;
 const ROOM_ID_MAX = 1000000;
 const BOT_UID_MIN = 800000000;
 const BOT_UID_MAX = 900000000;
+/** 陪玩机器人只为指定运营账号创建的房间补位。 */
+const BOT_ROOM_OWNER_UID = 285636;
 // 右上角消息的 id 是 uint32。高位段用于把待审核入会申请映射成动态消息，
 // 审核后即自动消失，也不会污染运营通知存档。
 const CLUB_APPLICATION_MESSAGE_ID_BASE = 4000000000;
 const UINT32_MAX = 4294967295;
+const defaultInvitePageText = (bonus) => `绑定推荐人邀请码，可获得${bonus}张房卡！`;
 
 class GameApp {
-  constructor({ persist, now, onRecord, allowUnregisteredTokens = false, identityHashKey } = {}) {
+  constructor({ persist, now, onRecord, onAgentApplication, onAccountMigration,
+    allowUnregisteredTokens = false, identityHashKey } = {}) {
     this.persistFn = persist || (() => {});
     this.onRecord = onRecord || (() => {});
+    this.onAgentApplication = onAgentApplication || (() => { throw new Error('合伙人申请存储未配置'); });
+    this.onAccountMigration = onAccountMigration || (() => {});
     this.nowFn = now || Date.now;
     this.allowUnregisteredTokens = !!allowUnregisteredTokens;
     this.identityHashKey = String(identityHashKey || process.env.QJQP_ID_HASH_KEY || '');
     this.players = new Map();
     this.playersByUid = new Map();
+    this.playersByTokenAlias = new Map();
     this.playersByInviteCode = new Map();
     this.playersByIdentityHash = new Map();
     this.playersByGuestDeviceHash = new Map();
+    this.wechatMigrationTickets = new Map();
     this.tables = new Map();
-    this.economySettings = { clubJoinBonus: 200, inviteBindBonus: INVITE_GIVE };
+    this.economySettings = {
+      newPlayerCards: NEW_PLAYER_CARDS,
+      clubJoinBonus: 200,
+      inviteBindBonus: INVITE_GIVE,
+      invitePageText: defaultInvitePageText(INVITE_GIVE),
+    };
     this.botSettings = { enabled: process.env.QJQP_FILLBOTS !== '0' };
     this.clubStore = new ClubStore({ now: () => this.now(), memberBonus: () => this.economySettings.clubJoinBonus });
     this.nextUid = FIRST_PLAYER_UID;
@@ -62,6 +77,62 @@ class GameApp {
 
   playerByUid(uid) {
     return this.playersByUid.get(Number(uid)) || null;
+  }
+
+  playerForToken(token) {
+    return this.players.get(String(token || '')) || this.playersByTokenAlias.get(String(token || '')) || null;
+  }
+
+  tokenForPlayer(player) {
+    for (const [token, item] of this.players.entries()) if (item === player) return token;
+    return '';
+  }
+
+  loginError(message, code) {
+    const error = new Error(message);
+    error.code = code;
+    return error;
+  }
+
+  pruneWechatMigrationTickets() {
+    const now = this.now();
+    for (const [ticket, entry] of this.wechatMigrationTickets.entries()) {
+      if (!entry || entry.expiresAt <= now) this.wechatMigrationTickets.delete(ticket);
+    }
+    while (this.wechatMigrationTickets.size > 1000) {
+      this.wechatMigrationTickets.delete(this.wechatMigrationTickets.keys().next().value);
+    }
+  }
+
+  issueWechatMigrationTicket(token, appId) {
+    const targetAppId = String(appId || '').trim();
+    const player = this.playerForToken(token);
+    if (!player || player.bot) throw this.loginError('原账号登录凭证已失效', 65);
+    if (player.disabled) throw this.loginError('账号已停用，请联系管理员', 66);
+    const knownWechat = player.wechatOpenid || (player.wechatOpenids || []).length
+      || (player.wechatIdentities || []).length;
+    if (!knownWechat) throw this.loginError('原账号不是微信账号，不能自动迁移', 67);
+    if (!/^wx[0-9A-Za-z]{16}$/.test(targetAppId)) throw this.loginError('新微信 AppID 无效', 4);
+    this.pruneWechatMigrationTickets();
+    const ticket = `wm_${crypto.randomBytes(32).toString('base64url')}`;
+    this.wechatMigrationTickets.set(ticket, {
+      uid: player.uid, appId: targetAppId, expiresAt: this.now() + 10 * 60 * 1000,
+    });
+    return { ticket, expiresIn: 600 };
+  }
+
+  consumeWechatMigrationTicket(ticket, appId) {
+    this.pruneWechatMigrationTickets();
+    const key = String(ticket || '');
+    const entry = this.wechatMigrationTickets.get(key);
+    // 迁移凭证是一次性的：校验失败也立即销毁，防止重放。
+    if (entry) this.wechatMigrationTickets.delete(key);
+    if (!entry || entry.expiresAt <= this.now() || entry.appId !== String(appId || '')) {
+      throw this.loginError('账号迁移凭证已失效，请重试', 68);
+    }
+    const player = this.playerByUid(entry.uid);
+    if (!player || player.bot || player.disabled) throw this.loginError('原账号已无法迁移', 68);
+    return player;
   }
 
   mintPlayerUid() {
@@ -148,6 +219,39 @@ class GameApp {
     )).map((conn) => conn.player.uid));
     for (const recipientUid of recipients) this.notifyInbox(recipientUid);
     return { message };
+  }
+
+  submitAgentApplication(player, input) {
+    const raw = String(input || '').trim();
+    if (!raw || raw.length > 32 || /[\r\n\u0000-\u001f\u007f]/.test(raw)) {
+      return { error: '请输入正确的手机号或微信号' };
+    }
+    let contact = raw;
+    let contactType = '微信号';
+    let phone = raw.replace(/[\s-]/g, '');
+    if (phone.startsWith('+86')) phone = phone.slice(3);
+    else if (phone.startsWith('86') && phone.length === 13) phone = phone.slice(2);
+    if (/^1[3-9]\d{9}$/.test(phone)) {
+      contact = phone;
+      contactType = '手机号';
+    } else if (/^[+\d\s-]+$/.test(raw) || raw.length < 2
+      || !/^[\p{L}\p{N}_.-]+$/u.test(raw)) {
+      return { error: '请输入正确的手机号或微信号' };
+    }
+    try {
+      const application = this.onAgentApplication({
+        uid: player.uid,
+        nickname: player.nickname || `玩家${player.uid}`,
+        contact,
+        contactType,
+        createdAt: this.now(),
+      });
+      console.log(`  108 合伙人申请 uid=${player.uid} 类型=${contactType} id=${application.id}`);
+      return { application };
+    } catch (error) {
+      console.error(`保存合伙人申请失败 uid=${player.uid}`, error);
+      return { error: '提交失败，请稍后重试' };
+    }
   }
 
   markOperatorMessageRead(player, id) {
@@ -292,6 +396,7 @@ class GameApp {
 
   ensureInviteCode(player) {
     if (!player || player.bot) return '';
+    for (const alias of player.inviteCodeAliases || []) this.playersByInviteCode.set(alias, player);
     if (player.inviteCode && !INVITE_AMBIGUOUS.test(player.inviteCode)) {
       this.playersByInviteCode.set(player.inviteCode, player);
       return player.inviteCode;
@@ -324,7 +429,9 @@ class GameApp {
     const raw = String(code || '').trim().toUpperCase();
     if (!raw) return { error: 1, what: '请输入邀请码' };
     if (!/^[A-Z]{5}$/.test(raw)) return { error: 1, what: '邀请码无效' };
-    if (raw === player.inviteCode) return { error: 1, what: '不能绑定自己的邀请码' };
+    if (raw === player.inviteCode || (player.inviteCodeAliases || []).includes(raw)) {
+      return { error: 1, what: '不能绑定自己的邀请码' };
+    }
     const inviter = this.playerByInviteCode(raw);
     if (!inviter || inviter.bot) return { error: 1, what: '邀请码不存在' };
     const bonus = this.economySettings.inviteBindBonus;
@@ -370,14 +477,19 @@ class GameApp {
     return { error: 0, what: '' };
   }
 
-  loginWechat(profile) {
+  loginWechat(profile, { appId = '', migrationTicket = '' } = {}) {
     const openid = String(profile && profile.openid || '');
     const unionid = String(profile && profile.unionid || '');
+    const sourceAppId = String(appId || '').trim();
     if (!openid) throw new Error('微信身份缺少 openid');
     let match = null;
     for (const entry of this.players.entries()) {
       const player = entry[1];
-      if ((unionid && player.wechatUnionid === unionid) || player.wechatOpenid === openid) {
+      const unionids = new Set([player.wechatUnionid, ...(player.wechatUnionids || [])].filter(Boolean));
+      const openids = new Set([player.wechatOpenid, ...(player.wechatOpenids || [])].filter(Boolean));
+      const exactIdentity = (player.wechatIdentities || [])
+        .some((identity) => identity.appId === sourceAppId && identity.openid === openid);
+      if (exactIdentity || (unionid && unionids.has(unionid)) || openids.has(openid)) {
         match = entry;
         break;
       }
@@ -385,17 +497,39 @@ class GameApp {
 
     let token;
     let player;
-    if (match) {
+    let migrated = false;
+    const migrationPlayer = migrationTicket
+      ? this.consumeWechatMigrationTicket(migrationTicket, sourceAppId) : null;
+    if (migrationPlayer && match && match[1] !== migrationPlayer) {
+      throw this.loginError('该微信身份已绑定其他账号，请联系管理员处理', 69);
+    }
+    if (migrationPlayer) {
+      player = migrationPlayer;
+      token = this.tokenForPlayer(player);
+      if (!token) throw this.loginError('原账号已无法迁移', 68);
+      migrated = !match;
+    } else if (match) {
       [token, player] = match;
       if (player.disabled) throw new Error('账号已停用，请联系管理员');
     } else {
       token = `t_${crypto.randomBytes(24).toString('hex')}`;
-      player = emptyPlayer(this.mintPlayerUid(), { createdAt: this.now() });
+      player = emptyPlayer(this.mintPlayerUid(), {
+        createdAt: this.now(), cardNum: this.economySettings.newPlayerCards,
+      });
       this.players.set(token, player);
       this.playersByUid.set(player.uid, player);
     }
     player.wechatOpenid = openid;
     player.wechatUnionid = unionid;
+    player.wechatOpenids = [...new Set([...(player.wechatOpenids || []), openid].filter(Boolean))];
+    player.wechatUnionids = [...new Set([...(player.wechatUnionids || []), unionid].filter(Boolean))];
+    if (sourceAppId) {
+      const identities = Array.isArray(player.wechatIdentities) ? player.wechatIdentities : [];
+      const previous = identities.find((identity) => identity.appId === sourceAppId && identity.openid === openid);
+      if (previous) previous.unionid = unionid || previous.unionid || '';
+      else identities.push({ appId: sourceAppId, openid, unionid, linkedAt: this.now() });
+      player.wechatIdentities = identities;
+    }
     if (profile.nickname) player.nickname = String(profile.nickname).slice(0, 32);
     if (profile.avatarUrl) player.avatarUrl = String(profile.avatarUrl);
     else assignAvatarIfMissing(player);
@@ -403,7 +537,16 @@ class GameApp {
     player.lastLoginAt = this.now();
     this.ensureInviteCode(player);
     this.persist();
-    return { token, player };
+    if (migrated) {
+      try {
+        this.onAccountMigration({
+          uid: player.uid, appId: sourceAppId, linkedAt: this.now(),
+          openidAliasCount: player.wechatOpenids.length,
+          unionidAliasCount: player.wechatUnionids.length,
+        });
+      } catch (error) { console.error(`微信账号迁移审计失败 uid=${player.uid}`, error); }
+    }
+    return { token, player, migrated };
   }
 
   guestDeviceHash(deviceId) {
@@ -425,8 +568,9 @@ class GameApp {
     }
 
     const previousToken = String(oldToken || '');
-    if (previousToken && this.players.has(previousToken)) {
-      const player = this.players.get(previousToken);
+    const previousPlayer = this.playerForToken(previousToken);
+    if (previousToken && previousPlayer) {
+      const player = previousPlayer;
       if (player.disabled) return { error: '账号已停用，请联系管理员' };
       if (!deviceHash || !player.guestDeviceHash || player.guestDeviceHash === deviceHash) {
         player.lastLoginAt = this.now();
@@ -442,7 +586,14 @@ class GameApp {
 
     const uid = this.mintPlayerUid();
     const token = `t_${crypto.randomBytes(24).toString('hex')}`;
-    const player = emptyPlayer(uid, { guestDeviceHash: deviceHash, createdAt: this.now(), lastLoginAt: this.now() });
+    const usedNames = new Set([...this.playersByUid.values()].map((item) => item.nickname).filter(Boolean));
+    const player = emptyPlayer(uid, {
+      nickname: mintGuestNickname(usedNames),
+      guestDeviceHash: deviceHash,
+      createdAt: this.now(),
+      lastLoginAt: this.now(),
+      cardNum: this.economySettings.newPlayerCards,
+    });
     assignAvatarIfMissing(player);
     this.players.set(token, player);
     this.playersByUid.set(player.uid, player);
@@ -454,6 +605,14 @@ class GameApp {
 
   fillBotsOn() {
     return this.botSettings.enabled;
+  }
+
+  botRoomEligible(table) {
+    return !!table && Number(table.creatorUid) === BOT_ROOM_OWNER_UID;
+  }
+
+  botsAllowed(table) {
+    return this.fillBotsOn() && this.botRoomEligible(table);
   }
 
   forgetBot(uid) {
@@ -471,7 +630,7 @@ class GameApp {
     let filledRooms = 0;
     for (const table of this.tables.values()) {
       if (table.closed) continue;
-      if (!enabled) removed += table.removeBots();
+      if (!enabled || !this.botRoomEligible(table)) removed += table.removeBots();
       else {
         const before = table.members.filter((member) => member.bot).length;
         this.maybeFillBots(table);
@@ -489,14 +648,21 @@ class GameApp {
     do { uid = crypto.randomInt(BOT_UID_MIN, BOT_UID_MAX); }
     while (this.playersByUid.has(uid));
     const token = `t_bot_${uid}`;
-    const player = emptyPlayer(uid, { nickname: `陪玩${site}`, roomId, bot: true, cardNum: 0 });
+    const usedNames = new Set([...this.playersByUid.values()].map((player) => player.nickname));
+    const player = emptyPlayer(uid, {
+      nickname: mintGuestNickname(usedNames),
+      avatarUrl: avatarUrls[crypto.randomInt(avatarUrls.length)],
+      roomId,
+      bot: true,
+      cardNum: 0,
+    });
     this.players.set(token, player);
     this.playersByUid.set(player.uid, player);
     return player;
   }
 
   maybeFillBots(table) {
-    if (!this.fillBotsOn() || !table.needsBots()) return;
+    if (!this.botsAllowed(table) || !table.needsBots()) return;
     const bots = [];
     for (let site = 2; site <= table.config.人数; site++) {
       bots.push({ player: this.mintBot(site, table.roomId), site });
@@ -517,9 +683,17 @@ class GameApp {
         readMessageIds: p.readMessageIds || [],
         createdAt: Number(p.createdAt || 0),
         lastLoginAt: Number(p.lastLoginAt || 0),
+        lastIp: p.lastIp || '',
+        lastIpCity: p.lastIpCity || '',
+        lastIpAt: Number(p.lastIpAt || 0),
+        lastIpLocatedAt: Number(p.lastIpLocatedAt || 0),
         disabled: !!p.disabled,
         wechatOpenid: p.wechatOpenid || '',
         wechatUnionid: p.wechatUnionid || '',
+        wechatOpenids: p.wechatOpenids || [],
+        wechatUnionids: p.wechatUnionids || [],
+        wechatIdentities: p.wechatIdentities || [],
+        tokenAliases: p.tokenAliases || [],
         identityVerified: !!p.identityVerified,
         identityNameInitial: p.identityNameInitial || '',
         identityNameHash: p.identityNameHash || '',
@@ -531,6 +705,7 @@ class GameApp {
         cardNum: p.cardNum,
         roomId: p.roomId || 0,
         inviteCode: p.inviteCode || '',
+        inviteCodeAliases: p.inviteCodeAliases || [],
         invitedBy: p.invitedBy || '',
         bot: !!p.bot,
       })),
@@ -550,9 +725,11 @@ class GameApp {
     if (!data) return;
     this.players.clear();
     this.playersByUid.clear();
+    this.playersByTokenAlias.clear();
     this.playersByInviteCode.clear();
     this.playersByIdentityHash.clear();
     this.playersByGuestDeviceHash.clear();
+    this.wechatMigrationTickets.clear();
     this.nextUid = Math.max(FIRST_PLAYER_UID, Number(data.nextUid) || 0);
     this.nextRoomId = data.nextRoomId || 100000;
     this.records = Array.isArray(data.records) ? data.records : [];
@@ -572,11 +749,17 @@ class GameApp {
       serviceQQ: String(notices.serviceQQ || ''),
     };
     const economy = data.economySettings && typeof data.economySettings === 'object' ? data.economySettings : {};
+    const inviteBindBonus = Number.isSafeInteger(economy.inviteBindBonus) && economy.inviteBindBonus >= 0
+      ? economy.inviteBindBonus : INVITE_GIVE;
+    const configuredInvitePageText = typeof economy.invitePageText === 'string'
+      ? economy.invitePageText.trim().slice(0, 100) : '';
     this.economySettings = {
+      newPlayerCards: Number.isSafeInteger(economy.newPlayerCards) && economy.newPlayerCards >= 0
+        ? economy.newPlayerCards : NEW_PLAYER_CARDS,
       clubJoinBonus: Number.isSafeInteger(economy.clubJoinBonus) && economy.clubJoinBonus >= 0
         ? economy.clubJoinBonus : 200,
-      inviteBindBonus: Number.isSafeInteger(economy.inviteBindBonus) && economy.inviteBindBonus >= 0
-        ? economy.inviteBindBonus : INVITE_GIVE,
+      inviteBindBonus,
+      invitePageText: configuredInvitePageText || defaultInvitePageText(inviteBindBonus),
     };
     const botSettings = data.botSettings && typeof data.botSettings === 'object' ? data.botSettings : {};
     this.botSettings = { enabled: typeof botSettings.enabled === 'boolean'
@@ -585,13 +768,37 @@ class GameApp {
     this.clubStore.restore(data.clubs);
     const byUid = new Map();
     let missingAvatars = 0;
+    let migratedBotIdentities = 0;
+    const usedNicknames = new Set((data.players || [])
+      .filter((player) => !player.bot && player.nickname).map((player) => String(player.nickname)));
     for (const p of data.players || []) {
       const player = emptyPlayer(p.uid, p);
-      if (assignAvatarIfMissing(player)) missingAvatars++;
+      if (player.bot) {
+        let changed = false;
+        if (!String(player.nickname || '').trim() || /^(陪玩|机器人|玩家)\d+$/.test(player.nickname)) {
+          player.nickname = mintGuestNickname(usedNicknames);
+          changed = true;
+        }
+        usedNicknames.add(player.nickname);
+        if (!avatarUrls.includes(String(player.avatarUrl || ''))) {
+          player.avatarUrl = avatarUrls[crypto.randomInt(avatarUrls.length)];
+          changed = true;
+        }
+        if (changed) migratedBotIdentities++;
+      } else {
+        if (assignAvatarIfMissing(player)) missingAvatars++;
+        usedNicknames.add(player.nickname);
+      }
       this.players.set(p.token, player);
       this.playersByUid.set(player.uid, player);
+      for (const alias of player.tokenAliases || []) {
+        if (alias !== p.token && !this.players.has(alias)) this.playersByTokenAlias.set(alias, player);
+      }
       if (!player.bot && player.uid >= this.nextUid) this.nextUid = player.uid + 1;
       if (player.inviteCode && !player.bot) this.playersByInviteCode.set(player.inviteCode, player);
+      if (!player.bot) {
+        for (const alias of player.inviteCodeAliases || []) this.playersByInviteCode.set(alias, player);
+      }
       if (player.identityIdHash && !player.bot) this.playersByIdentityHash.set(player.identityIdHash, player);
       if (player.guestDeviceHash && !player.bot && !this.playersByGuestDeviceHash.has(player.guestDeviceHash)) {
         this.playersByGuestDeviceHash.set(player.guestDeviceHash, p.token);
@@ -605,10 +812,16 @@ class GameApp {
       this.tables.set(table.roomId, table);
       for (const m of table.members) this.uidRoom.set(m.player.uid, table.roomId);
     }
+    let removedBotsByPolicy = 0;
     for (const table of [...this.tables.values()]) {
       // 重启后真人均为离线；已完成的牌局无需继续占着房号。
       if (!table.round && table.step >= maxStep(table)) table.dissolve();
-      else table.rearmTimers();
+      else {
+        // 兼容旧存档：旧版本可能已经向其他房主的等待房补了机器人。
+        // 等待房在恢复时立即清理；正在打牌的房间由小局结束回调再清理。
+        if (!this.botsAllowed(table)) removedBotsByPolicy += table.removeBots();
+        table.rearmTimers();
+      }
     }
     let staleLinks = 0;
     for (const player of this.playersByUid.values()) {
@@ -617,8 +830,9 @@ class GameApp {
         staleLinks += 1;
       }
     }
-    if (staleLinks || missingAvatars) this.persist();
+    if (staleLinks || missingAvatars || migratedBotIdentities || removedBotsByPolicy) this.persist();
     if (missingAvatars) console.log(`已为 ${missingAvatars} 位无头像玩家分配默认头像`);
+    if (migratedBotIdentities) console.log(`已为 ${migratedBotIdentities} 位机器人随机分配昵称与头像`);
   }
 
   tableHost(roomId) {
@@ -651,7 +865,9 @@ class GameApp {
         if (rid) app.uidRoom.set(uid, rid);
         else app.clearRoomLink(uid);
       },
-      botsEnabled: () => app.fillBotsOn(),
+      // Table 在小局结束时会再查一次：全局开关关闭，或创建者
+      // 不符合准入条件时，机器人都只在局间退出，不破坏正在进行的牌局。
+      botsEnabled: () => app.botsAllowed(app.tables.get(roomId)),
       forgetBot: (uid) => app.forgetBot(uid),
     };
   }
@@ -755,7 +971,7 @@ class GameApp {
         param1: scheme.param1,
         param2: scheme.param2,
         host: 0,
-        config: rules.parseConfig(scheme.param1, scheme.param2),
+        config: rules.forGame(scheme.gameType).parseConfig(scheme.param1, scheme.param2),
       }, this.tableHost(roomId));
       this.tables.set(roomId, table);
       changed = true;
@@ -765,6 +981,29 @@ class GameApp {
 
   clubRecords(clubId) {
     return this.records.filter((record) => Number(record.clubId) === Number(clubId));
+  }
+
+  canViewRecord(uid, record) {
+    if (!record) return false;
+    if ((record.uids || []).some((id) => Number(id) === Number(uid))) return true;
+    const club = this.clubStore.get(record.clubId);
+    return !!club && this.clubStore.isAdmin(club, uid);
+  }
+
+  clubRecordList(clubId, msg) {
+    const day = num(msg && msg.time);
+    const start = num(msg && msg.startTime) || day;
+    const end = num(msg && msg.endTime) || (day + DAY_SEC);
+    const fromMs = start * 1000;
+    const toMs = end * 1000;
+    const query = String((msg && msg.userCode) || '').trim().toLowerCase();
+    return this.clubRecords(clubId)
+      .filter((record) => record.time >= fromMs && record.time < toMs)
+      .filter((record) => !query || (record.players || []).some((player) => (
+        String(player.uid) === query || String(player.name || '').toLowerCase().includes(query)
+      )))
+      .sort((a, b) => b.time - a.time)
+      .map(toListItem);
   }
 
   clubRecordStats(club, records) {
@@ -798,6 +1037,7 @@ class GameApp {
       const table = this.tables.get(roomId);
       if (table) table.onTimer(name);
     }, wait);
+    if (typeof id.unref === 'function') id.unref();
     this.timeouts.set(key, id);
   }
 
@@ -819,12 +1059,12 @@ class GameApp {
         return { status: 503, body: { err_code: 3, err_msg: '微信登录需要通过服务器授权接口' } };
       }
       if (accountType === 'token') {
-        if (old && this.players.has(old)) {
-          const player = this.players.get(old);
+        const player = old ? this.playerForToken(old) : null;
+        if (player) {
           if (player.disabled) return { status: 200, body: { err_code: 66, err_msg: '账号已停用，请联系管理员' } };
           player.lastLoginAt = this.now();
           this.persist();
-          return { status: 200, body: { err_code: 0, data: { token: old } } };
+          return { status: 200, body: { err_code: 0, data: { token: this.tokenForPlayer(player) || old } } };
         }
         return { status: 200, body: { err_code: 65, err_msg: '登录时效已过期,请重新登录' } };
       }
@@ -836,7 +1076,9 @@ class GameApp {
   }
 
   attach(connId, send, close) {
-    this.conns.set(connId, { send, close, player: null, roomId: 0 });
+    this.conns.set(connId, {
+      send, close, player: null, roomId: 0, superseded: false,
+    });
   }
 
   detach(connId) {
@@ -853,28 +1095,48 @@ class GameApp {
     if (!c) return;
     const { proto, msg } = unpack(Buffer.from(bytes));
 
+    // 同一账号在新连接登录后，旧 WebSocket 可能还有数秒才真正断开。
+    // 旧连接绝不能再发送退出房间、出牌等修改状态的请求。
+    if (c.superseded && proto !== 100) {
+      if (hasRes(proto)) {
+        c.send(pack(proto, { res: { error: 1, what: '账号已在其他设备登录' } }));
+      }
+      return;
+    }
+
     if (proto === 100) {
       if (!msg || !msg.token) {
         return c.send(pack(100, { res: { error: 1, what: '登录参数无效' } }));
       }
-      if (!this.players.has(msg.token)) {
+      let loginPlayer = this.playerForToken(msg.token);
+      if (!loginPlayer) {
         if (!this.allowUnregisteredTokens) {
           return c.send(pack(100, {
             res: { error: 65, what: '登录凭证无效，请重新登录' },
           }));
         }
         const uid = this.mintPlayerUid();
-        const newbie = emptyPlayer(uid);
+        const newbie = emptyPlayer(uid, { cardNum: this.economySettings.newPlayerCards });
         assignAvatarIfMissing(newbie);
         this.players.set(msg.token, newbie);
         this.playersByUid.set(newbie.uid, newbie);
         this.ensureInviteCode(newbie);
+        loginPlayer = newbie;
       }
-      c.player = this.players.get(msg.token);
+      c.player = loginPlayer;
       if (c.player.disabled) {
         c.player = null;
         return c.send(pack(100, { res: { error: 66, what: '账号已停用，请联系管理员' } }));
       }
+      // 只保留最后一条已登录连接。先标记失效，再关闭 socket，
+      // 即使底层 close 回调延迟，旧连接也无法再操作房间。
+      for (const [otherId, other] of this.conns) {
+        if (otherId === connId || !other.player
+            || Number(other.player.uid) !== Number(c.player.uid)) continue;
+        other.superseded = true;
+        if (typeof other.close === 'function') other.close(4003, '账号已在其他设备登录');
+      }
+      c.superseded = false;
       c.player.lastLoginAt = this.now();
       this.persist();
       if (assignAvatarIfMissing(c.player)) this.persist();
@@ -911,6 +1173,11 @@ class GameApp {
 
     if (proto === 102) {
       return c.send(pack(102, { res: this.bindIdentity(c.player, msg) }));
+    }
+
+    if (proto === 108) {
+      const result = this.submitAgentApplication(c.player, msg && msg.content);
+      return c.send(pack(108, { res: { error: result.error ? 1 : 0, what: result.error || '' } }));
     }
 
     if (proto === 113) {
@@ -1116,10 +1383,18 @@ class GameApp {
         return c.send(pack(proto, { res: { error: 0, what: '' }, members: stats, count: stats.length, total: stats.length, fatigueNum: 0 }));
       }
       if (proto === 146) {
-        const start = num(msg && msg.startDate) * 1000;
-        const end = num(msg && msg.endDate) * 1000 || (start + 86400000);
+        if (!this.clubStore.isAdmin(club, c.player.uid)) {
+          return c.send(pack(proto, { res: { error: 1, what: '没有管理权限' }, data: [], count: 0, total: 0 }));
+        }
+        const day = num(msg && msg.date);
+        const start = (num(msg && msg.startDate) || day) * 1000;
+        const end = (num(msg && msg.endDate) || (day + DAY_SEC)) * 1000;
         const filtered = records.filter((record) => record.time >= start && record.time < end);
-        const data = this.clubRecordStats(club, filtered);
+        const query = String((msg && msg.userCode) || '').trim().toLowerCase();
+        const data = this.clubRecordStats(club, filtered).filter((item) => !query
+          || item.code === query || item.nickname.toLowerCase().includes(query)
+          || item.remark.toLowerCase().includes(query));
+        console.log(`  146 俱乐部战绩统计 uid=${c.player.uid} clubId=${club.id} date=${day} records=${filtered.length} members=${data.length}`);
         return c.send(pack(proto, { res: { error: 0, what: '' }, data, count: data.length, total: data.length }));
       }
       if (proto === 166) {
@@ -1147,7 +1422,7 @@ class GameApp {
         res: { error: 0, what: '' },
         username: mine,
         inviteCode: c.player.invitedBy || '',
-        mobile: '',
+        mobile: this.economySettings.invitePageText || defaultInvitePageText(this.economySettings.inviteBindBonus),
         giveCard: this.economySettings.inviteBindBonus,
       }));
     }
@@ -1172,7 +1447,20 @@ class GameApp {
     if (proto === 125) {
       const type = num(msg && msg.type);
       if (type === 1) {
-        return c.send(pack(125, { res: { error: 0, what: '' }, records: [] }));
+        const club = this.clubStore.get(num(msg && msg.clubId));
+        if (!club || !this.clubStore.isAdmin(club, c.player.uid)) {
+          console.log(`  125 俱乐部战绩拒绝 uid=${c.player.uid} clubId=${num(msg && msg.clubId)}`);
+          return c.send(pack(125, { res: { error: 1, what: '没有管理权限' }, records: [] }));
+        }
+        const records = this.clubRecordList(club.id, msg).map((record) => ({
+          ...record,
+          players: (record.players || []).map((entry) => ({
+            ...entry,
+            avatarUrl: (this.playerByUid(entry.uid) || {}).avatarUrl || entry.avatarUrl || '',
+          })),
+        }));
+        console.log(`  125 俱乐部战绩 uid=${c.player.uid} clubId=${club.id} date=${num(msg && msg.time)} count=${records.length}`);
+        return c.send(pack(125, { res: { error: 0, what: '' }, records }));
       }
       const records = listFor(this.records, c.player.uid, num(msg && msg.time)).map((record) => ({
         ...record,
@@ -1187,7 +1475,7 @@ class GameApp {
     if (proto === 126) {
       const id = String((msg && msg.id) || '');
       const rec = this.records.find((r) => r.id === id);
-      if (!rec || !(rec.uids || []).some((id) => Number(id) === Number(c.player.uid))) {
+      if (!this.canViewRecord(c.player.uid, rec)) {
         return c.send(pack(126, { res: { error: 1, what: '战绩不存在' }, details: [] }));
       }
       return c.send(pack(126, {
@@ -1199,7 +1487,11 @@ class GameApp {
 
     if (proto === 127) {
       const id = String((msg && msg.id) || '');
-      const pb = findPlayback(this.records, id, c.player.uid);
+      const record = this.records.find((item) => (
+        (item.playbacks && item.playbacks[id])
+        || (item.details || []).some((detail) => detail.id === id && detail.playback)
+      ));
+      const pb = this.canViewRecord(c.player.uid, record) ? findPlayback([record], id) : null;
       if (!pb) {
         return c.send(pack(127, { res: { error: 1, what: '回放不存在' } }));
       }
@@ -1310,6 +1602,13 @@ class GameApp {
       if (!club || !this.clubStore.isAdmin(club, c.player.uid)) {
         return c.send(pack(proto, { res: { error: 1, what: '没有管理权限' } }));
       }
+      if (proto === 149 || proto === 150) {
+        const invalid = rules.validateRoomConfig({
+          gameType: num(msg.gameType), num: num(msg.num),
+          param1: num(msg.param1), param2: num(msg.param2),
+        });
+        if (invalid) return c.send(pack(proto, { res: { error: 1, what: invalid } }));
+      }
       if (proto === 149) {
         club.schemes.push({
           id: this.clubStore.nextOpId++, name: String(msg.name || ''), gameType: num(msg.gameType), num: num(msg.num),
@@ -1323,10 +1622,11 @@ class GameApp {
             if (table.closed || table.clubId !== club.id || Number(table.schemeId) !== Number(scheme.id)
               || table.members.length || table.round || table.step) continue;
             table.gameType = scheme.gameType;
+            table.gameRules = rules.forGame(scheme.gameType);
             table.num = scheme.num;
             table.param1 = scheme.param1;
             table.param2 = scheme.param2;
-            table.config = rules.parseConfig(scheme.param1, scheme.param2);
+            table.config = table.gameRules.parseConfig(scheme.param1, scheme.param2);
           }
           if (scheme.auto) this.ensureClubSchemeTables(club);
         }
@@ -1373,6 +1673,15 @@ class GameApp {
     if (proto === 201) {
       const existingRoomId = this.activeRoomForRequest(c);
       if (existingRoomId) {
+        const existingTable = this.tables.get(existingRoomId);
+        // 建房成功后客户端如果在切牌桌时异常，重试创建应恢复原房间，不能把账号卡死。
+        // 只复用本人创建且尚未开局的手动房，避免误入别人的房间或进行中的牌局。
+        if (existingTable && Number(existingTable.gameType) === 17
+          && !existingTable.closed && !existingTable.clubId
+          && !existingTable.round && existingTable.step === 0
+          && Number(existingTable.hostUid) === Number(c.player.uid)) {
+          return c.send(pack(201, { res: { error: 0, what: '' }, roomId: existingRoomId }));
+        }
         return c.send(pack(201, { res: { error: 1, what: '已经在房间里' } }));
       }
       const gameType = num(msg && msg.gameType);
@@ -1383,11 +1692,12 @@ class GameApp {
         gameType, num: roomNum, param1, param2,
       });
       if (invalid) return c.send(pack(201, { res: { error: 1, what: invalid } }));
-      const config = rules.parseConfig(param1, param2);
+      const gameRules = rules.forGame(gameType);
+      const config = gameRules.parseConfig(param1, param2);
       const clubId = num(msg && msg.clubId);
       const clubError = this.clubRoomError(clubId, c.player.uid);
       if (clubError) return c.send(pack(201, { res: { error: 1, what: clubError } }));
-      const cost = rules.roomCardCost({ num: roomNum, 人数: config.人数, 房费: config.房费 });
+      const cost = gameRules.roomCardCost({ num: roomNum, 人数: config.人数, 房费: config.房费 });
       if (clubId && this.clubCardBalance(clubId) < (cost.host || cost.each * config.人数)) {
         return c.send(pack(201, { res: { error: 1, what: '俱乐部房卡不足' } }));
       }
@@ -1433,7 +1743,7 @@ class GameApp {
       const clubError = this.clubRoomError(table.clubId, c.player.uid);
       if (clubError) return c.send(pack(202, { res: { error: 1, what: clubError } }));
       const seated = table.members.find((m) => m.player.uid === c.player.uid);
-      const cost = rules.roomCardCost({
+      const cost = table.gameRules.roomCardCost({
         num: table.num,
         人数: table.config.人数,
         房费: table.config.房费,
@@ -1451,7 +1761,9 @@ class GameApp {
         if (club && this.ensureClubSchemeTables(club)) this.persist();
       }
       c.roomId = roomId;
-      const payload = JSON.stringify({ room: roomInfo(table), game: joined.game || {} });
+      // 陪玩是在 join 之后补齐的；等待态快照要在这里重建，保证 room.person 与 game.players 一致。
+      const game = table.round || table.lastEnd ? joined.game : table.waitingGameSnapshot();
+      const payload = JSON.stringify({ room: roomInfo(table), game: game || {} });
       c.send(pack(202, {
         res: { error: 0, what: '' },
         json: JSON.stringify({ msgdata: payload }),
@@ -1488,6 +1800,13 @@ class GameApp {
       }
       if (!table || table.closed) {
         return c.send(pack(200, { res: { error: 1, what: '不在房间里' } }));
+      }
+      const activeMember = table.members.find((member) => (
+        Number(member.player.uid) === Number(c.player.uid)
+      ));
+      if (!activeMember || activeMember.connId !== connId) {
+        console.log(`    ! ${msghead} 被拒：旧连接 uid=${c.player.uid} conn=${connId}`);
+        return c.send(pack(200, { res: { error: 1, what: '连接已失效，请重新进入房间' } }));
       }
       const ret = table.handle200(c.player.uid, msghead, body);
       if (ret.error) {

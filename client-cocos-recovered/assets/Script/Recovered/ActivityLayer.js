@@ -44,6 +44,7 @@ var e = this.activityRoot.getChildByName("Btn4");
 e && e.removeFromParent();
 var t = this.content.getChildByName("page_5");
 t && (t.active = !1);
+this.input && (this.input.inputMode = cc.EditBox.InputMode.SINGLE_LINE, this.input.maxLength = 32);
 };
 t.prototype.start = function() {
 if (u.default.isReivew) {
@@ -70,7 +71,7 @@ var o = {
 content: t
 };
 c.default.applyAgent(o, function(t, o) {
-if (!o) {
+if (o) a.default.uiHelper.showTip("网络请求失败，请稍后重试～"); else if (t.res.error) a.default.uiHelper.showTip(t.res.what); else {
 e.input.string = "";
 a.default.uiHelper.showTip("发送成功！");
 }

@@ -20,6 +20,12 @@ const packCs = (proto, msg) => {
   payload.copy(out, 12);
   return out;
 };
+const pushMessages = (frames) => frames.filter((frame) => frame.readUInt32BE(0) === 999)
+  .map((frame) => JSON.parse(protocol[999].sc.decode(frame.subarray(12, frame.readUInt32BE(8))).json))
+  .map((envelope) => ({
+    head: envelope.msghead,
+    data: envelope.msgdata ? JSON.parse(envelope.msgdata) : {},
+  }));
 
 const apps = [];
 const fixture = (clubRoom = true) => {
@@ -77,17 +83,64 @@ try {
     deniedJoin(f, f.outsider, '不是俱乐部成员'); // 满座、可观战也不能绕过权限
     const mine = f.table.members.find((m) => m.player.uid === f.member.player.uid);
     const site = mine.site;
+    mine.ready = true;
     f.app.detach(f.member.connId);
     const reconnected = f.login(f.member.token);
-    t('正常会员断线后可重连', Number(f.call(reconnected, 202, { roomId: f.roomId }).res.error), 0);
+    const rejoinResponse = f.call(reconnected, 202, { roomId: f.roomId });
+    t('正常会员断线后可重连', Number(rejoinResponse.res.error), 0);
     t('重连保留原座位', mine.site, site);
     t('重连不新增座位', f.table.seats().length, 2);
     t('重连绑定新连接', mine.connId, reconnected.connId);
+    const rejoinPayload = JSON.parse(JSON.parse(rejoinResponse.json).msgdata);
+    const mySnapshot = rejoinPayload.room.person.find((person) => Number(person.uid) === f.member.player.uid);
+    t('重连快照携带已准备状态', mySnapshot.ready, true);
+    const readyReplay = pushMessages(reconnected.sent)
+      .find((message) => message.head === 'game_ready'
+        && Number(message.data.uid) === f.member.player.uid);
+    t('重连向旧客户端补发准备状态', !!readyReplay, true);
+    t('重连补发原座位', Number(readyReplay.data.site), site);
+
+    // 新连接接管座位后，同账号的旧 socket 即使延迟断开，
+    // 也不能再用 dissmissroom 把新连接的玩家退出房间。
+    const latest = f.login(f.member.token);
+    t('同账号新连接可接管房间', Number(f.call(latest, 202, { roomId: f.roomId }).res.error), 0);
+    reconnected.sent.length = 0;
+    f.app.onMessage(reconnected.connId, packCs(200, {
+      json: JSON.stringify({ msghead: 'dissmissroom', msgdata: '{}' }),
+    }));
+    const staleResponseFrame = reconnected.sent.findLast((frame) => frame.readUInt32BE(0) === 200);
+    const staleResponse = protocol[200].sc.decode(staleResponseFrame.subarray(12,
+      staleResponseFrame.readUInt32BE(8)));
+    t('旧连接退出请求被拒绝', Number(staleResponse.res.error), 1);
+    t('旧连接不会移除座位', f.table.members.includes(mine), true);
 
     const { application } = f.app.clubStore.apply(f.outsider.player.uid, f.club.code);
     f.app.clubStore.approve(f.host.player.uid, application.id);
     t('获准加入俱乐部后可观战', Number(f.call(f.outsider, 202, { roomId: f.roomId }).res.error), 0);
     t('观战保持满桌两席', [f.table.seats().length, f.table.watchers().length], [2, 1]);
+  }
+  {
+    const f = fixture();
+    t('行牌重连测试成员入座', Number(f.call(f.member, 202, { roomId: f.roomId }).res.error), 0);
+    const ready = (client, site) => f.call(client, 200, {
+      json: JSON.stringify({ msghead: 'gameready', msgdata: JSON.stringify({ site }) }),
+    });
+    t('房主准备成功', Number(ready(f.host, 1).res.error), 0);
+    t('成员准备后开局', Number(ready(f.member, 2).res.error), 0);
+    t('已进入行牌状态', !!f.table.round, true);
+    t('开局后服务端清除准备标记', f.table.seats().every((member) => !member.ready), true);
+
+    f.host.sent.length = 0;
+    f.app.detach(f.member.connId);
+    const reconnected = f.login(f.member.token);
+    const response = f.call(reconnected, 202, { roomId: f.roomId });
+    t('行牌中断线后可重连', Number(response.res.error), 0);
+    const payload = JSON.parse(JSON.parse(response.json).msgdata);
+    t('行牌重连快照不带准备手势', payload.room.person.every((person) => !person.ready), true);
+    t('行牌重连不补发准备消息', pushMessages(reconnected.sent)
+      .some((message) => message.head === 'game_ready'), false);
+    const roomPush = pushMessages(f.host.sent).filter((message) => message.head === 'roominfo').pop();
+    t('重连广播不让其他玩家显示手势', roomPush.data.person.every((person) => !person.ready), true);
   }
   {
     const f = fixture();

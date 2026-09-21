@@ -65,15 +65,9 @@ const applyIosSyncPatches = (input) => {
     source,
     '客户端显示版本',
     'assertVer: 108,\npackageVer: "1.0.2",',
-    'assertVer: 234,\npackageVer: "1.0.5",',
+    'assertVer: 235,\npackageVer: "1.0.6",',
   );
 
-  source = replaceOnce(
-    source,
-    '隐藏潜江癞晃玩法',
-    u2b('desc: "潜江癞晃",\nreject: [ 1, 2 ]'),
-    u2b('desc: "潜江癞晃",\nreject: [ 1, 2 ],\nisHide: !0'),
-  );
   source = replaceOnce(
     source,
     '土豪必杠玩法改名干瞪眼',
@@ -82,15 +76,21 @@ const applyIosSyncPatches = (input) => {
   );
   source = replaceOnce(
     source,
-    '玩法只保留干瞪眼',
+    '玩法开放潜江癞晃和干瞪眼',
     u2b('desc: "玩法",\nweight: 1,\nlineCount: 3,\ndefCheck: [ 1 ],\ndetailIds: [ 1, 2 ]'),
-    u2b('desc: "玩法",\nweight: 1,\nlineCount: 3,\ndefCheck: [ 2 ],\ndetailIds: [ 2 ]'),
+    u2b('desc: "玩法",\nweight: 1,\nlineCount: 3,\ndefCheck: [ 2 ],\ndetailIds: [ 2, 1 ]'),
   );
   source = replaceOnce(
     source,
-    '已保存的旧玩法自动迁移',
-    'this.index = e.index;\nthis._storageData = i.default.clone(e);',
-    'this.index = e.index;\nthis._storageData = i.default.clone(e);\nif (this.index === l.eGameIds.QJHH && this._storageData.ids) {\nfor (var q = this._storageData.ids.length - 1; q >= 0; q--) if (1 === this._storageData.ids[q]) this._storageData.ids[q] = 2;\nthis._storageData.ids = this._storageData.ids.filter(function(e, t, o) { return o.indexOf(e) === t; });\n}',
+    '取消只许自摸时自动开启热铳',
+    '} else this._checkbox(e);\n};\ne.prototype._checkbox = function(e) {',
+    '} else {\nthis._checkbox(e);\nif (this.index === l.eGameIds.QJHH && 20 === e && !this.isChecked(20) && !this.isChecked(21)) this._checkbox(21);\n}\nif (this.index === l.eGameIds.QJHH && 2 === e) {\nfor (var q = [ 20, 21, 23 ], p = 0; p < q.length; p++) if (!this.isChecked(q[p])) this._checkbox(q[p]);\n}\n};\ne.prototype._checkbox = function(e) {',
+  );
+  source = replaceOnce(
+    source,
+    '干瞪眼默认规则',
+    'defCheck: [ 21, 23, 24 ],\ndetailIds: [ 20, 21, 23 ],',
+    'defCheck: [ 20, 21, 23, 24 ],\ndetailIds: [ 20, 21, 23 ],',
   );
   source = replaceOnce(
     source,
@@ -244,7 +244,7 @@ t.prototype._updatePos = function() {`;
     source,
     '保存自己的邀请码',
     'r.default.inviteCode = t.inviteCode || "";\nr.default.inviteCodeAward = t.giveCard || 0;',
-    'r.default.inviteCode = t.inviteCode || "";\nr.default.myInviteCode = t.username || "";\nr.default.inviteCodeAward = t.giveCard || 0;',
+    'r.default.inviteCode = t.inviteCode || "";\nr.default.myInviteCode = t.username || "";\nr.default.inviteCodeAward = t.giveCard || 0;\nr.default.inviteTipText = t.mobile || "绑定推荐人邀请码，可获得" + r.default.inviteCodeAward + "张房卡！";',
   );
   source = replaceOnce(
     source,
@@ -257,6 +257,12 @@ t.prototype._updatePos = function() {`;
     '邀请码页完整信息',
     u2b('t.prototype.start = function() {\nthis.inviteTipLabel.string = "绑定推荐人邀请码，可获得" + l.default.inviteCodeAward + "张房卡哦！";\n};'),
     u2b('t.prototype.start = function() {\nvar e = this, n = function() {\nvar o = l.default.myInviteCode || "", h = e.inactiveNode;\ne.inviteTipLabel.string = "绑定推荐人邀请码，可获得" + l.default.inviteCodeAward + "张房卡哦！";\nif (!h) return;\nvar tip = e.inviteTipLabel.node, name = h.getChildByName("LabelName"), input = h.getChildByName("InputName"), hint = h.getChildByName("LabelTip");\nif (tip) tip.y = 171;\nif (input) input.y = 1;\nif (hint) hint.y = -54;\nif (name) {\nname.setAnchorPoint(1, .5);\nname.setPosition(-128.4, -4);\n}\nvar row = h.getChildByName("MyInviteRow");\nif (!row) {\nrow = new cc.Node("MyInviteRow");\nrow.setPosition(0, 90);\nh.addChild(row);\nif (name) {\nvar title = cc.instantiate(name);\ntitle.name = "MyTitle";\ntitle.setPosition(name.x, 0);\nvar tw = title.getComponent(cc.Widget);\nif (tw) tw.destroy();\ntitle.getComponent(cc.Label).string = "我的邀请码：";\nrow.addChild(title);\n}\nvar bg = input && input.getChildByName("BACKGROUND_SPRITE");\nvar box = bg ? cc.instantiate(bg) : new cc.Node("MyCodeBox");\nbox.name = "MyCodeBox";\nvar ww = box.getComponent(cc.Widget);\nif (ww) { ww.enabled = !1; ww.destroy(); }\nbox.setContentSize(363, 56);\nbox.setPosition(input ? input.x : 63.5, 0);\nrow.addChild(box);\nvar code = new cc.Node("MyCode"), cl = code.addComponent(cc.Label);\ncl.useSystemFont = !0;\ncl.fontFamily = "sans-serif-medium";\ncl.fontSize = 30;\ncl.lineHeight = 36;\ncl.horizontalAlign = 0;\ncl.verticalAlign = 1;\ncl.spacingX = 4;\ncode.color = new cc.Color(151, 56, 26);\ncode.setAnchorPoint(0, .5);\nvar tl = input && input.getChildByName("TEXT_LABEL");\ncode.setPosition(tl ? tl.x : -173, 1);\nbox.addChild(code);\nvar src = h.getChildByName("BtnSign"), copy = src ? cc.instantiate(src) : new cc.Node("CopyInvite");\ncopy.name = "CopyInvite";\nvar bw = copy.getComponent(cc.Widget);\nif (bw) bw.destroy();\nvar bc = copy.getComponent(cc.Button);\nif (bc) bc.clickEvents = [];\nelse copy.addComponent(cc.Button);\ncopy.setScale(src ? .5 : 1, src ? .5 : 1);\ncopy.setPosition((input ? input.x : 63.5) + 254, 0);\nvar lab = copy.getChildByName("Label");\nif (lab && lab.getComponent(cc.Label)) lab.getComponent(cc.Label).string = "复 制";\nrow.addChild(copy);\ncopy.on(cc.Node.EventType.TOUCH_END, function() {\ns.default.clickBtn();\njsb.reflection.callStaticMethod("Utils", "copyText:", l.default.myInviteCode || "");\ni.default.uiHelper.showTip("复制成功！");\n});\n}\nvar show = row.getChildByName("MyCodeBox");\nshow = show && show.getChildByName("MyCode");\nif (show) show.getComponent(cc.Label).string = o;\nif (show && input) { var t2 = input.getChildByName("TEXT_LABEL"); if (t2) show.x = t2.x; }\nvar bound = l.default.inviteCode || "";\nif (bound) {\ne.inviteTipLabel.string = "已绑定推荐人邀请码";\nif (e.inviteCodeLabel) {\ne.inviteCodeLabel.useSystemFont = !0;\ne.inviteCodeLabel.fontFamily = "sans-serif-medium";\ne.inviteCodeLabel.fontSize = 30;\ne.inviteCodeLabel.string = bound;\ne.inviteCodeLabel.node.active = !0;\n}\nif (input) {\nvar eb = input.getComponent(cc.EditBox);\nif (eb) {\neb.string = bound;\neb.enabled = !1;\n}\nvar ph = input.getChildByName("PLACEHOLDER_LABEL");\nif (ph) ph.active = !1;\nvar tl = input.getChildByName("TEXT_LABEL");\nif (tl) tl.active = !0;\n}\nvar sign = h.getChildByName("BtnSign");\nif (sign) {\nvar sb = sign.getComponent(cc.Button);\nif (sb) {\nsb.interactable = !1;\nsb.clickEvents = [];\n}\nvar sl = sign.getChildByName("Label");\nif (sl && sl.getComponent(cc.Label)) sl.getComponent(cc.Label).string = "已绑定";\n}\n}\n};\nc.default.getInviteCode(function() { n(); }, !1);\n};'),
+  );
+  source = replaceOnce(
+    source,
+    '邀请码顶部文案读取后台配置',
+    u2b('e.inviteTipLabel.string = "绑定推荐人邀请码，可获得" + l.default.inviteCodeAward + "张房卡哦！";'),
+    u2b('e.inviteTipLabel.string = l.default.inviteTipText || "绑定推荐人邀请码，可获得" + l.default.inviteCodeAward + "张房卡！";'),
   );
   source = replaceOnce(
     source,

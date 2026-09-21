@@ -7,13 +7,14 @@
  * 上行（客户端 `Message/GameMsgMJ.js`）：
  *   gamestep {card}  出牌            gameguo {}   过
  *   gamepeng {}      碰              gamegang {card}  杠      gamehu {}  胡
- *   gameshowlz {}    亮癞（飘癞）     gamenotice {type:0}  报清一色
+ *   gamenotice {type:0}  报清一色
  *
  * 下行（客户端 `Message/AnalysisMsgMJ.js` 的 parse 分发表）：
  *   game_begin / game_draw / game_step / game_operator / game_touch / game_gang /
- *   game_pass / game_showrazz / game_noticeqys / game_scorechange / game_end
+ *   game_pass / game_noticeqys / game_scorechange / game_end
  */
 const mahjong = require('./mahjong');
+const mahjongBot = require('./mahjong-bot');
 const rules = require('./rules');
 const { Tape, IDX, GANG, canCardsFromSelf, canCardsFromDiscard } = require('./playback');
 
@@ -34,6 +35,7 @@ class Round {
     this.config = opts.config;
     this.peopleCount = opts.config.人数;
     this.dealerSeat = opts.dealerSeat || 0;
+    this.randomInt = opts.randomInt;
     this.over = false;
     this.gangs = [];
     this.hotSeat = -1;
@@ -73,12 +75,11 @@ class Round {
    * 这家算胡/碰杠时癞子还当不当万能。
    *
    * 土豪必杠：癞子不当万能，就当它自己那张牌（客户端 `_tingCards` 里 isChecked(2)）。
-   * 飘癞（亮癞）是把癞子亮出来、放弃万能，换胡了之后的喜钱。
    * 传一个牌堆里不存在的号过去，等于这手牌没有癞子。
    */
-  jokerFor(seat) {
+  jokerFor(_seat) {
     if (this.config.玩法 === '土豪必杠') return -1;
-    return this.razz[seat] > 0 ? -1 : this.laizi;
+    return this.laizi;
   }
 
   canHu(seat, extra) {
@@ -90,6 +91,16 @@ class Round {
       if (n > 1) return false;
     }
     return mahjong.canHu(tiles, this.jokerFor(seat), this.melds[seat].length, this.fullMelds);
+  }
+
+  /**
+   * 硬胡：癞子只能按它本身的牌值组牌，不能代替其他牌。
+   * 潜江晃晃的普通点炮、热铳和抢杠都必须硬胡；只有自摸可以用癞子代牌算软摸。
+   */
+  canHardHu(seat, extra) {
+    const tiles = this.looseTiles(seat, extra);
+    if (this.config.玩法 !== '堆癞子' && tiles.filter((t) => t === this.laizi).length > 1) return false;
+    return mahjong.canHu(tiles, -1, this.melds[seat].length, this.fullMelds);
   }
 
   /** 全部的牌，碰杠的按实际张数摊开，只用来看清一色这类整手牌的牌型 */
@@ -116,7 +127,7 @@ class Round {
    */
   huType(seat, zimo, qiangGang, from) {
     // 软摸是靠癞子万能凑成的自摸，黑摸是硬自摸。
-    // 土豪必杠 / 飘过癞的那手癞子已经不顶用了，算黑摸
+    // 土豪必杠的癞子不当万能，算黑摸
     const joker = this.jokerFor(seat);
     let type = zimo
       ? (joker >= 0 && this.looseTiles(seat).includes(joker) ? HU.软摸 : HU.黑摸)
@@ -292,6 +303,7 @@ class Round {
     this.fullMelds = this.config.少三张 ? 3 : 4;
     const d = mahjong.deal(this.peopleCount, this.n, this.dealerSeat, {
       handCount: this.config.少三张 ? 10 : 13,
+      randomInt: this.randomInt,
     });
     this.hands = d.hands;
     this.drawn = new Array(this.n).fill(null);
@@ -305,8 +317,6 @@ class Round {
     this.drawn[this.dealerSeat] = d.drawCard;
     this.pending = null;
     this.roundScore = new Array(this.n).fill(0);
-    // 亮出来的癞子张数（飘癞），胡了才拿喜钱
-    this.razz = new Array(this.n).fill(0);
     this.baoQys = new Array(this.n).fill(false);
     // 甩出去的癞子，摆在皮子/癞子杠那一溜，不算面子
     this.shuai = Array.from({ length: this.n }, () => []);
@@ -315,7 +325,7 @@ class Round {
     this.passPeng = Array.from({ length: this.n }, () => new Set());
     this.passHu = new Array(this.n).fill(false);
     this.drawPlan = null;
-    // 总结算要的统计：暗杠、明杠、自摸、点炮、接炮、飘癞有奖
+    // 总结算要的统计：暗杠、明杠、自摸、点炮、接炮、四癞有奖
     this.stat = Array.from({ length: this.n }, () => ({ ag: 0, mg: 0, zm: 0, dg: 0, jg: 0, plyj: 0 }));
 
     this.io.log(
@@ -378,10 +388,10 @@ class Round {
           // num 是这家该有几张牌；比 hand_card 多的那张客户端会补成刚摸的牌
           num: this.hands[s].length + (drawn == null ? 0 : 1),
           hu_type: 0,
-          razz_times: this.razz[s],
+          razz_times: 0,
           // 牌号 → 打出这张的人。客户端拿来给点笑/碰画箭头
           operator_record: this.operatorRecord(s),
-          bright_razz: this.razz[s] > 0,
+          bright_razz: false,
           bright_qys: this.baoQys[s],
           bright_jys: 0,
           bright_fys: 0,
@@ -551,7 +561,6 @@ class Round {
         gang: p.gang,
         touch: 0,
         chow: [],
-        show_razz: p.razz,
         bright_qys: p.qys,
       });
       return;
@@ -570,19 +579,40 @@ class Round {
     });
   }
 
+  /** 只为“干瞪眼（内部名：土豪必杠）＋只许自摸”的内置机器人启用智能策略。 */
+  smartBot(seat, policy) {
+    const member = this.seats[seat];
+    const eligible = !!(member && member.bot
+      && this.config.玩法 === '土豪必杠'
+      && this.config.只许自摸);
+    if (!eligible || policy === 'legacy') return false;
+    return policy === 'smart' || policy === 'smart-eager' || policy == null;
+  }
+
   /**
-   * 托管代打。能胡就胡，能杠就杠，剩下的过；轮到出牌就摸什么打什么（癞子留着）。
+   * 托管代打。真人托管和其他玩法保持旧逻辑；目标干瞪眼机器人使用牌效策略。
+   * policy 只供离线 A/B 基准显式指定 smart / legacy。
    */
-  autoPlay(seat) {
+  autoPlay(seat, policy) {
     if (this.over) return;
+    const smart = this.smartBot(seat, policy);
+    const botOptions = { shuaiMode: policy === 'smart-eager' ? 'eager' : 'dynamic' };
     const p = this.pending;
     if (p && p.kind === 'self' && p.seat === seat) {
+      if (smart) {
+        const action = mahjongBot.chooseSelfAction(this, seat, p, botOptions);
+        return this.respond(seat, action.op, action.data || {});
+      }
       if (p.hu) return this.respond(seat, 'hu');
       if (p.gang && p.gang.length > 0) return this.respond(seat, 'gang', { card: p.gang[0] });
       this.respond(seat, 'pass');
     } else if (p && p.kind === 'discard') {
       const cand = p.candidates.find((c) => c.seat === seat);
       if (cand && !p.replies.has(seat)) {
+        if (smart) {
+          const action = mahjongBot.chooseDiscardResponse(this, seat, p, cand, botOptions);
+          return this.respond(seat, action.op, action.data || {});
+        }
         if (this.humanStillDeciding(p) && this.seats[seat] && this.seats[seat].bot) {
           return this.respond(seat, 'pass');
         }
@@ -594,7 +624,7 @@ class Round {
     } else if (p && p.kind === 'qianggang') {
       const cand = p.candidates.find((c) => c.seat === seat);
       if (cand && !p.replies.has(seat)) {
-        if (this.humanStillDeciding(p) && this.seats[seat] && this.seats[seat].bot) {
+        if (this.humanStillDeciding(p) && this.seats[seat] && this.seats[seat].bot && !smart) {
           return this.respond(seat, 'pass');
         }
         return this.respond(seat, cand.hu ? 'hu' : 'pass');
@@ -602,6 +632,11 @@ class Round {
     }
     if (this.over || this.turn !== seat) return;
     if (this.pending && !(this.pending.kind === 'self' && this.pending.seat === seat)) return;
+    if (smart) {
+      const card = mahjongBot.chooseDiscard(this, seat, botOptions);
+      if (card != null) this.discard(seat, card);
+      return;
+    }
     const drawn = this.drawn[seat];
     const loose = this.looseTiles(seat);
     const dumpJoker = !!(this.seats[seat] && this.seats[seat].bot)
@@ -617,7 +652,7 @@ class Round {
   }
 
   /**
-   * 摸牌之后自己能做的：自摸、暗杠、补杠、皮子杠，外加亮癞和报清一色。
+   * 摸牌之后自己能做的：自摸、暗杠、补杠、皮子杠，外加报清一色。
    * 碰完也会走到这里，但那时张数刚好能骗过胡牌判定，所以 allowHu 得关。
    */
   offerSelfOps(seat, { allowHu = true } = {}) {
@@ -630,25 +665,19 @@ class Round {
     ];
     // 皮子三张就能杠，别跟普通暗杠抢同一张
     if (mahjong.canPiziGang(tiles, this.pizi)) gang.push(this.pizi);
-    // 飘癞只在潜江癞晃有意义（癞子本是万能，亮了才不当）。
-    // 土豪必杠癞子本来就不当万能，堆癞子喜钱是关的。
-    const razz = this.config.玩法 === '潜江癞晃'
-      && this.config.喜钱 > 0
-      && this.razz[seat] === 0
-      && !hu
-      && tiles.includes(this.laizi);
     // 报清一色：开了这个玩法、还没报过，而且手上确实只有一门
     const qys = this.config.清一色 && !this.baoQys[seat] && this.isQingYiSe(seat);
 
-    if (!hu && gang.length === 0 && !razz && !qys) return; // 没得选，直接等他出牌
+    if (!hu && gang.length === 0 && !qys) return; // 没得选，直接等他出牌
 
-    this.pending = { kind: 'self', seat, hu, gang, razz, qys };
+    // allowHu 需跟着 pending 保留：碰完后可以报清一色，但报完仍然不能
+    // 把刚才的弃牌当成“自摸”。
+    this.pending = { kind: 'self', seat, hu, gang, qys, allowHu };
     const payload = {
       hu: hu ? this.drawn[seat] : 0,
       gang,
       touch: 0,
       chow: [],
-      show_razz: razz,
       bright_qys: qys,
     };
     this.io.one(seat, 'game_operator', payload);
@@ -767,15 +796,12 @@ class Round {
       // 客户端发什么都得对着刚才给它的选项核一遍，不能它说胡就胡
       if (op === 'hu') {
         if (!p.hu) return '你这牌胡不了';
+        if (this.drawn[seat] == null) return '没有摸牌，不能自摸';
         return this.win(seat, this.drawn[seat], null);
       }
       if (op === 'gang') {
         if (!p.gang.includes(data.card)) return `${data.card} 杠不了`;
         return this.selfGang(seat, data.card);
-      }
-      if (op === 'razz') {
-        if (!p.razz) return '没有癞子可亮';
-        return this.showRazz(seat);
       }
       if (op === 'qys') {
         if (!p.qys) return '这手牌报不了清一色';
@@ -796,7 +822,7 @@ class Round {
         for (const c of p.candidates) {
           if (p.replies.has(c.seat)) continue;
           const m = this.seats[c.seat];
-          if (m && m.bot) p.replies.set(c.seat, 'pass');
+          if (m && m.bot && !this.smartBot(c.seat)) p.replies.set(c.seat, 'pass');
         }
       }
       if (!this.allHuAnswered(p)) return null;
@@ -823,13 +849,16 @@ class Round {
     }));
   }
 
-  /** 真人已经表态时，陪玩没回的一律当过，避免点了碰却一直等 */
+  /**
+   * 真人已经表态时，旧策略陪玩没回的当过。
+   * 目标干瞪眼的智能机器人必须保留自己的碰/杠决策，不能被真人的回复代替。
+   */
   passBotsOnDiscard(p) {
     if (!p || !p.candidates) return;
     for (const c of p.candidates) {
       if (p.replies.has(c.seat)) continue;
       const m = this.seats[c.seat];
-      if (m && m.bot) p.replies.set(c.seat, { op: 'pass', data: {} });
+      if (m && m.bot && !this.smartBot(c.seat)) p.replies.set(c.seat, { op: 'pass', data: {} });
     }
   }
 
@@ -931,14 +960,13 @@ class Round {
 
   /**
    * 别人打出的牌能不能问点炮。
-   * 只许自摸、土豪必杠平时不问炮；热铳例外。
+   * 勾选只许自摸后，普通点炮和热铳都不问；未勾选时两个玩法都能接炮。
    * 过胡锁的是整门听口：过了 5 筒，8 筒没过手也不能胡。热铳能破这道锁。
    */
   discardHu(seat, card, from) {
     const hot = this.isHotDiscard(from);
-    const zimoOnly = this.config.只许自摸 || this.config.玩法 === '土豪必杠';
-    if (zimoOnly && !hot) return 0;
-    if (!this.canHu(seat, card)) return 0;
+    if (this.config.只许自摸) return 0;
+    if (!this.canHardHu(seat, card)) return 0;
     if (this.passHu[seat] && !hot) return 0;
     return card;
   }
@@ -969,7 +997,7 @@ class Round {
     this.turn = seat;
     this.io.all('game_touch', { uid: this.uid(seat), card, view: 0, from: this.uid(from) });
     if (this.tape) this.tape.op(this.uid(seat), IDX.PENG, [card]);
-    // 碰完张数刚好能骗过胡牌判定，只问亮癞和报清一色，不能让他直接胡
+    // 碰完张数刚好能骗过胡牌判定，只问报清一色，不能让他直接胡
     this.offerSelfOps(seat, { allowHu: false });
     return null;
   }
@@ -1001,12 +1029,17 @@ class Round {
     const isBu = this.melds[seat].some((m) => m.type === 'peng' && m.card === card);
     if (!isBu) return this.doSelfGang(seat, card, false);
 
-    // 回头笑：先把第四张放到杠堆，再问抢杠，没人抢才补牌
+    // 回头笑：先把第四张放到杠堆。只有未勾“只许自摸”且勾了“热铳”时才可抢杠。
     const err = this.applySelfGang(seat, card, true);
     if (err) return err;
+    if (this.config.只许自摸 || !this.config.热铳) {
+      this.pending = null;
+      this.afterGang(seat);
+      return null;
+    }
     const candidates = [];
     for (let s = 0; s < this.n; s++) {
-      if (s !== seat && this.canHu(s, card) && !this.passHu[s]) {
+      if (s !== seat && this.canHardHu(s, card) && !this.passHu[s]) {
         candidates.push({ seat: s, hu: card });
       }
     }
@@ -1090,27 +1123,15 @@ class Round {
 
   // ---------------------------------------------------------------- 亮牌与报警
 
-  /** 飘癞：把手上的癞子亮出来，胡了才有喜钱 */
-  showRazz(seat) {
-    const count = this.looseTiles(seat).filter((t) => t === this.laizi).length;
-    this.razz[seat] = count;
-    this.pending = null;
-    this.io.log(`${this.uid(seat)} 亮癞 ${count} 张`);
-    this.io.all('game_showrazz', { uid: this.uid(seat), card: new Array(count).fill(this.laizi) });
-    if (this.tape) this.tape.op(this.uid(seat), IDX.WARN_LL, new Array(count).fill(this.laizi));
-    // 亮完癞子不当万能了，胡和杠的选项可能变，再问一遍
-    this.offerSelfOps(seat);
-    return null;
-  }
-
   /** 报清一色。不报的话结算时不算这个胡型 */
   baoQingYiSe(seat) {
+    const allowHu = !!(this.pending && this.pending.kind === 'self' && this.pending.allowHu);
     this.baoQys[seat] = true;
     this.pending = null;
     this.io.log(`${this.uid(seat)} 报清一色`);
     this.io.all('game_noticeqys', { uid: this.uid(seat), card: [] });
     if (this.tape) this.tape.op(this.uid(seat), IDX.WARN_QYS, []);
-    this.offerSelfOps(seat);
+    this.offerSelfOps(seat, { allowHu });
     return null;
   }
 
@@ -1145,7 +1166,9 @@ class Round {
     const how = zimo ? '自摸' : opts.qiangGang ? `抢 ${this.uid(from)} 的杠` : `胡 ${this.uid(from)} 打的`;
     for (const seat of seats) {
       this.io.log(`${this.uid(seat)} ${how} ${card}（胡型 ${huTypes[seat]}）`);
-      if (this.tape) this.tape.op(this.uid(seat), IDX.HU, [card, 0]);
+      // 回放客户端把 cards[1] 当作胡型位集，用它选黑摸、软摸、
+      // 抢杠胡、热铳等专用语音。写 0 会全部退化成默认“胡”。
+      if (this.tape) this.tape.op(this.uid(seat), IDX.HU, [card, huTypes[seat]]);
     }
     this.end({
       winners: seats,
@@ -1211,6 +1234,11 @@ class Round {
         it.total = this.seats[s].score || 0;
         const huType = winners.includes(s) ? (result.huTypes[s] || 0) : 0;
         it.hu_type = huType;
+        // winMany 为了算胡型会把自摸/点炮的胡牌并入手牌并排序，
+        // 但客户端终局界面依赖 draw_card 识别和单独摆放真正的胡牌。
+        // hand_card 必须继续保留完整的终局手牌；draw_card 只是胡牌标记，
+        // 不能从 hand_card 删牌，否则部分 3D 布局不会把它补回。
+        if (huType && result.card > 0) it.card.draw_card = result.card;
         // bet_score 会显示成结算面板上的倍数
         it.bet_score = huType ? rules.huMultiplier(huType, this.config) * this.shuaiFan(s) : 0;
         // 结算后必须是没准备。客户端 3D 的「下一局」只在 !isReady() 时出现，
@@ -1223,7 +1251,7 @@ class Round {
   }
 
   /**
-   * 胡牌：底分 × 胡型 × 双方癞子。亮癞喜钱同样翻倍。
+   * 胡牌：底分 × 胡型 × 双方甩出的癞子倍数。
    * 四癞喜钱在杠出第四张时已经结过，不走这里。
    */
   payHu(result) {
@@ -1235,9 +1263,6 @@ class Round {
 
     for (const seat of winners) {
       const base = rules.huMultiplier(huTypes[seat], this.config);
-      const xiMul = (this.razz[seat] > 0 && this.config.喜钱 > 0) ? this.config.喜钱 : 0;
-      if (xiMul) this.stat[seat].plyj += 1;
-
       const huPayers = result.zimo
         ? [...Array(this.n).keys()].filter((s) => s !== seat)
         : [result.from];
@@ -1249,19 +1274,11 @@ class Round {
         delta[seat] += pay;
         fans.push(fan);
       }
-      if (xiMul) {
-        for (let s = 0; s < this.n; s++) {
-          if (s === seat) continue;
-          const pay = one * xiMul * this.payFan(seat, s);
-          delta[s] -= pay;
-          delta[seat] += pay;
-        }
-      }
       if (result.zimo) this.stat[seat].zm += 1;
       else this.stat[seat].jg += 1;
 
       const fanTxt = fans.some((f) => f > 1) ? `（含甩癞×${fans.join('/')}）` : '';
-      bits.push(`${this.uid(seat)} ${base} 倍${fanTxt}${xiMul ? ` + 喜钱 ${xiMul} 倍` : ''}`);
+      bits.push(`${this.uid(seat)} ${base} 倍${fanTxt}`);
     }
     if (!result.zimo && winners.length) this.stat[result.from].dg += 1;
 
@@ -1291,7 +1308,6 @@ class Round {
           : undefined,
       },
       roundScore: this.roundScore,
-      razz: this.razz,
       baoQys: this.baoQys,
       shuai: this.shuai,
       gangs: this.gangs,
@@ -1323,8 +1339,13 @@ class Round {
         replies: data.pending.replies ? new Map(data.pending.replies) : new Map(),
       }
       : null;
+    // 老版本可能正停在“亮癞”按钮上。升级后丢弃这个无效选项，避免重连再次显示。
+    if (r.pending && r.pending.kind === 'self') {
+      delete r.pending.razz;
+      if (typeof r.pending.allowHu !== 'boolean') r.pending.allowHu = r.drawn[r.pending.seat] != null;
+      if (!r.pending.hu && !(r.pending.gang || []).length && !r.pending.qys) r.pending = null;
+    }
     r.roundScore = data.roundScore;
-    r.razz = data.razz;
     r.baoQys = data.baoQys;
     r.shuai = data.shuai;
     r.gangs = data.gangs || [];

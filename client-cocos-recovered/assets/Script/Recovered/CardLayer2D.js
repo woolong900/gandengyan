@@ -54,7 +54,7 @@ this.cardsManage2D.hideHandShow(t);
 i.default.gameInfo.status === m.eGameStatus.Gameing ? i.default.isPlayback() ? this._updateHandShow(e, t) : i.default.isWatcher() ? this._updateHandShow(e, t) : this._updateHandHide(e, t) : i.default.gameInfo.status !== m.eGameStatus.SingleEnd && i.default.gameInfo.status !== m.eGameStatus.TotalEnd || this._updateHandShow(e, t);
 };
 t.prototype._updateHandShow = function(e, t) {
-for (var o = e.handCards.length, n = u.default[t].handShowGrid, r = this._handBeginPos(o, t, n), i = e.getSortedHandCards(), a = i.length, c = h.default.b3N2(a), d = 0, p = a; d < p; d++) {
+for (var o = e.handCards.length, n = u.default[t].handShowGrid, r = this._handBeginPos(o, t, n), i = e.getSortedHandCards(), a = i.length, c = h.default.b3N2(a) && e._handDrawnCard, d = 0, p = a; d < p; d++) {
 var f = i[d];
 (_ = this.cardsManage2D.handShow(t, d)).getComponent(s.default).setData(l.eCardShowType.Gang, f);
 if (c && d === p - 1) {
@@ -83,7 +83,7 @@ if (c) {
 g.default.gameLogic().isTing(e, m) && (v.tingTipActive = !0);
 }
 }
-if (c && d === f - 1) {
+if (c && e._handDrawnCard && d === f - 1) {
 var C = u.default[t].lastHandSpace, b = cc.v2(n.spacing.width * (o - 1) + C.x, n.spacing.height * (o - 1) + C.y);
 y.position = r.add(b);
 } else this._updateCard(y, d, u.default[t].handGrid, r, 200);

@@ -36,6 +36,7 @@ if (0 === t.res.error) {
 r.default.inviteCode = t.inviteCode || "";
 r.default.myInviteCode = t.username || "";
 r.default.inviteCodeAward = t.giveCard || 0;
+r.default.inviteTipText = t.mobile || "绑定推荐人邀请码，可获得" + r.default.inviteCodeAward + "张房卡！";
 }
 e && e(t.res, null);
 }

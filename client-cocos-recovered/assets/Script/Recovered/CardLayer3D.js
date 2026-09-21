@@ -67,16 +67,16 @@ this.cardsManage3D.hideHandShow(t);
 i.default.gameInfo.status === l.eGameStatus.Gameing ? i.default.isPlayback() ? this._updateHandShow(e, t) : i.default.isWatcher() ? this._updateHandShow(e, t) : this._updateHandHide(e, t) : i.default.gameInfo.status !== l.eGameStatus.SingleEnd && i.default.gameInfo.status !== l.eGameStatus.TotalEnd || this._updateHandShow(e, t);
 };
 t.prototype._updateHandShow = function(e, t) {
-for (var o = e.handCards.length, n = e.getSortedHandCards(), r = e.huCard(), i = this._handBeginIndex(o), a = 0, s = n.length; a < s; a++) {
+for (var o = e.handCards.length, n = e.getSortedHandCards(), r = e.huCard(), i = this._handBeginIndex(o, e._handDrawnCard), a = 0, s = n.length; a < s; a++) {
 var l = n[a];
 this.cardsManage3D.handShow(t, a + i, l);
 }
 r > 0 && this.cardsManage3D.handShow(t, 13, r);
 };
 t.prototype._updateHandHide = function(e, t) {
-var o = e.handCards.length, n = c.default.b3N2(o);
+var o = e.handCards.length, n = c.default.b3N2(o), C = n && e._handDrawnCard;
 t === a.eViewPos.Down && this.cardsManage3D.updateHandDownPos(o);
-for (var r = this._handBeginIndex(o), i = e.getSortedHandCards(), s = [], l = 0; l < o; l++) {
+for (var r = this._handBeginIndex(o, e._handDrawnCard), i = e.getSortedHandCards(), s = [], l = 0; l < o; l++) {
 var d = i[l], f = this.cardsManage3D.hand(t, l + r, d);
 if (f) {
 s.push(f);
@@ -90,7 +90,7 @@ m.tingTipActive = !1;
 if (n) {
 p.default.gameLogic().isTing(e, d) && (m.tingTipActive = !0);
 }
-if (n && l === o - 1) {
+if (C && l === o - 1) {
 f.x = this.handX(l, !0);
 this._oldLastHandValue = d;
 } else f.x = this.handX(l, !1);
@@ -185,8 +185,8 @@ t.prototype._updatePaiDunOffset = function(e, t, o, n) {
 var r = p.default.gameLogic().paiDunOffset();
 this.cardsManage3D.paiDun(e, t, o, n + r);
 };
-t.prototype._handBeginIndex = function(e) {
-c.default.b3N2(e) && (e -= 1);
+t.prototype._handBeginIndex = function(e, t) {
+t && c.default.b3N2(e) && (e -= 1);
 return 13 - e;
 };
 t.prototype._outIndex = function(e, t, o) {

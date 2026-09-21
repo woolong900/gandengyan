@@ -11,8 +11,9 @@ from PIL import Image
 
 
 ROOT = Path(__file__).resolve().parents[1]
-URL = "https://game.auxvv.com/download/ylhy-activity"
+URL = "https://gmhiu.com/download"
 OUTPUT = ROOT / "assets/branding/share/download-qr.png"
+RECOVERED_OUTPUT = ROOT / "client-cocos-recovered/assets/resources/Hall/Res/Texture/Game/record_share/qrcode_hg.png"
 ICON = ROOT / "assets/branding/icon.png"
 
 
@@ -25,9 +26,10 @@ def main():
     icon = Image.open(ICON).convert("RGB").resize((42, 42), Image.Resampling.LANCZOS)
     image.paste(Image.new("RGB", (52, 52), "white"), (124, 124))
     image.paste(icon, (129, 129))
-    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    image.save(OUTPUT)
-    print(f"{OUTPUT}: {URL}")
+    for output in (OUTPUT, RECOVERED_OUTPUT):
+        output.parent.mkdir(parents=True, exist_ok=True)
+        image.save(output, optimize=True)
+        print(f"{output}: {URL}")
 
 
 if __name__ == "__main__":

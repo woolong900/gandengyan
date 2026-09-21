@@ -238,7 +238,7 @@
   },
   {
     "__type__": "cc.Node",
-    "_name": "BtnNext",
+    "_name": "BtnContinueBottom",
     "_parent": {
       "__id__": 2
     },
@@ -307,13 +307,13 @@
     },
     "_position": {
       "__type__": "cc.Vec3",
-      "x": 199,
+      "x": 125,
       "y": -303
     },
     "_scale": {
       "__type__": "cc.Vec3",
-      "x": 0.85,
-      "y": 0.85,
+      "x": 0.5,
+      "y": 0.5,
       "z": 1
     }
   },
@@ -481,7 +481,7 @@
   },
   {
     "__type__": "cc.Node",
-    "_name": "BtnQuit",
+    "_name": "BtnExitBottom",
     "_parent": {
       "__id__": 2
     },
@@ -544,8 +544,14 @@
     },
     "_position": {
       "__type__": "cc.Vec3",
-      "x": -518,
-      "y": 317
+      "x": 290,
+      "y": -303
+    },
+    "_scale": {
+      "__type__": "cc.Vec3",
+      "x": 0.9,
+      "y": 0.9,
+      "z": 1
     }
   },
   {

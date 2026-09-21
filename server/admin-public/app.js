@@ -2,13 +2,16 @@
   'use strict';
   var state = { csrf: '', view: 'dashboard', page: 1, q: '', loading: false };
   var labels = { dashboard: '数据面板', players: '玩家管理', rooms: '房间管理', records: '牌局管理',
-    clubs: '俱乐部管理', economy: '房卡与奖励', bots: '机器人管理', messages: '通知管理', notices: '大厅公告', audit: '操作日志', system: '备份与系统' };
+    clubs: '俱乐部管理', economy: '房卡与奖励', bots: '机器人管理',
+    'agent-applications': '合伙人申请', messages: '通知管理', notices: '大厅公告',
+    'hot-update': '热更新灰度', audit: '操作日志', system: '备份与系统' };
   var content = document.getElementById('content');
   var modal = document.getElementById('modal');
   var modalCard = document.getElementById('modal-card');
   var toastNode = document.getElementById('toast');
   var activeRoomId = null;
   var roomDraft = { uid: 0, cards: [] };
+  var wskHandDraft = { roomId: 0, uid: 0, counts: {}, dirty: false };
   var currentRoom = null;
   var roomPollBusy = false;
   var roomEditQueue = Promise.resolve();
@@ -54,13 +57,17 @@
     document.getElementById('login').classList.add('hidden');
     document.getElementById('workspace').classList.remove('hidden');
   }
-  function openModal(title, body) {
+  function openModal(title, body, wide) {
     activeRoomId = null;
+    modalCard.classList.toggle('room-modal-card', !!wide);
     modalCard.innerHTML = '<div class="modal-head"><h3>' + escape(title) +
       '</h3><button type="button" data-action="close-modal" aria-label="关闭">×</button></div>' + body;
     modal.classList.remove('hidden');
   }
-  function closeModal() { activeRoomId = null; roomEditVersion++; modal.classList.add('hidden'); modalCard.innerHTML = ''; }
+  function closeModal() {
+    activeRoomId = null; roomEditVersion++; wskHandDraft = { roomId: 0, uid: 0, counts: {}, dirty: false };
+    modal.classList.add('hidden'); modalCard.innerHTML = '';
+  }
   async function api(path, method, body) {
     var options = { method: method || 'GET', credentials: 'same-origin', headers: {} };
     if (body !== undefined) { options.headers['Content-Type'] = 'application/json'; options.body = JSON.stringify(body); }
@@ -87,7 +94,7 @@
     try {
       var view = state.view;
       var query = '?page=' + state.page + '&q=' + encodeURIComponent(state.q);
-      var data = await api('/' + view + (['players', 'rooms', 'records', 'clubs'].includes(view) ? query : ''));
+      var data = await api('/' + view + (['players', 'rooms', 'records', 'clubs', 'agent-applications'].includes(view) ? query : ''));
       if (view === 'dashboard') renderDashboard(data);
       else if (view === 'players') renderPlayers(data);
       else if (view === 'rooms') renderRooms(data);
@@ -95,8 +102,10 @@
       else if (view === 'clubs') renderClubs(data);
       else if (view === 'economy') renderEconomy(data);
       else if (view === 'bots') renderBots(data);
+      else if (view === 'agent-applications') renderAgentApplications(data);
       else if (view === 'messages') renderMessages(data);
       else if (view === 'notices') renderNotices(data);
+      else if (view === 'hot-update') renderHotUpdate(data);
       else if (view === 'audit') renderAudit(data);
       else if (view === 'system') renderSystem(data);
     } catch (error) {
@@ -150,12 +159,15 @@
       badge(player.online ? '在线' : '离线', player.online ? 'green' : '') + '</td><td>' +
       badge(player.disabled ? '停用' : '正常', player.disabled ? 'red' : 'green') + '</td><td>' +
       (player.identityVerified ? badge('已实名', 'gold') : '<span class="muted">未实名</span>') +
-      '</td><td>' + (player.roomId || '—') + '</td><td class="button-row">' +
+      '</td><td class="mono">' + escape(player.lastIp || '—') + '</td><td>' +
+      escape(player.lastIpCity || (player.lastIp ? '查询中' : '—')) + '</td><td>' +
+      (player.roomId || '—') + '</td><td class="button-row">' +
       button('player-detail', '详情', player.uid) + button('player-cards', '房卡', player.uid) + '</td></tr>'; });
-    content.innerHTML = intro('玩家管理', '查询玩家、实名认证状态和房卡；调整与停用操作会写入审计日志。') +
-      '<section class="card"><div class="toolbar">' + search('玩家 ID 或昵称') +
+    content.innerHTML = intro('玩家管理', '查询玩家、实名认证状态和房卡；调整与停用操作会写入审计日志。',
+      button('refresh', '刷新数据', '', 'primary')) +
+      '<section class="card"><div class="toolbar">' + search('玩家 ID、昵称、IP 或城市') +
       '<span class="muted">共 ' + number(data.total) + ' 位</span></div>' +
-      table(['玩家 ID', '昵称', '房卡', '在线', '账号', '实名', '房间', '操作'], rows) + pager(data) + '</section>';
+      table(['玩家 ID', '昵称', '房卡', '在线', '账号', '实名', 'IP', '所在城市', '房间', '操作'], rows) + pager(data) + '</section>';
   }
   function renderRooms(data) {
     var rows = data.items.map(function (room) { return '<tr><td class="mono">' + room.roomId +
@@ -163,7 +175,8 @@
       '</td><td>' + room.occupied + '/' + room.maxPlayers + '</td><td>' + room.botCount +
       '</td><td>' + room.step + '/' + room.totalStep + '</td><td>' +
       button('room-detail', '查看', room.roomId) + '</td></tr>'; });
-    content.innerHTML = intro('房间管理', '查看当前活跃房间、座位和牌局状态；管理员可处理异常房间。') +
+    content.innerHTML = intro('房间管理', '查看当前活跃房间、座位和牌局状态；管理员可处理异常房间。',
+      button('refresh', '刷新数据', '', 'primary')) +
       '<section class="card"><div class="toolbar">' + search('房号或俱乐部 ID') +
       '<span class="muted">当前 ' + number(data.total) + ' 个活跃房间</span></div>' +
       table(['房号', '俱乐部', '状态', '入座', '机器人', '局数', '操作'], rows) + pager(data) + '</section>';
@@ -173,7 +186,8 @@
       '</td><td>' + date(record.time) + '</td><td>' + (record.clubId || '普通房') + '</td><td>' +
       record.gameCount + '/' + record.totalCount + '</td><td>' + record.players.length + '</td><td>' +
       button('record-detail', '查看', record.id) + '</td></tr>'; });
-    content.innerHTML = intro('牌局管理', '按房号、牌局 ID 或玩家 ID 查询结算和每局积分。') +
+    content.innerHTML = intro('牌局管理', '按房号、牌局 ID 或玩家 ID 查询结算和每局积分。',
+      button('refresh', '刷新数据', '', 'primary')) +
       '<section class="card"><div class="toolbar">' + search('房号 / 牌局 ID / 玩家 ID') +
       '<span class="muted">' + escape(data.retention) + '</span></div>' +
       table(['房号', '结算时间', '俱乐部', '已打局数', '玩家', '操作'], rows) + pager(data) + '</section>';
@@ -184,7 +198,8 @@
       club.members + '</td><td>' + number(club.balanceCard) + '</td><td>' + club.rooms + '</td><td>' +
       badge(club.closed ? '已关闭' : '正常', club.closed ? 'red' : 'green') + '</td><td>' +
       button('club-detail', '查看', club.id) + ' ' + button('club-cards', '调整房卡', club.id) + '</td></tr>'; });
-    content.innerHTML = intro('俱乐部管理', '查看部长、成员、玩法、房间和俱乐部房卡；可设置公告与营业状态。') +
+    content.innerHTML = intro('俱乐部管理', '查看部长、成员、玩法、房间和俱乐部房卡；可设置公告与营业状态。',
+      button('refresh', '刷新数据', '', 'primary')) +
       '<section class="card"><div class="toolbar">' + search('俱乐部 ID 或名称') +
       '<span class="muted">共 ' + number(data.total) + ' 个俱乐部</span></div>' +
       table(['俱乐部 ID', '名称', '部长 ID', '成员', '房卡', '房间', '状态', '操作'], rows) + pager(data) + '</section>';
@@ -192,16 +207,19 @@
   function renderEconomy(data) {
     content.innerHTML = intro('房卡与奖励', '设置以后发生的奖励。绑定邀请码时，邀请人和被邀请人各领取一次；首次加入俱乐部时，房卡计入俱乐部余额。') +
       '<section class="card"><form id="economy-form"><div class="form-grid">' +
+      field('新注册用户初始房卡', '<input name="newPlayerCards" type="number" min="0" max="1000000" step="1" value="' + escape(data.newPlayerCards) + '" required>') +
       field('新成员首次加入俱乐部赠送房卡', '<input name="clubJoinBonus" type="number" min="0" max="1000000" step="1" value="' + escape(data.clubJoinBonus) + '" required>') +
       field('绑定邀请码双方各赠送房卡', '<input name="inviteBindBonus" type="number" min="0" max="1000000" step="1" value="' + escape(data.inviteBindBonus) + '" required>') +
-      '</div><p class="note">设置为 0 可关闭对应奖励；已经发放的房卡不回收。俱乐部房卡可在“俱乐部管理”中单独调整。</p>' +
+      '</div>' + field('邀请码页面顶部文案', '<textarea name="invitePageText" maxlength="100" required>' +
+        escape(data.invitePageText || '') + '</textarea>') +
+      '<p class="note">设置为 0 可关闭对应奖励；已经发放的房卡不回收。俱乐部房卡可在“俱乐部管理”中单独调整。</p>' +
       '<button class="button primary" type="submit">保存奖励设置</button></form></section>';
   }
   function renderBots(data) {
     var rows = data.rooms.map(function (room) { return '<tr><td class="mono">' + room.roomId +
       '</td><td>' + badge(room.status, room.status === '进行中' ? 'green' : 'gold') +
       '</td><td>' + room.humans + '</td><td>' + room.bots + '</td></tr>'; });
-    content.innerHTML = intro('机器人管理', '统一控制服务端是否自动向只有一位真人的等待房间补充陪玩机器人。') +
+    content.innerHTML = intro('机器人管理', '统一控制服务端是否自动向用户 285636 创建、且只有一位真人的等待房间补充陪玩机器人。') +
       '<div class="grid metrics"><div class="metric"><span class="label">自动补充</span><strong class="' +
       (data.enabled ? 'accent' : '') + '">' + (data.enabled ? '已开启' : '已关闭') +
       '</strong><span class="hint">设置会持久保存</span></div><div class="metric"><span class="label">当前机器人</span><strong>' +
@@ -211,10 +229,20 @@
       '<section class="card"><form id="bots-form">' + field('机器人自动补位',
         '<select name="enabled"><option value="true"' + (data.enabled ? ' selected' : '') +
         '>开启</option><option value="false"' + (!data.enabled ? ' selected' : '') + '>关闭</option></select>') +
-      '<p class="note">开启后，符合条件的等待房间会立即补位。关闭后不再加入新机器人；等待中的机器人立即离开，正在打牌的机器人完成当前小局后离开。</p>' +
+      '<p class="note">开启后，仅用户 285636 创建的符合条件的等待房间会立即补位。关闭后不再加入新机器人；等待中的机器人立即离开，正在打牌的机器人完成当前小局后离开。</p>' +
       '<button class="button primary" type="submit">保存机器人设置</button></form></section>' +
       '<section class="card" style="margin-top:18px"><h3>机器人所在房间</h3>' +
       table(['房号', '状态', '真人', '机器人'], rows) + '</section>';
+  }
+  function renderAgentApplications(data) {
+    var rows = data.items.map(function (application) { return '<tr><td class="mono">' + application.id +
+      '</td><td>' + short(application.nickname, 18) + '<br><span class="muted mono">ID ' + application.uid +
+      '</span></td><td>' + badge(application.contactType, application.contactType === '手机号' ? 'green' : 'gold') +
+      '</td><td class="mono">' + escape(application.contact) + '</td><td>' + date(application.createdAt) + '</td></tr>'; });
+    content.innerHTML = intro('合伙人申请', '查看玩家在大厅“招募合伙人”页面提交的手机号或微信号。联系方式属于敏感信息，请仅用于联系申请人。') +
+      '<section class="card"><div class="toolbar">' + search('玩家 ID、昵称或联系方式') +
+      '<span class="muted">共 ' + number(data.total) + ' 条申请</span></div>' +
+      table(['编号', '玩家', '类型', '联系方式', '提交时间'], rows) + pager(data) + '</section>';
   }
   function renderMessages(data) {
     var rows = data.messages.map(function (message) { return '<tr><td class="mono">' + message.id +
@@ -241,6 +269,68 @@
       field('客服微信', '<input name="serviceWechat" maxlength="64" value="' + escape(data.serviceWechat) + '">') +
       field('客服 QQ', '<input name="serviceQQ" maxlength="64" value="' + escape(data.serviceQQ) + '">') +
       '</div><button class="button primary" type="submit">保存公告</button></form></section>';
+  }
+  function renderHotUpdate(data) {
+    var platformNames = { android: 'Android', ios: 'iOS' };
+    var cards = ['android', 'ios'].map(function (platform) {
+      var item = data.platforms[platform];
+      if (!item.configured) return '<section class="card rollout-card"><div class="card-head"><h3>' +
+        platformNames[platform] + '</h3>' + badge('未发布') + '</div><p class="note">尚未上传该平台的热更新资源。</p></section>';
+      var rollout = item.rollout;
+      var versions = Array.from(new Set((item.availableVersions || [])
+        .concat([item.latestAssetVersion, item.stableAssetVersion]).filter(Boolean))).sort(function (a, b) { return b - a; });
+      var options = function (selected) { return versions.map(function (version) {
+        return '<option value="' + version + '"' + (Number(selected) === Number(version) ? ' selected' : '') +
+          '>' + version + '</option>';
+      }).join(''); };
+      var stateText = rollout.enabled ? (rollout.percentage + '% 灰度中') : '已全量';
+      var stateStyle = rollout.enabled ? 'gold' : 'green';
+      return '<section class="card rollout-card"><div class="card-head"><h3>' + platformNames[platform] +
+        '</h3>' + badge(stateText, stateStyle) + '</div><div class="detail-grid">' +
+        detail('稳定版本', item.stableAssetVersion || '未发布') + detail('候选版本', item.latestAssetVersion || '未发布') +
+        detail('已上传版本', versions.join('、') || '未发现') + detail('平台开关', item.enabled ? '开启' : '关闭') +
+        '</div><form id="hot-update-form-' + platform + '" data-platform="' + platform + '">' +
+        '<div class="form-grid">' + field('稳定版本', '<select name="stableAssetVersion">' + options(item.stableAssetVersion) + '</select>') +
+        field('候选版本', '<select name="latestAssetVersion">' + options(item.latestAssetVersion) + '</select>') +
+        field('灰度比例（0–100%）', '<input name="percentage" type="number" min="0" max="100" step="0.01" value="' +
+          escape(rollout.percentage) + '" required>') +
+        field('灰度状态', '<select name="rolloutEnabled"><option value="true"' + (rollout.enabled ? ' selected' : '') +
+          '>启用灰度</option><option value="false"' + (!rollout.enabled ? ' selected' : '') + '>关闭灰度（候选版全量）</option></select>') +
+        '</div>' + field('指定测试玩家 ID（逗号或换行分隔）', '<textarea name="includeUids" placeholder="例如：100055, 100086">' +
+          escape(rollout.includeUids.join('\n')) + '</textarea>') +
+        field('指定测试设备灰度 ID（逗号或换行分隔）', '<textarea name="includeDeviceIds" placeholder="客户端上报的 rollout_key">' +
+          escape(rollout.includeDeviceIds.join('\n')) + '</textarea>') +
+        '<details><summary>排除名单</summary>' +
+        field('排除玩家 ID', '<textarea name="excludeUids">' + escape(rollout.excludeUids.join('\n')) + '</textarea>') +
+        field('排除设备灰度 ID', '<textarea name="excludeDeviceIds">' + escape(rollout.excludeDeviceIds.join('\n')) + '</textarea>') +
+        '</details><p class="note">排除名单优先于指定名单；未指定的设备按稳定灰度 ID 确定性分桶，同一设备不会因重复检查随机切换。</p>' +
+        '<div class="button-row"><button class="button primary" type="submit">保存灰度设置</button>' +
+        button('hot-update-pause', '停止继续灰度', platform) +
+        button('hot-update-promote', '验证通过并全量', platform, 'gold') + '</div></form></section>';
+    }).join('');
+    var deviceRows = (data.devices || []).map(function (device) {
+      var actionText = device.lastAction === 'asset' ? '已返回资源更新' :
+        (device.lastAction === 'package' ? '要求整包升级' : '已是目标版本');
+      var actionStyle = device.lastAction === 'asset' ? 'gold' : (device.lastAction === 'package' ? 'red' : 'green');
+      var deviceLabel = (device.system ? escape(device.system) + '<br>' : '') + '<span class="mono muted" title="' +
+        escape(device.id) + '">' + escape(device.id.length > 28 ? device.id.slice(0, 12) + '…' + device.id.slice(-8) : device.id) +
+        '</span>' + (device.legacy ? '<br>' + badge('旧版临时标识') : '');
+      var target = device.platform + ':' + encodeURIComponent(device.id);
+      return '<tr><td>' + (device.platform === 'ios' ? 'iOS' : 'Android') + '</td><td>' +
+        (device.uid ? '<span class="mono">' + escape(device.uid) + '</span>' : '—') + '</td><td>' + deviceLabel +
+        '</td><td><span class="mono">' + escape(device.packageVersion || '—') + '</span></td><td class="mono">' +
+        number(device.assetVersion) + ' → ' + number(device.targetAssetVersion) + '</td><td>' + badge(actionText, actionStyle) +
+        (device.included ? ' ' + badge('指定灰度', 'gold') : '') + (device.excluded ? ' ' + badge('已排除', 'red') : '') +
+        '</td><td>' + date(device.lastSeenAt) + '</td><td>' +
+        (device.included ? button('hot-device-remove', '移出灰度', target) :
+          button('hot-device-include', '加入灰度', target, 'primary')) + '</td></tr>';
+    });
+    content.innerHTML = intro('热更新灰度发布', '候选版先只发给测试账号、测试设备或指定比例；验证后再提升为稳定版。') +
+      '<div class="grid two">' + cards + '</div><section class="card rollout-warning"><h3>安全说明</h3>' +
+      '<p class="note">“停止继续灰度”只阻止更多设备更新，已经更新的设备不会自动降级。需要回滚时，请用稳定资源重新发布一个更高版本号。</p></section>' +
+      '<section class="card rollout-devices"><div class="card-head"><h3>设备版本（最近 500 台）</h3>' +
+      button('refresh', '刷新数据') + '</div><p class="note">设备每次启动检查更新时上报。资源更新完成后，需在下次启动检查时才会显示为新版本；带 probe=1 的运维验证请求不会计入设备列表。</p>' +
+      table(['平台', '玩家 ID', '设备', '安装包', '资源版本 → 目标', '状态', '最后检查', '操作'], deviceRows) + '</section>';
   }
   function renderAudit(data) {
     var rows = data.entries.map(function (entry) { return '<tr><td class="mono">' + entry.id +
@@ -274,7 +364,8 @@
       detail('实名认证', p.identityVerified ? '已实名（' + p.identityVerificationLevel + '）' : '未实名') +
       detail('实名信息', p.identityVerified ? p.identityNameInitial + '*** ' + p.identityIdMasked : '无') +
       detail('邀请码', p.inviteCode || '无') + detail('创建时间', date(p.createdAt)) +
-      detail('最近登录', date(p.lastLoginAt)) + '</div><h4>所属俱乐部</h4><div class="pill-list">' +
+      detail('最近登录', date(p.lastLoginAt)) + detail('最近登录 IP', p.lastIp || '无') +
+      detail('IP 所在城市', p.lastIpCity || (p.lastIp ? '查询中' : '无')) + '</div><h4>所属俱乐部</h4><div class="pill-list">' +
       clubs + '</div><h4>最近战绩</h4>' +
       (p.recentRecords.length ? p.recentRecords.map(function (record) {
         return '<div class="pill">房间 ' + record.roomId + ' · ' + date(record.time) + '</div>';
@@ -294,6 +385,54 @@
     if (suit < 0 || suit > 2 || point < 1 || point > 9) return '<span>' + escape(tileName(card)) + '</span>';
     return '<span class="mahjong-tile"><img src="/admin/tiles/mj_' + suit + '_' + point +
       '.png" alt="' + escape(tileName(card)) + '"></span>';
+  }
+  var wskHandRanks = [
+    ['3', '3', 8], ['4', '4', 8], ['5', '5', 8], ['6', '6', 8], ['7', '7', 8],
+    ['8', '8', 8], ['9', '9', 8], ['10', '10', 8], ['11', 'J', 8], ['12', 'Q', 8],
+    ['13', 'K', 8], ['14', 'A', 8], ['15', '2', 8], ['joker', '鬼', 4],
+  ];
+  function syncWskHandDraft(room, force) {
+    if (Number(room.gameType) !== 17) return;
+    if (!force && Number(wskHandDraft.roomId) === Number(room.roomId) && wskHandDraft.dirty) return;
+    var targets = room.members.filter(function (member) { return !member.spectator; });
+    var plan = room.nextWskHandPlan;
+    wskHandDraft = {
+      roomId: Number(room.roomId),
+      uid: plan ? Number(plan.uid) : (targets.length ? Number(targets[0].uid) : 0),
+      counts: plan ? Object.assign({}, plan.counts) : {},
+      dirty: false,
+    };
+  }
+  function pokerFace(rank) {
+    if (rank[0] === 'joker') {
+      return '<span class="poker-face joker"><span class="poker-joker-top">JOKER</span>' +
+        '<span class="poker-joker-star">★</span><span class="poker-joker-bottom">JOKER</span></span>';
+    }
+    return '<span class="poker-face"><span class="poker-corner top">' + rank[1] + '<i>♦</i></span>' +
+      '<span class="poker-suits"><i class="red">♥</i><i>♠</i><i>♣</i><i class="red">♦</i></span>' +
+      '<span class="poker-corner bottom">' + rank[1] + '<i>♠</i></span></span>';
+  }
+  function pokerHandCard(card) {
+    var value = Number(card);
+    if (value === 170 || value === 180) {
+      return '<span class="poker-hand-card joker ' + (value === 180 ? 'big' : 'small') +
+        '" title="' + (value === 180 ? '大王' : '小王') + '"><small>' +
+        (value === 180 ? '大王' : '小王') + '</small><strong>JOKER</strong><i>★</i></span>';
+    }
+    var rankValue = Math.floor(value / 10);
+    var rank = ({ 1: 'A', 11: 'J', 12: 'Q', 13: 'K' })[rankValue] || String(rankValue);
+    var suits = { 1: '♦', 2: '♣', 3: '♥', 4: '♠' };
+    var suit = suits[value % 10];
+    if (!suit || rankValue < 1 || rankValue > 13) {
+      return '<span class="poker-hand-card unknown">' + escape(value) + '</span>';
+    }
+    var red = value % 10 === 1 || value % 10 === 3;
+    return '<span class="poker-hand-card' + (red ? ' red' : '') + '" title="' + rank + suit + '">' +
+      '<span class="poker-hand-corner"><strong>' + rank + '</strong><i>' + suit + '</i></span>' +
+      '<b>' + suit + '</b></span>';
+  }
+  function pokerHandSort(a, b) {
+    return Math.floor(Number(a) / 10) - Math.floor(Number(b) / 10) || Number(a) % 10 - Number(b) % 10;
   }
   function syncRoomDraft(room) {
     var plan = room.wall && room.wall.drawPlan;
@@ -328,12 +467,83 @@
   }
   function renderRoomModal(room) {
     var scroll = modalCard.scrollTop;
-    var members = room.members.map(function (member) { return '<tr><td>' + member.site + '</td><td>' +
-      escape(member.nickname) + ' #' + member.uid + '</td><td>' + (member.bot ? badge('机器人') : badge(member.online ? '在线' : '离线', member.online ? 'green' : '')) +
-      '</td><td>' + number(member.score) + '</td><td>' + (member.trustee ? '托管' : '手动') +
-      '</td></tr>'; });
+    var isWsk = Number(room.gameType) === 17;
+    var selectableAction = isWsk ? 'room-wsk-player' : (room.wall ? 'room-draw-player' : '');
+    var selectedUid = isWsk ? Number(wskHandDraft.uid) : Number(roomDraft.uid);
+    var members = room.members.map(function (member) {
+      var avatar = member.avatarUrl ? '<img src="' + escape(member.avatarUrl) + '" alt="">' :
+        '<span>' + escape(String(member.nickname || '玩').slice(0, 1)) + '</span>';
+      var cards = Array.isArray(member.hand) ? member.hand.slice() : [];
+      if (isWsk) cards.sort(pokerHandSort);
+      else if (member.drawnCard != null && cards.length) {
+        var drawn = cards.pop();
+        cards.sort(function (a, b) { return a - b; });
+        cards.push(drawn);
+      } else cards.sort(function (a, b) { return a - b; });
+      var hand = cards.map(function (card, index) {
+        var drawnClass = !isWsk && member.drawnCard != null && index === cards.length - 1 ? ' drawn' : '';
+        return '<span class="room-hand-item' + drawnClass + '">' +
+          (isWsk ? pokerHandCard(card) : tileImage(card)) + '</span>';
+      }).join('');
+      var handStatus = member.spectator ? '观战玩家无手牌' :
+        (room.status === '进行中' ? '暂无手牌数据' : '开局后显示手牌');
+      var selectable = !member.spectator && selectableAction;
+      var tag = selectable ? 'button' : 'article';
+      var action = selectable ? ' type="button" data-action="' + selectableAction + '" data-target="' + member.uid +
+        '" aria-label="选择玩家 ' + escape(member.nickname) + '"' : '';
+      return '<' + tag + action + ' class="room-player-card' + (selectable ? ' selectable' : '') +
+        (selectable && Number(member.uid) === selectedUid ? ' active' : '') + '"><div class="room-player-head"><div class="room-player-avatar">' + avatar +
+        '</div><div class="room-player-name"><strong>' + escape(member.nickname) + '</strong><small>座位 ' + member.site +
+        ' · ID ' + member.uid + '</small></div><div class="room-player-state">' +
+        (member.spectator ? badge('观战') : member.bot ? badge('机器人') : badge(member.online ? '在线' : '离线', member.online ? 'green' : '')) +
+        badge(member.trustee ? '托管' : '手动', member.trustee ? 'gold' : '') +
+        '<span>积分 ' + number(member.score) + '</span></div></div><div class="room-player-hand">' +
+        (hand || '<span class="room-hand-empty">' + handStatus + '</span>') + '</div>' +
+        (hand ? '<small class="room-hand-count">手牌 ' + cards.length + ' 张' +
+          (member.drawnCard != null ? ' · 最右为刚摸牌' : '') + '</small>' : '') + '</' + tag + '>';
+    }).join('');
+    var wskHandHtml = '';
+    if (isWsk) {
+      if (Number(wskHandDraft.roomId) !== Number(room.roomId)) syncWskHandDraft(room, true);
+      var wskPlan = room.nextWskHandPlan;
+      var wskCounts = wskHandDraft.counts;
+      var wskTarget = room.members.find(function (member) { return Number(member.uid) === Number(wskHandDraft.uid); });
+      var remove34 = !!room.config['去掉34'];
+      var rankChoices = wskHandRanks.map(function (rank) {
+        var unavailable = remove34 && (rank[0] === '3' || rank[0] === '4');
+        var selected = Number(wskCounts[rank[0]] || 0);
+        var countButtons = Array.from({ length: 8 }, function (_, index) {
+          var count = index + 1;
+          var disabled = unavailable || count > rank[2];
+          return '<button type="button" class="wsk-count' + (selected === count ? ' active' : '') +
+            '" data-action="room-wsk-count" data-target="' + rank[0] + ':' + count + '"' +
+            (disabled ? ' disabled' : '') + '>' + count + '</button>';
+        }).join('');
+        return '<div class="wsk-rank-choice' + (unavailable ? ' unavailable' : '') + '">' + pokerFace(rank) +
+          '<div class="wsk-rank-controls"><strong>' + (rank[0] === 'joker' ? '鬼牌' : rank[1] + '（任意花色）') +
+          '</strong><div class="wsk-counts">' + countButtons + '</div><small>' +
+          (unavailable ? '本房间已去掉 3、4' : (selected ? '已选 ' + selected + ' 张，再点一次取消' : '选择张数')) +
+          '</small></div></div>';
+      }).join('');
+      var selectedTotal = Object.values(wskCounts).reduce(function (sum, count) { return sum + Number(count || 0); }, 0);
+      var handLimit = remove34 ? 23 : 27;
+      var wskStatus = wskHandDraft.dirty ? '当前选择尚未保存。' : (wskPlan ?
+        '已设置玩家 #' + wskPlan.uid + '，指定 ' + wskPlan.total + '张牌。' : '当前没有指定起手牌。');
+      wskHandHtml = '<div class="room-plan-head"><div><h4>选择手牌</h4><small>下一局指定起手牌</small></div>' +
+        '<span>目标玩家：<strong>' + escape(wskTarget ? wskTarget.nickname : '请在左侧选择') + '</strong></span></div><p class="note">' + wskStatus +
+        '未指定的部分依然随机；开始下一小局后自动清除，服务器重启不会丢失。</p>' +
+        '<form id="wsk-hand-plan-form" data-target="' + room.roomId + '"><div class="wsk-selection-head"><strong>选择牌面数量</strong>' +
+        '<span class="' + (selectedTotal > handLimit ? 'over' : '') + '">已选 ' + selectedTotal + ' / ' + handLimit + ' 张</span></div>' +
+        '<div class="wsk-card-grid">' + rankChoices + '</div><p class="note">每种点数最多 8 张，鬼牌最多 4 张；再次点击当前数量可取消该牌面。</p>' +
+        '<div class="room-plan-actions"><button type="submit" class="room-plan-button primary"' +
+        (!wskHandDraft.uid || !selectedTotal || selectedTotal > handLimit ? ' disabled' : '') +
+        '><span>保存设置</span><small>下一局生效</small></button>' +
+        '<button type="button" class="room-plan-button secondary" data-action="room-wsk-hand-clear" data-target="' +
+        room.roomId + '"' + (!wskPlan && !wskHandDraft.dirty ? ' disabled' : '') +
+        '><span>清空设置</span><small>恢复随机发牌</small></button></div></form>';
+    }
     var wallHtml = '';
-    if (room.wall) {
+    if (room.wall && Number(room.gameType) !== 17) {
       var counts = new Map();
       room.wall.cards.forEach(function (card) { counts.set(card, (counts.get(card) || 0) + 1); });
       var picked = new Map();
@@ -344,17 +554,16 @@
       }
       var plan = room.wall.drawPlan;
       var planHtml = plan ? '<p class="note">已设置玩家 #' + plan.uid + '：已按顺序摸到 ' +
-        plan.delivered + '/' + plan.total + ' 张。</p>' :
-        '<p class="note">当前没有指定摸牌顺序。</p>';
-      var options = targets.map(function (member) { return '<option value="' + member.uid + '"' +
-        (member.uid === roomDraft.uid ? ' selected' : '') + '>' + escape(member.nickname) +
-        ' #' + member.uid + (member.bot ? '（机器人）' : '') + '</option>'; }).join('');
+        plan.delivered + '/' + plan.total + ' 张。</p>' : '';
+      var drawTarget = targets.find(function (member) { return Number(member.uid) === Number(roomDraft.uid); });
       var choices = Array.from(counts.entries()).sort(function (a, b) { return a[0] - b[0]; })
-        .map(function (item) { var left = item[1] - (picked.get(item[0]) || 0);
+        .map(function (item) {
+          var left = item[1] - (picked.get(item[0]) || 0);
           return '<button type="button" class="wall-tile" data-action="room-card-add" data-target="' +
-            item[0] + '" title="' + escape(tileName(item[0])) + '"' +
+            item[0] + '" title="点击选择 ' + escape(tileName(item[0])) + '"' +
             (left <= 0 ? ' disabled' : '') + '>' + tileImage(item[0]) +
-            '<small>剩 ' + item[1] + ' 张</small></button>'; }).join('');
+            '<small>可选 ' + Math.max(0, left) + ' 张</small></button>';
+        }).join('');
       var queue = roomDraft.cards.map(function (card, index) { return '<span class="draft-tile">' +
         '<strong>' + (index + 1) + '</strong>' + tileImage(card) +
         '<button type="button" data-action="room-card-up" data-target="' + index +
@@ -363,26 +572,28 @@
         '" aria-label="后移"' + (index < roomDraft.cards.length - 1 ? '' : ' disabled') + '>↓</button>' +
         '<button type="button" data-action="room-card-remove" data-target="' + index +
         '" aria-label="删除">×</button></span>'; }).join('');
-      wallHtml = '<h4>剩余牌堆 <span class="muted">' + room.wall.remaining + ' 张 · 每 2.5 秒刷新</span></h4>' +
-        '<p class="note">实际剩余摸牌顺序：</p><div class="wall-order">' + room.wall.cards.map(function (card, index) {
-          return '<span class="wall-position"><small>' + (index + 1) + '</small>' + tileImage(card) +
-            '</span>'; }).join('') + '</div>' +
-        '<h4>指定玩家后续摸牌</h4>' + planHtml +
-        '<div class="field"><label for="room-target-select">目标玩家</label><select id="room-target-select">' +
-        options + '</select></div><p class="note">点击牌立即生效；用箭头调整先后顺序，删除也立即生效。服务端会预留这些牌，不让其他玩家提前摸走。</p>' +
-        '<div class="wall-choices">' + choices + '</div><h4>已指定的后续牌序（' + roomDraft.cards.length + ' 张）' +
+      wallHtml = '<div class="room-plan-head"><div><h4>选择手牌</h4><small>指定玩家后续摸牌</small></div>' +
+        '<span>目标玩家：<strong>' + escape(drawTarget ? drawTarget.nickname : '请在左侧选择') + '</strong></span></div>' +
+        '<h4>剩余牌堆 <span class="muted">' + room.wall.remaining + ' 张 · 每 2.5 秒刷新</span></h4>' +
+        '<p class="note">未指定摸牌顺序的可选牌堆（按牌面归类）：</p><div class="wall-choices">' + choices + '</div>' +
+        planHtml + '<p class="note">点击上方牌堆中的牌立即生效；用箭头调整先后顺序，删除也立即生效。服务端会预留这些牌，不让其他玩家提前摸走。</p>' +
+        '<h4>已指定的后续牌序（' + roomDraft.cards.length + ' 张）' +
         (roomEditPending ? ' <span class="muted">正在生效…</span>' : '') + '</h4>' +
         '<div class="draft-order">' + (queue || '<span class="muted">尚未选择牌</span>') + '</div>' +
-        '<p class="button-row">' + button('room-plan-clear', '清空指定牌序', room.roomId, 'danger') + '</p>';
+        '<div class="room-plan-actions single"><button type="button" class="room-plan-button secondary" ' +
+        'data-action="room-plan-clear" data-target="' + room.roomId + '"' +
+        (!roomDraft.cards.length && !plan ? ' disabled' : '') +
+        '><span>清空指定牌序</span><small>恢复正常摸牌顺序</small></button></div>';
     }
-    openModal('房间 #' + room.roomId, '<div class="detail-grid">' +
-      detail('状态', room.status) + detail('俱乐部', room.clubId || '普通房') +
-      detail('局数', room.step + ' / ' + room.totalStep) + detail('入座', room.occupied + ' / ' + room.maxPlayers) +
-      '</div><h4>座位</h4>' + table(['座位', '玩家', '类型', '累计积分', '操作状态'], members) +
+    var roomTitle = '房间 #' + room.roomId + ' · 状态：' + room.status + ' · 俱乐部：' +
+      (room.clubId || '普通房') + ' · 局数：' + room.step + '/' + room.totalStep +
+      ' · 入座：' + room.occupied + '/' + room.maxPlayers;
+    openModal(roomTitle, '<div class="room-workbench"><section class="room-player-pane"><div class="room-pane-head"><h4>玩家与手牌</h4>' +
+      '<small>点击玩家选为配牌目标</small></div><div class="room-player-list">' + members + '</div></section>' +
+      '<section class="room-plan-pane">' + (wskHandHtml || wallHtml || '<p class="muted">当前房间暂无可配置的手牌。</p>') + '</section></div>' +
       '<h4>房间设置</h4><div class="pill-list">' + Object.entries(room.config).map(function (item) {
         return '<span class="pill">' + escape(item[0]) + '：' + escape(item[1]) + '</span>';
-      }).join('') + '</div>' + wallHtml +
-      '<p>' + button('room-dissolve', '解散此房间', room.roomId, 'danger') + '</p>');
+      }).join('') + '</div><p>' + button('room-dissolve', '解散此房间', room.roomId, 'danger') + '</p>', true);
     activeRoomId = room.roomId;
     modalCard.scrollTop = scroll;
   }
@@ -391,6 +602,7 @@
     var room = await api('/rooms/' + encodeURIComponent(id));
     currentRoom = room;
     syncRoomDraft(room);
+    syncWskHandDraft(room, false);
     renderRoomModal(room);
   }
   async function detailRecord(id) {
@@ -442,6 +654,15 @@
       }
       if (action === 'player-detail') return detailPlayer(target);
       if (action === 'room-detail') return detailRoom(target);
+      if (action === 'room-draw-player') {
+        var drawUid = Number(target);
+        if (drawUid === roomDraft.uid) return;
+        var hadDrawPlan = roomDraft.cards.length || (currentRoom.wall && currentRoom.wall.drawPlan);
+        roomDraft.uid = drawUid;
+        roomDraft.cards = [];
+        if (hadDrawPlan) queueRoomEdit('', 'DELETE');
+        renderRoomModal(currentRoom); return;
+      }
       if (action === 'room-card-add') {
         var card = Number(target);
         var count = currentRoom.wall.cards.filter(function (tile) { return tile === card; }).length;
@@ -475,6 +696,28 @@
         roomDraft.cards = [];
         queueRoomEdit('', 'DELETE');
         renderRoomModal(currentRoom); return;
+      }
+      if (action === 'room-wsk-player') {
+        wskHandDraft.uid = Number(target);
+        wskHandDraft.dirty = true;
+        renderRoomModal(currentRoom); return;
+      }
+      if (action === 'room-wsk-count') {
+        var countParts = String(target).split(':');
+        var rankKey = countParts[0];
+        var rankCount = Number(countParts[1]);
+        var rankInfo = wskHandRanks.find(function (rank) { return rank[0] === rankKey; });
+        if (!rankInfo || !Number.isInteger(rankCount) || rankCount < 1 || rankCount > rankInfo[2]) return;
+        if (Number(wskHandDraft.counts[rankKey] || 0) === rankCount) delete wskHandDraft.counts[rankKey];
+        else wskHandDraft.counts[rankKey] = rankCount;
+        wskHandDraft.dirty = true;
+        renderRoomModal(currentRoom); return;
+      }
+      if (action === 'room-wsk-hand-clear') {
+        await api('/rooms/' + target + '/next-wsk-hand', 'DELETE');
+        wskHandDraft.dirty = false;
+        toast('下一局指定起手牌已清除');
+        await detailRoom(target); return;
       }
       if (action === 'record-detail') return detailRecord(target);
       if (action === 'club-detail') return detailClub(target);
@@ -513,6 +756,26 @@
         var result = await api('/backup', 'POST', {});
         toast('备份已生成：' + result.filename); render(); return;
       }
+      if (action === 'hot-update-pause') {
+        if (!window.confirm('停止向新的测试设备推送候选版本？已更新设备不会降级。')) return;
+        await api('/hot-update/' + target, 'PUT', { action: 'pause' });
+        toast('已停止继续灰度'); render(); return;
+      }
+      if (action === 'hot-update-promote') {
+        if (!window.confirm('确认候选版本验证通过，并立即向全部用户发布？')) return;
+        await api('/hot-update/' + target, 'PUT', { action: 'promote' });
+        toast('候选版本已转为全量稳定版'); render(); return;
+      }
+      if (action === 'hot-device-include' || action === 'hot-device-remove') {
+        var deviceParts = String(target).split(':');
+        var devicePlatform = deviceParts.shift();
+        var deviceId = decodeURIComponent(deviceParts.join(':'));
+        await api('/hot-update/' + devicePlatform, 'PUT', {
+          action: action === 'hot-device-include' ? 'include-device' : 'remove-device', deviceId: deviceId,
+        });
+        toast(action === 'hot-device-include' ? '设备已加入指定灰度' : '设备已移出指定灰度');
+        render(); return;
+      }
     } catch (error) { toast(error.message, true); }
   }
   async function handleForm(form) {
@@ -533,13 +796,31 @@
         await api('/notices', 'PUT', values); toast('大厅公告已更新'); render(); return;
       }
       if (form.id === 'economy-form') {
-        await api('/economy', 'PUT', { clubJoinBonus: Number(values.clubJoinBonus),
-          inviteBindBonus: Number(values.inviteBindBonus) });
+        await api('/economy', 'PUT', { newPlayerCards: Number(values.newPlayerCards),
+          clubJoinBonus: Number(values.clubJoinBonus),
+          inviteBindBonus: Number(values.inviteBindBonus), invitePageText: values.invitePageText });
         toast('奖励设置已更新'); render(); return;
       }
       if (form.id === 'bots-form') {
         var bots = await api('/bots', 'PUT', { enabled: values.enabled === 'true' });
         toast(bots.enabled ? '机器人已开启' : '机器人已关闭'); render(); return;
+      }
+      if (form.id.indexOf('hot-update-form-') === 0) {
+        var splitList = function (value) { return String(value || '').split(/[,，\s]+/).map(function (item) {
+          return item.trim();
+        }).filter(Boolean); };
+        var platform = form.getAttribute('data-platform');
+        await api('/hot-update/' + platform, 'PUT', {
+          stableAssetVersion: Number(values.stableAssetVersion),
+          latestAssetVersion: Number(values.latestAssetVersion),
+          rolloutEnabled: values.rolloutEnabled === 'true',
+          percentage: Number(values.percentage),
+          includeUids: splitList(values.includeUids),
+          includeDeviceIds: splitList(values.includeDeviceIds),
+          excludeUids: splitList(values.excludeUids),
+          excludeDeviceIds: splitList(values.excludeDeviceIds),
+        });
+        toast('灰度设置已保存并立即生效'); render(); return;
       }
       if (form.id === 'password-form') {
         await api('/password', 'POST', values); state.csrf = ''; toast('密码已更新，请重新登录'); showLogin(); return;
@@ -565,6 +846,14 @@
         await api('/rooms/' + target + '/dissolve', 'POST', { reason: values.reason });
         toast('房间已解散'); closeModal(); render(); return;
       }
+      if (form.id === 'wsk-hand-plan-form') {
+        var plan = await api('/rooms/' + target + '/next-wsk-hand', 'POST',
+          { uid: Number(wskHandDraft.uid), counts: Object.assign({}, wskHandDraft.counts) });
+        wskHandDraft.dirty = false;
+        toast('已为玩家 #' + plan.nextWskHandPlan.uid + '指定下一局 ' +
+          plan.nextWskHandPlan.total + ' 张起手牌');
+        await detailRoom(target); return;
+      }
       if (form.id === 'club-form') {
         await api('/clubs/' + target + '/settings', 'POST',
           { announcement: values.announcement, closed: values.closed === 'true' });
@@ -586,20 +875,11 @@
     event.preventDefault();
     handleForm(event.target);
   });
-  document.addEventListener('change', function (event) {
-    if (event.target.id === 'room-target-select') {
-      var newUid = Number(event.target.value);
-      if (newUid === roomDraft.uid) return;
-      var hadPlan = roomDraft.cards.length || (currentRoom.wall && currentRoom.wall.drawPlan);
-      roomDraft.uid = newUid;
-      roomDraft.cards = [];
-      if (hadPlan) queueRoomEdit('', 'DELETE');
-      renderRoomModal(currentRoom);
-    }
-  });
   document.addEventListener('keydown', function (event) { if (event.key === 'Escape') closeModal(); });
   window.setInterval(async function () {
     if (!activeRoomId || modal.classList.contains('hidden') || roomPollBusy || roomEditPending) return;
+    if (document.activeElement && document.activeElement.closest &&
+      document.activeElement.closest('#wsk-hand-plan-form')) return;
     var id = activeRoomId;
     roomPollBusy = true;
     try {
@@ -607,6 +887,7 @@
       if (String(activeRoomId) !== String(id)) return;
       currentRoom = room;
       syncRoomDraft(room);
+      syncWskHandDraft(room, false);
       renderRoomModal(room);
     } catch (error) {
       if (String(activeRoomId) === String(id)) { closeModal(); toast(error.message, true); }

@@ -1,6 +1,8 @@
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const { GameApp } = require('../server/app');
+const { avatarUrls } = require('../server/avatars');
+const { GUEST_BASE_NICKNAMES, baseNicknameOf } = require('../server/nicknames');
 
 const app = new GameApp();
 const first = app.loginGuest('device-0001');
@@ -9,6 +11,8 @@ assert.equal(first.player.uid, 285633);
 const nextBeforeBot = app.nextUid;
 const bot = app.mintBot(2, 123456);
 assert.ok(bot.uid >= 800000000 && bot.uid < 900000000);
+assert.ok(GUEST_BASE_NICKNAMES.includes(baseNicknameOf(bot.nickname)), '机器人昵称应来自现有昵称库');
+assert.ok(avatarUrls.includes(bot.avatarUrl), '机器人头像应来自现有头像库');
 assert.equal(app.nextUid, nextBeforeBot, '陪玩不能占用新玩家编号');
 assert.equal(app.loginGuest('device-0002').player.uid, 285634);
 
@@ -16,6 +20,16 @@ const restored = new GameApp();
 restored.restore({ ...app.dump(), nextUid: 100077 });
 assert.equal(restored.loginGuest('device-0003').player.uid, 285635);
 assert.equal(restored.loginGuest('device-0001').player.uid, 285633, '已有游客仍使用原 UID');
+
+const legacyBotDump = app.dump();
+const dumpedBot = legacyBotDump.players.find((entry) => entry.uid === bot.uid);
+dumpedBot.nickname = '陪玩2';
+dumpedBot.avatarUrl = '';
+const migratedBots = new GameApp();
+migratedBots.restore(legacyBotDump);
+const migratedBot = migratedBots.playerByUid(bot.uid);
+assert.ok(GUEST_BASE_NICKNAMES.includes(baseNicknameOf(migratedBot.nickname)), '旧机器人昵称应自动迁移到昵称库');
+assert.ok(avatarUrls.includes(migratedBot.avatarUrl), '旧机器人应自动补齐头像库头像');
 
 const legacyClubState = app.dump();
 legacyClubState.clubs.nextId = 100003;

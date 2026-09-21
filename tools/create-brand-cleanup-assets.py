@@ -10,11 +10,16 @@ import argparse
 import shutil
 
 from PIL import Image, ImageDraw, ImageFont
+from legal_assets import generate_legal_assets
 
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "assets" / "branding" / "legacy-cleanup"
-FONT = "/System/Library/Fonts/PingFang.ttc"
+FONT = next(path for path in (
+    "/System/Library/Fonts/PingFang.ttc",
+    "/System/Library/Fonts/Hiragino Sans GB.ttc",
+    "/System/Library/Fonts/STHeiti Medium.ttc",
+) if Path(path).exists())
 
 
 def font(size, index=0):
@@ -146,39 +151,6 @@ def make_green_notice():
     save(img, "f80f7e41-3748-4fee-99cf-8066229ff1aa.png")
 
 
-def make_legal_placeholder(size, title, body):
-    img = Image.new("RGBA", size, (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    centered(d, (0, 50, size[0], 140), title, font(44), "#6f2e13")
-    d.rounded_rectangle((45, 175, size[0]-45, min(size[1]-50, 590)), 18,
-                        fill=(255, 247, 226, 235), outline="#c78b56", width=3)
-    paragraph(d, (82, 220), body, font(27), "#633a23", size[0]-164, 18)
-    return img
-
-
-def make_legal_assets(source):
-    common = "当前版本用于内部测试。正式发布前，将补充实际运营主体、完整条款和有效联系方式。相关内容完善并经您确认后方可作为正式协议使用。"
-    save(make_legal_placeholder((819, 1581), "用户协议（待完善）", common),
-         "f89eca2a-97a6-4480-9d24-bdf2fec1e807.png")
-    privacy = "当前版本用于内部测试。正式发布前，将补充实际运营主体、个人信息收集与使用规则、存储期限、第三方共享、用户权利和有效联系方式。"
-    save(make_legal_placeholder((819, 1620), "隐私政策（待完善）", privacy),
-         "ff4a224b-c762-451f-badc-e999f4d4f91d.png")
-    save(make_legal_placeholder((821, 2185), "隐私政策（待完善）", privacy),
-         "7a66c68d-c67b-4977-881c-c9e860a9556f.png")
-    child = "正式发布前，将根据实际功能和运营主体补充监护人同意、儿童个人信息处理规则、安全保护措施和有效联系方式。"
-    save(make_legal_placeholder((819, 1530), "儿童隐私保护声明（待完善）", child),
-         "af282322-83b5-482f-9f1a-9f7c5e822465.png")
-
-    # This atlas also contains login buttons in its first 100 pixels, so retain
-    # them and replace only the embedded legacy policy continuation beneath.
-    atlas = Image.open(source / "1f" / "1f821cda2.png").convert("RGBA")
-    d = ImageDraw.Draw(atlas)
-    d.rectangle((0, 100, atlas.width, atlas.height), fill=(0, 0, 0, 0))
-    centered(d, (25, 155, atlas.width-25, 225), "协议内容正在更新", font(35), "#6f2e13")
-    paragraph(d, (55, 255), common, font(23), "#633a23", atlas.width-110, 14)
-    save(atlas, "1f821cda2.png")
-
-
 def clean_sprite_atlases(source):
     login = Image.open(source / "1d" / "1d602e4c2.png").convert("RGBA")
     ImageDraw.Draw(login).rectangle((535, 600, 615, 705), fill=(0, 0, 0, 0))
@@ -211,7 +183,7 @@ def main():
     make_responsible_banner()
     make_public_notice()
     make_green_notice()
-    make_legal_assets(args.source)
+    generate_legal_assets(args.source / "1f" / "1f821cda2.png")
     clean_sprite_atlases(args.source)
     replace_old_icon()
     print(OUTPUT)

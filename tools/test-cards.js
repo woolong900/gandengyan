@@ -104,6 +104,18 @@ const boot = () => {
 }
 
 {
+  const app = new GameApp({ persist: () => {} });
+  app.economySettings.newPlayerCards = 321;
+  const guest = app.loginGuest('configured-guest-device-123456');
+  const wechat = app.loginWechat({ openid: 'configured-wechat-openid', nickname: '新微信用户' });
+  t('游客注册按后台设置赠送房卡', guest.player.cardNum, 321);
+  t('微信注册按后台设置赠送房卡', wechat.player.cardNum, 321);
+  app.economySettings.newPlayerCards = 99;
+  t('修改设置不改动已注册游客', guest.player.cardNum, 321);
+  t('修改设置不改动已注册微信用户', wechat.player.cardNum, 321);
+}
+
+{
   const { app, login } = boot();
   const a = login('a', 't_no_voice_room');
   const voice = rules.buildParam({ 语音房: true });
@@ -126,7 +138,7 @@ const boot = () => {
   const { app, login } = boot();
   const a = login('a', 't_inviter');
   const b = login('b', 't_new');
-  t('新用户赠送 10000 张房卡', a.login.cardNum, NEW_PLAYER_CARDS);
+  t('新用户默认赠送 200 张房卡', a.login.cardNum, NEW_PLAYER_CARDS);
   t('登录就有 5 位大写邀请码', /^[A-Z]{5}$/.test(a.player.inviteCode), true);
   t('邀请码不含 I/O/Z/L', INVITE_AMBIGUOUS.test(a.player.inviteCode), false);
   t('两人邀请码不同', a.player.inviteCode !== b.player.inviteCode, true);
@@ -136,6 +148,7 @@ const boot = () => {
   t('103 带回自己的码', mine.username, a.player.inviteCode);
   t('未绑定 103 邀请码空', mine.inviteCode, '');
   t('未绑定 103 奖励 1000', mine.giveCard, INVITE_GIVE);
+  t('103 带回后台邀请页面文案', mine.mobile, '绑定推荐人邀请码，可获得1000张房卡！');
 
   app.onMessage('b', packCs(104, { inviteCode: a.player.inviteCode.toLowerCase() }));
   t('绑定成功', num(last(b.box, 104).res.error), 0);
@@ -335,6 +348,11 @@ const boot = () => {
   app.onMessage('member', packCs(119, { id: rejoinInvite.id }));
   t('同一成员重新加入不再领取房卡', club.balanceCard, 200);
 
+  app.economySettings.newPlayerCards = 260;
+  const configuredNewPlayer = login('configured-new-player', 't_configured_new_player');
+  t('新注册用户按后台设置获取初始房卡', configuredNewPlayer.player.cardNum, 260);
+  t('修改初始房卡不追溯改动已有用户', owner.player.cardNum, 0);
+
   app.economySettings.clubJoinBonus = 300;
   app.onMessage('owner', packCs(141, { clubId: club.id, userId: invited.player.uid }));
   const firstInvite = club.invites.find((item) => item.toUid === invited.player.uid);
@@ -343,8 +361,10 @@ const boot = () => {
   t('新成员奖励没有误加给玩家', invited.player.cardNum, 0);
 
   app.economySettings.inviteBindBonus = 75;
+  app.economySettings.invitePageText = '测试自定义邀请文案';
   app.onMessage('invited', packCs(103, null));
   t('客户端邀请码页面看到后台设置数量', last(invited.box, 103).giveCard, 75);
+  t('客户端邀请码页面看到后台设置文案', last(invited.box, 103).mobile, '测试自定义邀请文案');
   app.onMessage('invited', packCs(104, { inviteCode: owner.player.inviteCode }));
   t('邀请码绑定按设置奖励双方', [owner.player.cardNum, invited.player.cardNum], [75, 75]);
   app.onMessage('invited', packCs(104, { inviteCode: owner.player.inviteCode }));
@@ -367,7 +387,9 @@ const boot = () => {
 
   const restored = new GameApp({ persist: () => {}, now: () => 1, allowUnregisteredTokens: true });
   restored.restore(app.dump());
-  t('奖励设置恢复后保留', restored.economySettings, { clubJoinBonus: 300, inviteBindBonus: 75 });
+  t('奖励设置恢复后保留', restored.economySettings,
+    { newPlayerCards: 260, clubJoinBonus: 300, inviteBindBonus: 75,
+      invitePageText: '测试自定义邀请文案' });
   t('俱乐部余额和已奖励成员恢复后保留',
     [restored.clubStore.get(club.id).balanceCard, restored.clubStore.get(club.id).rewardedMemberUids.length],
     [496, 3]);

@@ -42,16 +42,14 @@ e[e.Bomb6 = 14] = "Bomb6";
 e[e.Bomb7 = 15] = "Bomb7";
 e[e.Bomb8 = 16] = "Bomb8";
 e[e.BombKing4 = 17] = "BombKing4";
-e[e.WSK_Double_Fang = 18] = "WSK_Double_Fang";
-e[e.WSK_Double_Mei = 19] = "WSK_Double_Mei";
-e[e.WSK_Double_Hong = 20] = "WSK_Double_Hong";
-e[e.WSK_Double_Hei = 21] = "WSK_Double_Hei";
+e[e.Bomb8OverKing = 18] = "Bomb8OverKing";
 })(r || (r = {}));
 var s = function(e) {
 n(t, e);
 function t() {
 var t = null !== e && e.apply(this, arguments) || this;
 t._isWSKTrueBiggerBomb4 = !1;
+t._isBomb8BiggerKing = !1;
 return t;
 }
 t.getInstance = function() {
@@ -59,7 +57,7 @@ this._instance || (this._instance = new t());
 return this._instance;
 };
 t.prototype.roomParam2Config = function(e, t, o) {
-var n = [], r = {}, a = Math.floor(t / 1) % 10, s = Math.floor(t / 10) % 10, l = Math.floor(t / 100) % 10, c = Math.floor(t / 1e3) % 10, u = Math.floor(t / 1e4) % 10, d = Math.floor(t / 1e5) % 10, p = Math.floor(t / 1e6) % 10, f = Math.floor(t / 1e7) % 10, h = Math.floor(t / 1e8) % 10, m = Math.floor(t / 1e9) % 10, y = Math.floor(t / 1e10) % 10, g = Math.floor(t / 1e11) % 10;
+var n = [], r = {}, a = Math.floor(t / 1) % 10, s = Math.floor(t / 10) % 10, l = Math.floor(t / 100) % 10, c = Math.floor(t / 1e3) % 10, u = Math.floor(t / 1e4) % 10, d = Math.floor(t / 1e5) % 10, p = Math.floor(t / 1e6) % 10, f = Math.floor(t / 1e7) % 10, h = Math.floor(t / 1e8) % 10, m = Math.floor(t / 1e9) % 10, y = Math.floor(t / 1e10) % 10, g = Math.floor(t / 1e11) % 10, v = Math.floor(t / 1e13) % 10;
 1 == Math.floor(t / 1e12) % 10 && n.push(200);
 3 === e && n.push(1);
 6 === e && n.push(2);
@@ -86,6 +84,7 @@ n.push(18);
 1 === m && n.push(19);
 1 === y && n.push(20);
 1 === g && n.push(21);
+1 === v && n.push(22);
 0 === s && n.push(28);
 1 === s && n.push(29);
 2 === s && n.push(30);
@@ -104,7 +103,7 @@ var o = this.configCell2Str(e, [ 5, 6, 7, 8 ], [ "0", "1", "2", "3" ]), n = this
 50 === u && (y = 2);
 100 === u && (y = 3);
 200 === u && (y = 4);
-var g = parseInt(h + f + p + d + y + c + l + s + a + i + r + n + o), _ = 1, v = e.gameCount();
+var x = this.configCell2Str(e, [ 22 ], [ "1" ]), g = parseInt(x + h + f + p + d + y + c + l + s + a + i + r + n + o), _ = 1, v = e.gameCount();
 3 === v && (_ = 1);
 6 === v && (_ = 2);
 9 === v && (_ = 3);
@@ -155,6 +154,7 @@ e.isChecked(13) && o.push("干锅带彩2倍");
 e.isChecked(14) ? o.push("尾游可以捡分") : o.push("尾游不能捡分");
 e.isChecked(15) && o.push("去掉34");
 e.isChecked(16) && o.push("真五十K大过四炸");
+e.isChecked(22) && o.push("8张炸大过四大天王");
 for (var n = 0, r = o.length; n < r; n++) t ? t = t + " " + o[n] : t += o[n];
 return t;
 };
@@ -168,6 +168,21 @@ this.ruleIsRazzCanReplaceTo510k = !1;
 this.ruleRazzIsCanPut = !1;
 this.ruleRazzPutAsCard = 0;
 this._isWSKTrueBiggerBomb4 = e.isChecked(16);
+this._isBomb8BiggerKing = e.isChecked(22);
+};
+t.prototype.compareToPut = function(t, o, n) {
+var r = e.prototype.compareToPut.call(this, t, o, n);
+if (n === a.eWSKOneHandType.Seq2 || n === a.eWSKOneHandType.Seq3) {
+r = r.filter(function(e) {
+if (e.type !== n) return !0;
+if (e.cards.length !== o.length) return !1;
+if (n === a.eWSKOneHandType.Seq2 && 4 === o.length) {
+return this.cardValue(this.sortPutShow(e.cards)[0]) === this.cardValue(this.sortPutShow(o)[0]) + 1;
+}
+return !0;
+}, this);
+}
+return r;
 };
 t.prototype.oneHandInfo = function(t) {
 var o = t.length;
@@ -175,13 +190,6 @@ if (4 === o && this.isSameColor(t, a.eWSKCardColor.King)) return [ {
 type: a.eWSKOneHandType.BombKing,
 cards: [].concat(t)
 } ];
-if (6 === o && this.isSameColor(t)) {
-var n = this.cards2CountArr(t);
-if (2 === n[a.WSK_Card_Value_5] && 2 === n[a.WSK_Card_Value_10] && 2 === n[a.WSK_Card_Value_K]) return [ {
-type: a.eWSKOneHandType.WSKTrue,
-cards: [].concat(t)
-} ];
-}
 return e.prototype.oneHandInfo.call(this, t);
 };
 t.prototype.tip = function(e, t, o) {
@@ -198,16 +206,10 @@ o === a.eWSKOneHandType.Seq2 && (l = this._tipSeq(s, i, c, 2, t.length / 2));
 o === a.eWSKOneHandType.Seq3 && (l = this._tipSeq(s, i, c, 3, t.length / 3));
 if (o === a.eWSKOneHandType.WSKTrue) {
 var u = this.cardColor(c);
-if (6 === t.length) {
-u === a.eWSKCardColor.Fang && (l = this._tipWSKTrueDouble(s, i, c, r.WSK_Double_Fang));
-u === a.eWSKCardColor.Mei && (l = this._tipWSKTrueDouble(s, i, c, r.WSK_Double_Mei));
-u === a.eWSKCardColor.Hong && (l = this._tipWSKTrueDouble(s, i, c, r.WSK_Double_Hong));
-} else {
 u === a.eWSKCardColor.Fang && (l = this._tipWSKTrue(s, i, c, r.WSK_Fang));
 u === a.eWSKCardColor.Mei && (l = this._tipWSKTrue(s, i, c, r.WSK_Mei));
 u === a.eWSKCardColor.Hong && (l = this._tipWSKTrue(s, i, c, r.WSK_Hong));
 u === a.eWSKCardColor.Hei && (l = this._tipWSKTrue(s, i, c, r.WSK_Hei));
-}
 }
 o === a.eWSKOneHandType.WSKFalse && (l = this._tipWSKFalse(s, i));
 if (o === a.eWSKOneHandType.Bomb) {
@@ -240,7 +242,6 @@ if (6 === n) return "seq2_3_" + o;
 if (e === a.eWSKOneHandType.Seq3) return "seq3";
 if (e === a.eWSKOneHandType.WSKFalse) return "wsk_false";
 if (e === a.eWSKOneHandType.WSKTrue) {
-if (6 === (n = t.length)) return "wsk_liti";
 var r = this.cardColor(t[0]);
 if (r === a.eWSKCardColor.Fang) return "wsk_fang";
 if (r === a.eWSKCardColor.Mei) return "wsk_mei";
@@ -261,7 +262,7 @@ if (4 === o) return this._isWSKTrueBiggerBomb4 ? r.Bomb4_Small : r.Bomb4_Big;
 if (5 === o) return r.Bomb5;
 if (6 === o) return r.Bomb6;
 if (7 === o) return r.Bomb7;
-if (8 === o) return r.Bomb8;
+if (8 === o) return this._isBomb8BiggerKing ? r.Bomb8OverKing : r.Bomb8;
 }
 if (t === a.eWSKOneHandType.BombKing) return r.BombKing4;
 if (t === a.eWSKOneHandType.WSKFalse) return r.WSK_False;
@@ -272,12 +273,6 @@ if (n === a.eWSKCardColor.Hei) return r.WSK_Hei;
 if (n === a.eWSKCardColor.Hong) return r.WSK_Hong;
 if (n === a.eWSKCardColor.Mei) return r.WSK_Mei;
 if (n === a.eWSKCardColor.Fang) return r.WSK_Fang;
-}
-if (6 === e.length) {
-if (n === a.eWSKCardColor.Hei) return r.WSK_Double_Hei;
-if (n === a.eWSKCardColor.Hong) return r.WSK_Double_Hong;
-if (n === a.eWSKCardColor.Mei) return r.WSK_Double_Mei;
-if (n === a.eWSKCardColor.Fang) return r.WSK_Double_Fang;
 }
 }
 cc.error("不应该走到此逻辑，检查代码逻辑错误~");
@@ -344,34 +339,32 @@ return i = i.concat(this._getTipAllBomb(e, t, o));
 };
 t.prototype._tipWSKFalse = function(e, t) {
 var o = [];
-return o = (o = (o = (o = this._isWSKTrueBiggerBomb4 ? (o = o.concat(this._getTipBombs(e, t, r.Bomb4_Small, r.Bomb4_Small))).concat(this._getTipWSKs(e, r.WSK_Fang, r.WSK_Hei)) : (o = o.concat(this._getTipWSKs(e, r.WSK_Fang, r.WSK_Hei))).concat(this._getTipBombs(e, t, r.Bomb4_Big, r.Bomb4_Big))).concat(this._getTipBombs(e, t, r.Bomb5, r.Bomb8))).concat(this._getTipKings(e, r.BombKing4, r.BombKing4))).concat(this._getTipWSKDoubles(e, r.WSK_Double_Fang, r.WSK_Double_Hei));
+var n = this._isBomb8BiggerKing ? r.Bomb8OverKing : r.Bomb8;
+return o = (o = (o = this._isWSKTrueBiggerBomb4 ? (o = o.concat(this._getTipBombs(e, t, r.Bomb4_Small, r.Bomb4_Small))).concat(this._getTipWSKs(e, r.WSK_Fang, r.WSK_Hei)) : (o = o.concat(this._getTipWSKs(e, r.WSK_Fang, r.WSK_Hei))).concat(this._getTipBombs(e, t, r.Bomb4_Big, r.Bomb4_Big))).concat(this._getTipBombs(e, t, r.Bomb5, n))).concat(this._getTipKings(e));
 };
 t.prototype._tipWSKTrue = function(e, t, o, n) {
 var i = [], a = n + 1;
 a <= r.WSK_Hei && (i = i.concat(this._getTipWSKs(e, a, r.WSK_Hei)));
 this._isWSKTrueBiggerBomb4 || (i = i.concat(this._getTipBombs(e, t, r.Bomb4_Big, r.Bomb4_Big)));
-return i = (i = (i = i.concat(this._getTipBombs(e, t, r.Bomb5, r.Bomb8))).concat(this._getTipKings(e, r.BombKing4, r.BombKing4))).concat(this._getTipWSKDoubles(e, r.WSK_Double_Fang, r.WSK_Double_Hei));
-};
-t.prototype._tipWSKTrueDouble = function(e, t, o, n) {
-var i = [], a = n + 1;
-a <= r.WSK_Double_Hei && (i = i.concat(this._getTipWSKDoubles(e, a, r.WSK_Double_Hei)));
-return i;
+var o = this._isBomb8BiggerKing ? r.Bomb8OverKing : r.Bomb8;
+return i = (i = i.concat(this._getTipBombs(e, t, r.Bomb5, o))).concat(this._getTipKings(e));
 };
 t.prototype._tipBomb = function(e, t, o, n) {
 var i = [];
 i = i.concat(this._getTipMoreThanOne(e, t, o, n));
 4 === n && this._isWSKTrueBiggerBomb4 && (i = i.concat(this._getTipWSKs(e, r.WSK_Fang, r.WSK_Hei)));
-var a = r.Bomb8 + 1, s = r.Bomb8;
+var a = r.Bomb8OverKing + 1, s = this._isBomb8BiggerKing ? r.Bomb8OverKing : r.Bomb8;
 4 === n && (a = r.Bomb5);
 5 === n && (a = r.Bomb6);
 6 === n && (a = r.Bomb7);
 7 === n && (a = r.Bomb8);
 a <= s && (i = i.concat(this._getTipBombs(e, t, a, s)));
-return i = (i = i.concat(this._getTipKings(e, r.BombKing4, r.BombKing4))).concat(this._getTipWSKDoubles(e, r.WSK_Double_Fang, r.WSK_Double_Hei));
+if (!(this._isBomb8BiggerKing && 8 === n)) i = i.concat(this._getTipKings(e));
+return i;
 };
 t.prototype._tipKing = function(e) {
-var t = [];
-return t = t.concat(this._getTipWSKDoubles(e, r.WSK_Double_Fang, r.WSK_Double_Hei));
+if (!this._isBomb8BiggerKing) return [];
+return this._getTipBombs(e, this.cards2CountArr(e), r.Bomb8OverKing, r.Bomb8OverKing);
 };
 t.prototype._getTipMoreThanOne = function(e, t, o, n) {
 for (var r = [], i = e.length - 1; i >= 0; ) {
@@ -432,7 +425,8 @@ return s;
 t.prototype._getTipAllBomb = function(e, t, o) {
 var n = [];
 n = n.concat(this._getTipWSKs(e, r.WSK_False, r.WSK_False));
-return n = (n = (n = (n = this._isWSKTrueBiggerBomb4 ? (n = n.concat(this._getTipBombs(e, t, r.Bomb4_Small, r.Bomb4_Small))).concat(this._getTipWSKs(e, r.WSK_Fang, r.WSK_Hei)) : (n = n.concat(this._getTipWSKs(e, r.WSK_Fang, r.WSK_Hei))).concat(this._getTipBombs(e, t, r.Bomb4_Big, r.Bomb4_Big))).concat(this._getTipBombs(e, t, r.Bomb5, r.Bomb8))).concat(this._getTipKings(e, r.BombKing4, r.BombKing4))).concat(this._getTipWSKDoubles(e, r.WSK_Double_Fang, r.WSK_Double_Hei));
+var i = this._isBomb8BiggerKing ? r.Bomb8OverKing : r.Bomb8;
+return n = (n = (n = this._isWSKTrueBiggerBomb4 ? (n = n.concat(this._getTipBombs(e, t, r.Bomb4_Small, r.Bomb4_Small))).concat(this._getTipWSKs(e, r.WSK_Fang, r.WSK_Hei)) : (n = n.concat(this._getTipWSKs(e, r.WSK_Fang, r.WSK_Hei))).concat(this._getTipBombs(e, t, r.Bomb4_Big, r.Bomb4_Big))).concat(this._getTipBombs(e, t, r.Bomb5, i))).concat(this._getTipKings(e));
 };
 t.prototype._getTipBombs = function(e, t, o, n) {
 for (var r = this, i = [], s = e.length - 1; s >= 0; ) {
@@ -463,20 +457,7 @@ c(i._510kFake, a.eWSKOneHandType.WSKFalse);
 c(s, a.eWSKOneHandType.WSKTrue);
 return r;
 };
-t.prototype._getTipWSKDoubles = function(e, t, o) {
-var n = this, r = [];
-(function(e, i) {
-for (var a = e.length - 1; a >= 3; a -= 3) {
-var s = e[a - 0], l = e[a - 3];
-if (n.cardColor(s) === n.cardColor(l)) {
-var c = [ e[a - 5], e[a - 4], e[a - 3], e[a - 2], e[a - 1], e[a - 0] ], u = n.oneHandWeight(c, i);
-u >= t && u <= o && r.push(c);
-}
-}
-})(this._split510kCards(e)._510kReal, a.eWSKOneHandType.WSKTrue);
-return r;
-};
-t.prototype._getTipKings = function(e, t, o) {
+t.prototype._getTipKings = function(e) {
 for (var n = [], r = 0, i = e.length; r < i; r++) {
 var s = e[r];
 if (this.cardColor(s) !== a.eWSKCardColor.King) break;

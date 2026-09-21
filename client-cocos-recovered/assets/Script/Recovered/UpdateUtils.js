@@ -16,6 +16,18 @@ e.AssertUpdate = "assert_update";
 e[e.openUrl = 1] = "openUrl";
 e[e.downLoad = 2] = "downLoad";
 })(o.eFullUpdateAction || (o.eFullUpdateAction = {}));
+var f = function() {
+var e = cc.sys.localStorage.getItem("__QJQP_ROLLOUT_KEY__");
+if (e) return e;
+if (cc.sys.isNative) if (cc.sys.os === cc.sys.OS_ANDROID) try {
+e = jsb.reflection.callStaticMethod("com/yuanlai/external/Utils", "getGuestDeviceId", "()Ljava/lang/String;");
+} catch (t) {} else if (cc.sys.os === cc.sys.OS_IOS) try {
+e = jsb.reflection.callStaticMethod("TalkingDataGA", "getDeviceId");
+} catch (t) {}
+e || (e = "r-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2));
+cc.sys.localStorage.setItem("__QJQP_ROLLOUT_KEY__", e);
+return e;
+};
 var u = new (function() {
 function e() {}
 e.prototype.getStoragePath = function() {
@@ -47,7 +59,10 @@ if (cc.sys.isNative) {
 var o = i.default.formatUrl(r.default.checkVesionAddr, {
 os_type: r.default.appName + "_" + r.default.platform + "_" + a.default.chan(),
 package_version: "" + r.default.packageVer,
-assert_version: "" + r.default.assertVer
+assert_version: "" + r.default.assertVer,
+rollout_key: f(),
+uid: cc.sys.localStorage.getItem("__QJQP_ROLLOUT_UID__") || "",
+device_name: (cc.sys.os || "") + " " + (cc.sys.osVersion || "")
 });
 o = r.default.appDunUrl(o);
 i.default.get(o, null, function(o, r) {

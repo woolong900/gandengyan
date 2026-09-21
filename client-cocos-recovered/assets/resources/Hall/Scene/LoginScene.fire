@@ -244,11 +244,11 @@
     "_contentSize": {
       "__type__": "cc.Size",
       "width": 1650,
-      "height": 90
+      "height": 50
     },
     "_position": {
       "__type__": "cc.Vec3",
-      "y": -315
+      "y": -335
     }
   },
   {
@@ -908,6 +908,14 @@
         "__id__": 28
       }
     ],
+    "_active": false,
+    "_opacity": 0,
+    "_scale": {
+      "__type__": "cc.Vec3",
+      "x": 0,
+      "y": 0,
+      "z": 1
+    },
     "_level": 3,
     "_components": [
       {
@@ -1077,8 +1085,8 @@
         "__uuid__": "eca5d2f2-8ef6-41c2-bbe6-f9c79d09c432"
       }
     ],
-    "_string": "107000~107100",
-    "_N$string": "107000~107100",
+        "_string": "",
+        "_N$string": "",
     "_fontSize": 20,
     "_lineHeight": 25,
     "_enableWrapText": false,
@@ -1114,6 +1122,14 @@
         "__id__": 32
       }
     ],
+    "_active": false,
+    "_opacity": 0,
+    "_scale": {
+      "__type__": "cc.Vec3",
+      "x": 0,
+      "y": 0,
+      "z": 1
+    },
     "_level": 3,
     "_components": [
       {
@@ -1195,8 +1211,8 @@
           }
         ],
         "_useOriginalSize": false,
-        "_string": "测试ID登录",
-        "_N$string": "测试ID登录",
+        "_string": "",
+        "_N$string": "",
         "_fontSize": 20,
         "_enableWrapText": false,
         "_N$horizontalAlign": 1,

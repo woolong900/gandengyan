@@ -146,7 +146,7 @@ t.checkFull(3);
 t.rootNode.active = !0;
 t.loginRoot.active = !1;
 t._descStr = "下载更新中";
-var l = n.url || "http://192.168.0.7:8899/" + s.default.appName + "/update/";
+var l = n.url || "https://gmhiu.com/" + s.default.appName + "/update/";
 t.hotUpdate.hotUpdate(n.version, l);
 } else t.checkFull(e - 1);
 } else t.loginRoot.getComponent(m.default).tryLogin();

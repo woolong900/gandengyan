@@ -114,6 +114,21 @@ console.log('抢杠胡');
 }
 
 {
+  const { round, log } = table(cfg({ 热铳: false }), (r) => {
+    r.laizi = 9;
+    r.melds = [[{ type: 'peng', card: 5, from: 1 }], []];
+    r.hands = [[1, 1, 1, 2, 2, 2, 3, 3, 3, 4], HAND_WAIT_5.slice()];
+    r.drawn = [5, null];
+    r.turn = 0;
+    r.pending = null;
+  });
+  round.selfGang(0, 5);
+  check('关闭热铳后不询问抢杠', !!(round.pending && round.pending.kind === 'qianggang'), false);
+  check('关闭热铳后不发送抢杠操作', log.some((x) => x.head === 'game_operator' && x.seat === 1 && x.data.hu === 5), false);
+  check('关闭热铳后补杠正常补牌', round.drawn[0] != null, true);
+}
+
+{
   const { round, log, seats } = table(cfg({ 人数: 4, 暗杠倍数: 2, 热铳: true }), (r) => {
     r.laizi = 31;
     r.melds = [[{ type: 'peng', card: 5, from: 1 }], [], [], []];
@@ -289,7 +304,7 @@ console.log('热铳');
 }
 
 {
-  const { round, log } = table(cfg({ 只许自摸: true, 热铳: true }), (r) => {
+  const { round } = table(cfg({ 只许自摸: true, 热铳: true }), (r) => {
     r.laizi = 9;
     r.melds = [[], []];
     r.hands = [[1, 1, 1, 1, 2, 3, 4, 6, 7, 8, 11, 12, 13], HAND_WAIT_5.slice()];
@@ -302,10 +317,7 @@ console.log('热铳');
   round.hands[0] = [2, 3, 4, 6, 7, 8, 11, 12, 13, 14];
   round.drawn[0] = 5;
   round.turn = 0;
-  round.discard(0, 5);
-  check('只许自摸仍能热铳', round.pending && round.pending.candidates.some((c) => c.ops.hu), true);
-  round.respond(1, 'hu');
-  check('只许自摸热铳胡型在', rules.hasBit(lastOver(log).huType, rules.HU.热铳), true);
+  check('只许自摸不能接热铳', round.discardHu(1, 5, 0), 0);
 }
 
 // ---------------------------------------------------------------- 清一色
@@ -331,7 +343,7 @@ for (const [name, bao, want] of [['报过才算', true, true], ['没报不算', 
 
 console.log('双大胡');
 {
-  const { round, log } = table(cfg({ 清一色: true, 双大胡: true }), (r) => {
+  const { round, log } = table(cfg({ 清一色: true, 双大胡: true, 热铳: true }), (r) => {
     r.laizi = 31;
     r.melds = [[{ type: 'peng', card: 15, from: 1 }], []];
     r.hands = [[11, 11, 11, 12, 12, 12, 13, 13, 13, 14], [11, 12, 13, 14, 16, 16, 17, 18, 11, 12, 13, 15, 15]];
@@ -349,7 +361,7 @@ console.log('双大胡');
 }
 
 {
-  const { round, log, seats } = table(cfg({ 双大胡: true }), (r) => {
+  const { round, log, seats } = table(cfg({ 双大胡: true, 热铳: true }), (r) => {
     r.laizi = 31;
     r.pizi = 15;
     r.melds = [[{ type: 'peng', card: 5, from: 1 }], []];
@@ -623,27 +635,11 @@ console.log('喜钱');
     r.melds = [[], [], []];
     r.hands = [[11, 11, 11, 12, 12, 12, 13, 13, 13, 14, 14, 14, 15], [], []];
     r.drawn = [15, null, null];
-    r.razz = [2, 0, 0]; // 亮过两张
     r.turn = 0;
     r.pending = null;
   });
   round.win(0, 15, null);
-  // 黑摸 4 份 + 喜钱 10 份 = 每家 14
-  check('喜钱按固定倍数算，不看亮了几张', scoreOf(seats), [28, -14, -14]);
-}
-
-{
-  const { round, seats } = table(cfg({ 人数: 3, 喜钱: 10 }), (r) => {
-    r.laizi = 31;
-    r.melds = [[], [], []];
-    r.hands = [[11, 11, 11, 12, 12, 12, 13, 13, 13, 14, 14, 14, 15], [], []];
-    r.drawn = [15, null, null];
-    r.razz = [0, 0, 0]; // 没亮
-    r.turn = 0;
-    r.pending = null;
-  });
-  round.win(0, 15, null);
-  check('没亮癞子就没有喜钱', scoreOf(seats), [8, -4, -4]);
+  check('喜钱配置不向普通胡牌额外加分', scoreOf(seats), [8, -4, -4]);
 }
 
 {
@@ -858,8 +854,9 @@ console.log('过手胡');
     r.pending = null;
   });
   round.discard(1, 5);
-  check('土豪必杠普通炮不问胡', huAsked(round, 0), false);
-  check('土豪必杠普通炮不记过胡', round.passHu[0], false);
+  check('干瞪眼未勾只许自摸可以接普通炮', huAsked(round, 0), true);
+  round.respond(0, 'pass');
+  check('干瞪眼过普通炮后记过胡', round.passHu[0], true);
 }
 
 {

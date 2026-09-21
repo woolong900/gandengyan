@@ -17,6 +17,7 @@ this._operateOptions = null;
 this._putoutStatis = {};
 this._paiDunNum = 0;
 this._handCardsSorted = [];
+this._handDrawnCard = !1;
 this._handSelectIndex = -1;
 this._isSelectCard = !0;
 this.pos = e.pos;
@@ -38,6 +39,7 @@ this._paiDunNum = 0;
 var d = e.paiDunCards || [];
 this._initPaiDunCard(d);
 this._sordHandCards(!0);
+this._handDrawnCard = this.handCards.length % 3 == 2;
 this._handSelectIndex = -1;
 }
 e.prototype.setIsSelectCard = function(e) {
@@ -76,6 +78,7 @@ return t;
 e.prototype.getCard = function(e) {
 this.handCards.push(e);
 this._sordHandCards(!0);
+this._handDrawnCard = !0;
 this.cleanSelectHandCard();
 a.default.eventUtils.emit(s.default.data_hand_card_add, {
 pos: this.pos,
@@ -181,6 +184,7 @@ break;
 }
 }, r = 0, i = e.length; r < i; r++) n(e[r]);
 this._sordHandCards(!1);
+this._handDrawnCard = !1;
 t && a.default.eventUtils.emit(s.default.data_hand_card_remove, {
 pos: this.pos,
 cards: e

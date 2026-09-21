@@ -18,7 +18,12 @@ const empty = () => ({
   players: [],
   operatorMessages: [],
   publicNotices: { hallMarquee: '', serviceWechat: '', serviceQQ: '' },
-  economySettings: { clubJoinBonus: 200, inviteBindBonus: 1000 },
+  economySettings: {
+    newPlayerCards: 200,
+    clubJoinBonus: 200,
+    inviteBindBonus: 1000,
+    invitePageText: '绑定推荐人邀请码，可获得1000张房卡！',
+  },
   botSettings: { enabled: process.env.QJQP_FILLBOTS !== '0' },
   rooms: [],
   records: [],
@@ -117,6 +122,24 @@ const open = () => {
       details TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS admin_audit_at ON admin_audit(at);
+    CREATE TABLE IF NOT EXISTS admin_sessions (
+      sid_hash TEXT PRIMARY KEY,
+      csrf TEXT NOT NULL,
+      actor TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS admin_sessions_expires_at ON admin_sessions(expires_at);
+    CREATE TABLE IF NOT EXISTS agent_applications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      uid INTEGER NOT NULL,
+      nickname TEXT NOT NULL DEFAULT '',
+      contact TEXT NOT NULL,
+      contact_type TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS agent_applications_created_at ON agent_applications(created_at DESC);
+    CREATE INDEX IF NOT EXISTS agent_applications_uid ON agent_applications(uid);
     CREATE TABLE IF NOT EXISTS record_history (
       id TEXT PRIMARY KEY,
       room_id INTEGER NOT NULL,
@@ -290,6 +313,88 @@ const listAudit = (limit = 100) => {
     .all(Math.max(1, Math.min(500, Number(limit) || 100))).map((row) => ({ ...row, details: JSON.parse(row.details) }));
 };
 
+const saveAdminSession = (session) => {
+  open();
+  const sidHash = String(session.sidHash || '');
+  const csrf = String(session.csrf || '');
+  const actor = String(session.actor || '管理员');
+  const createdAt = Number(session.createdAt || Date.now());
+  const expiresAt = Number(session.expiresAt || 0);
+  if (!/^[0-9a-f]{64}$/.test(sidHash) || !/^[0-9a-f]{64}$/.test(csrf)
+      || !Number.isSafeInteger(expiresAt) || expiresAt <= createdAt) {
+    throw new Error('后台会话数据无效');
+  }
+  db.prepare(`INSERT INTO admin_sessions (sid_hash, csrf, actor, created_at, expires_at)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(sid_hash) DO UPDATE SET csrf=excluded.csrf, actor=excluded.actor,
+      created_at=excluded.created_at, expires_at=excluded.expires_at`)
+    .run(sidHash, csrf, actor.slice(0, 64), createdAt, expiresAt);
+};
+
+const getAdminSession = (sidHash, now = Date.now()) => {
+  open();
+  const hash = String(sidHash || '');
+  if (!/^[0-9a-f]{64}$/.test(hash)) return null;
+  const row = db.prepare(`SELECT sid_hash sidHash, csrf, actor, created_at createdAt, expires_at expiresAt
+    FROM admin_sessions WHERE sid_hash=?`).get(hash);
+  if (!row) return null;
+  if (Number(row.expiresAt) <= Number(now)) {
+    db.prepare('DELETE FROM admin_sessions WHERE sid_hash=?').run(hash);
+    return null;
+  }
+  return { ...row, createdAt: Number(row.createdAt), expiresAt: Number(row.expiresAt) };
+};
+
+const deleteAdminSession = (sidHash) => {
+  open();
+  return db.prepare('DELETE FROM admin_sessions WHERE sid_hash=?').run(String(sidHash || '')).changes > 0;
+};
+
+const clearAdminSessions = () => {
+  open();
+  return db.prepare('DELETE FROM admin_sessions').run().changes;
+};
+
+const pruneAdminSessions = (now = Date.now()) => {
+  open();
+  return db.prepare('DELETE FROM admin_sessions WHERE expires_at<=?').run(Number(now)).changes;
+};
+
+const appendAgentApplication = (entry) => {
+  open();
+  const application = {
+    uid: Number(entry.uid),
+    nickname: String(entry.nickname || ''),
+    contact: String(entry.contact || ''),
+    contactType: String(entry.contactType || ''),
+    createdAt: Number(entry.createdAt || Date.now()),
+  };
+  const recent = db.prepare(`SELECT id, uid, nickname, contact, contact_type contactType, created_at createdAt
+    FROM agent_applications WHERE uid=? AND contact=? AND created_at>=?
+    ORDER BY id DESC LIMIT 1`).get(application.uid, application.contact, application.createdAt - 60000);
+  if (recent) return { ...recent, duplicate: true };
+  const result = db.prepare(`INSERT INTO agent_applications
+    (uid, nickname, contact, contact_type, created_at) VALUES (?, ?, ?, ?, ?)`)
+    .run(application.uid, application.nickname, application.contact, application.contactType, application.createdAt);
+  return { id: Number(result.lastInsertRowid), ...application, duplicate: false };
+};
+
+const listAgentApplications = ({ q = '', page = 1, limit = 25 } = {}) => {
+  open();
+  const term = String(q).trim().slice(0, 64);
+  const pattern = `%${term.replace(/[\\%_]/g, '\\$&')}%`;
+  const pageNumber = Math.max(1, Math.min(100000, Number(page) || 1));
+  const size = Math.max(10, Math.min(100, Number(limit) || 25));
+  const where = `(? = '' OR CAST(uid AS TEXT) LIKE ? ESCAPE '\\' OR nickname LIKE ? ESCAPE '\\'
+    OR contact LIKE ? ESCAPE '\\' OR contact_type LIKE ? ESCAPE '\\')`;
+  const args = [term, pattern, pattern, pattern, pattern];
+  const total = Number(db.prepare(`SELECT COUNT(*) n FROM agent_applications WHERE ${where}`).get(...args).n);
+  const rows = db.prepare(`SELECT id, uid, nickname, contact, contact_type contactType, created_at createdAt
+    FROM agent_applications WHERE ${where} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`)
+    .all(...args, size, (pageNumber - 1) * size);
+  return { items: rows, total, page: pageNumber, limit: size };
+};
+
 const archiveRecord = (record) => {
   open();
   const compact = { ...record, playbackIds: Object.keys(record.playbacks || {}) };
@@ -358,5 +463,7 @@ const close = () => {
 };
 
 module.exports = { FILE, LEGACY_FILE, load, save, saveAsync, backup, appendAudit, listAudit,
+  saveAdminSession, getAdminSession, deleteAdminSession, clearAdminSessions, pruneAdminSessions,
+  appendAgentApplication, listAgentApplications,
   archiveRecord, backfillRecords, listRecordHistory, listPlayerRecordHistory,
   getRecordHistory, recordHistoryStats, close };

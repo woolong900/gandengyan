@@ -58,8 +58,8 @@ this.xlNode.active = !1;
 this.mobileNode.active = !1;
 a.default.platform === s.ePlatformType.iOS || a.default.platform === s.ePlatformType.android ? this.wxNode.active = !0 : this.wxNode.active = !1;
 this.guestNode.active = true;
-this.ebTestAccount.node.active = v.default.isDebug();
-this.btnTestLogin.node.active = v.default.isDebug();
+this.ebTestAccount.node.active = false;
+this.btnTestLogin.node.active = false;
 };
 t.prototype.tryLogin = function() {
 this.maskNode.active = !1;
@@ -135,23 +135,24 @@ l.default.uiHelper.showTip(t);
 });
 };
 t.prototype._wxLogin = function() {
-if (!v.default.sdkInfo("SDK_WX_APPID")) return l.default.uiHelper.showTip("微信登录尚未配置 AppID");
+var h = v.default.sdkInfo("SDK_WX_APPID");
+if (!h) return l.default.uiHelper.showTip("微信登录尚未配置 AppID");
 if (cc.sys.os === cc.sys.OS_IOS && !v.default.sdkInfo("SDK_WX_APPLINK")) return l.default.uiHelper.showTip("iOS 微信登录需先配置 Universal Link");
 var e = this, t = {
 appName: a.default.appName,
 accountType: "wx",
 code: void 0,
 token: void 0,
-appId: v.default.sdkInfo("SDK_WX_APPID")
-}, o = d.default.wxToken.getValue();
-if (o) {
-l.default.uiHelper.showLoading();
-this._tokenLogin(o);
-} else c.default.login(s.eAccountType.wechat, function(o, n) {
+appId: h,
+migrationTicket: void 0
+}, o = d.default.wxToken.getValue(), n = d.default.wxAppId.getValue(), r = function(o) {
+o && (t.migrationTicket = o);
+c.default.login(s.eAccountType.wechat, function(o, n) {
 if (o === s.eExCallBackMsg.cancel) l.default.uiHelper.showTip("已取消微信登录"); else if (o === s.eExCallBackMsg.fail) l.default.uiHelper.showTip("微信登录失败，请检查微信配置"); else {
 t.code = n;
 l.default.uiHelper.showLoading();
 e._accountSend(t, function(t) {
+d.default.wxAppId.setValue(h);
 e._loginSuccess(t.token, s.eAccountType.wechat, function(e) {
 e && l.default.uiHelper.removeLoading();
 });
@@ -161,6 +162,27 @@ l.default.uiHelper.showTip(t);
 });
 }
 });
+};
+if (o && (!n || n === h)) {
+if (!n) d.default.wxAppId.setValue(h);
+l.default.uiHelper.showLoading();
+this._tokenLogin(o);
+} else if (o && n && n !== h) {
+l.default.uiHelper.showLoading();
+this._accountSend({
+appName: a.default.appName,
+accountType: "wxMigration",
+token: o,
+appId: h
+}, function(e) {
+l.default.uiHelper.removeLoading();
+if (!e.migrationTicket) return l.default.uiHelper.showTip("账号迁移准备失败");
+r(e.migrationTicket);
+}, function(e, t) {
+l.default.uiHelper.removeLoading();
+l.default.uiHelper.showTip(t || "账号迁移失败，请联系客服");
+});
+} else r();
 };
 t.prototype.OnTestLogin = function() {
 var e = this, t = {
@@ -190,6 +212,10 @@ deviceId: void 0
 };
 if (cc.sys.os === cc.sys.OS_ANDROID) try {
 t.deviceId = jsb.reflection.callStaticMethod("com/yuanlai/external/Utils", "getGuestDeviceId", "()Ljava/lang/String;");
+} catch (o) {
+cc.error("get guest device id failed:", o);
+} else if (cc.sys.os === cc.sys.OS_IOS) try {
+t.deviceId = jsb.reflection.callStaticMethod("TalkingDataGA", "getDeviceId");
 } catch (o) {
 cc.error("get guest device id failed:", o);
 }

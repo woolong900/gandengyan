@@ -29,9 +29,14 @@ def main():
     centered(draw, poster.width, "约上好友开一局", ImageFont.truetype(str(FONT), 41), 224, "#cf5732")
     qr = Image.open(BRANDING / "download-qr.png").convert("RGB")
     poster.paste(qr.resize((174, 174), Image.Resampling.NEAREST), (493, 1078))
-    output = BRANDING / "moments-poster.jpg"
-    poster.save(output, quality=94, subsampling=0)
-    print(output)
+    outputs = (
+        BRANDING / "moments-poster.jpg",
+        ROOT / "client-cocos-recovered/assets/resources/Hall/Res/Texture/Share/shareGame.jpg",
+    )
+    for output in outputs:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        poster.save(output, quality=94, subsampling=0)
+        print(output)
 
 
 if __name__ == "__main__":

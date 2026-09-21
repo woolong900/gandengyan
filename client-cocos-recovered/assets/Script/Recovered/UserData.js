@@ -10,6 +10,7 @@ function e() {
 this.sex = 0;
 this._inviteCode = null;
 this.inviteCodeAward = 0;
+this.inviteTipText = "";
 this.mobile = "";
 this.mobileAward = 0;
 this.realName = null;
@@ -105,6 +106,7 @@ return this._uid;
 },
 set: function(e) {
 this._uid = e;
+e && cc.sys.localStorage.setItem("__QJQP_ROLLOUT_UID__", String(e));
 },
 enumerable: !0,
 configurable: !0

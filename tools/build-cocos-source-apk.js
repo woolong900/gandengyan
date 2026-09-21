@@ -33,7 +33,7 @@ const KEY_ALIAS = process.env.QJQP_KEY_ALIAS || 'gandengyan';
 const KEY_PASSWORD = process.env.QJQP_KEY_PASSWORD || 'qjqp123456';
 const APP_ID = 'com.haoke.gandengyan';
 const APP_NAME = '潜江干瞪眼';
-const WX_APP_ID = process.env.QJQP_WECHAT_APPID || 'wx71fea3b8e75b232b';
+const WX_APP_ID = process.env.QJQP_WECHAT_APPID || 'wx296b8ef20e6de62f';
 
 function run(command, args, options = {}) {
   console.log(`$ ${path.basename(command)} ${args.join(' ')}`);
@@ -174,7 +174,7 @@ fs.writeFileSync(path.join(android, 'local.properties'), `sdk.dir=${SDK}\nndk.di
 let ag = fs.readFileSync(appGradle, 'utf8');
 if (!/\bnamespace\s+["']/.test(ag)) ag = ag.replace(/android\s*\{/, `android {\n    namespace "${APP_ID}"`);
 if (!/\bapplicationId\s+["']/.test(ag)) ag = ag.replace(/defaultConfig\s*\{/, `defaultConfig {\n        applicationId "${APP_ID}"`);
-ag = ag.replace(/versionCode\s+\d+/, 'versionCode 105').replace(/versionName\s+"[^"]+"/, 'versionName "1.0.5"');
+ag = ag.replace(/versionCode\s+\d+/, 'versionCode 106').replace(/versionName\s+"[^"]+"/, 'versionName "1.0.6"');
 ag = ag.replace(/minifyEnabled\s+true/g, 'minifyEnabled false');
 ag = ag.replace(/shrinkResources\s+true/g, 'shrinkResources false');
 if (!ag.includes('com.tencent.mm.opensdk:wechat-sdk-android')) {

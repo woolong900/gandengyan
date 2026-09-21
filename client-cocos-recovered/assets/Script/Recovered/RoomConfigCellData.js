@@ -21,7 +21,7 @@ this._storageData = i.default.clone(e);
 e.prototype.replaceDYJPay = function() {
 var e = this._storageData.ids;
 if (2 === this.index && e) {
-for (var q = e.length - 1; q >= 0; q--) (1 === e[q] || 26 === e[q]) && (e[q] = 2);
+for (var q = e.length - 1; q >= 0; q--) 26 === e[q] && (e[q] = 2);
 this._storageData.ids = this._unique(e);
 e = this._storageData.ids;
 }
@@ -258,7 +258,15 @@ this.isChecked(i) && this._checkbox(i);
 }
 this._checkbox(e);
 }
-} else this._checkbox(e);
+} else {
+this._checkbox(e);
+// 潜江癞晃和干瞪眼取消“只许自摸”后，默认恢复热铳和抢杠。
+if (this.index === l.eGameIds.QJHH && 20 === e && !this.isChecked(20) && !this.isChecked(21)) this._checkbox(21);
+}
+// 切换到干瞪眼时恢复该玩法的三个默认规则，仍允许玩家随后手动取消。
+if (this.index === l.eGameIds.QJHH && 2 === e) {
+for (var q = [ 20, 21, 23 ], p = 0; p < q.length; p++) if (!this.isChecked(q[p])) this._checkbox(q[p]);
+}
 };
 e.prototype._checkbox = function(e) {
 for (var t = this._storageData.ids, o = 0, n = t.length; o < n; o++) if (t[o] === e) {

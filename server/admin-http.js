@@ -41,8 +41,11 @@ for (let suit = 0; suit < 3; suit++) for (let point = 1; point <= 9; point++) {
   publicFiles[`/admin/tiles/${filename}`] = [`tiles/${filename}`, 'image/png'];
 }
 
-const createAdminHttp = ({ app, store, flush, authFile, publicBaseUrl = '' }) => {
-  const auth = new AdminAuth({ file: authFile || path.join(path.dirname(store.FILE), 'admin-password.json') });
+const createAdminHttp = ({ app, store, flush, hotUpdate, authFile, publicBaseUrl = '' }) => {
+  const auth = new AdminAuth({
+    file: authFile || path.join(path.dirname(store.FILE), 'admin-password.json'),
+    sessionStore: store,
+  });
   const data = new AdminData(app, store);
   const assets = new Map(Object.entries(publicFiles).map(([url, [file, mime]]) => [url, {
     bytes: fs.readFileSync(path.join(__dirname, 'admin-public', file)), mime,
@@ -117,6 +120,7 @@ const createAdminHttp = ({ app, store, flush, authFile, publicBaseUrl = '' }) =>
       let result;
       if (pathname === '/dashboard') result = data.dashboard();
       else if (pathname === '/players') result = data.players(query);
+      else if (pathname === '/agent-applications') result = data.agentApplications(query);
       else if (/^\/players\/\d+$/.test(pathname)) result = data.player(pathname.split('/').pop());
       else if (pathname === '/rooms') result = data.rooms(query);
       else if (/^\/rooms\/\d+$/.test(pathname)) result = data.room(pathname.split('/').pop());
@@ -129,6 +133,7 @@ const createAdminHttp = ({ app, store, flush, authFile, publicBaseUrl = '' }) =>
       else if (pathname === '/economy') result = app.economySettings;
       else if (pathname === '/bots') result = data.bots();
       else if (pathname === '/audit') result = { entries: store.listAudit(query.limit) };
+      else if (pathname === '/hot-update' && hotUpdate) result = hotUpdate.status();
       else if (pathname === '/system') result = { sqliteFile: store.FILE,
         recordsArchived: store.recordHistoryStats(0).total, recordsRetained: app.records.length,
         recordsLimit: 300, authConfigured: auth.configured() };
@@ -160,6 +165,10 @@ const createAdminHttp = ({ app, store, flush, authFile, publicBaseUrl = '' }) =>
       target = pathname.split('/')[2]; action = 'room.draw_plan_remove'; result = data.editRoomDrawPlan(target, 'remove', body);
     } else if (req.method === 'DELETE' && /^\/rooms\/\d+\/draw-plan$/.test(pathname)) {
       target = pathname.split('/')[2]; action = 'room.draw_plan_clear'; result = data.clearRoomDrawPlan(target);
+    } else if (req.method === 'POST' && /^\/rooms\/\d+\/next-wsk-hand$/.test(pathname)) {
+      target = pathname.split('/')[2]; action = 'room.next_wsk_hand_set'; result = data.setNextWskHandPlan(target, body);
+    } else if (req.method === 'DELETE' && /^\/rooms\/\d+\/next-wsk-hand$/.test(pathname)) {
+      target = pathname.split('/')[2]; action = 'room.next_wsk_hand_clear'; result = data.clearNextWskHandPlan(target);
     } else if (req.method === 'POST' && /^\/clubs\/\d+\/settings$/.test(pathname)) {
       target = pathname.split('/')[2]; action = 'club.settings'; result = data.updateClub(target, body);
     } else if (req.method === 'POST' && /^\/clubs\/\d+\/cards$/.test(pathname)) {
@@ -174,6 +183,9 @@ const createAdminHttp = ({ app, store, flush, authFile, publicBaseUrl = '' }) =>
       target = '全局房卡奖励'; action = 'economy.update'; result = data.updateEconomy(body);
     } else if (req.method === 'PUT' && pathname === '/bots') {
       target = '机器人'; action = 'bots.update'; result = data.updateBots(body);
+    } else if (req.method === 'PUT' && /^\/hot-update\/(android|ios)$/.test(pathname) && hotUpdate) {
+      target = pathname.split('/').pop(); action = `hot_update.${body.action || 'rollout'}`;
+      result = hotUpdate.updateRollout(target, body);
     } else if (req.method === 'POST' && pathname === '/backup') {
       const filename = path.join(path.dirname(store.FILE), 'backups', `admin-${new Date().toISOString().replace(/[:.]/g, '-')}.sqlite`);
       await flush();
@@ -186,6 +198,13 @@ const createAdminHttp = ({ app, store, flush, authFile, publicBaseUrl = '' }) =>
     store.appendAudit({ actor: session.actor, action, target,
       details: action === 'message.create' ? { title: result.message.title, targetUid: result.message.targetUid }
         : action === 'message.delete' ? { title: result.message.title }
+          : action.startsWith('hot_update.') ? {
+            stableAssetVersion: result.stableAssetVersion,
+            latestAssetVersion: result.latestAssetVersion,
+            percentage: result.rollout && result.rollout.percentage,
+            includeUidCount: result.rollout && result.rollout.includeUids.length,
+            includeDeviceCount: result.rollout && result.rollout.includeDeviceIds.length,
+          }
           : result });
     return json(res, result.message || result, action === 'message.create' ? 201 : 200), true;
   };

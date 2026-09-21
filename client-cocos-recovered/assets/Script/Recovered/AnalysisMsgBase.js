@@ -129,30 +129,32 @@ type: o,
 count: r || 0
 });
 }, l = 0; l < t.length; l++) {
-var u = t[l], d = [];
-s(u, "ag", c.eTotalEndDetailType.AN_GANG, d);
-s(u, "mg", c.eTotalEndDetailType.MING_GANG, d);
-s(u, "zm", c.eTotalEndDetailType.ZI_MO, d);
-s(u, "dg", c.eTotalEndDetailType.DIAN_PAO, d);
-s(u, "jg", c.eTotalEndDetailType.JIE_PAO, d);
-s(u, "plyj", c.eTotalEndDetailType.PIAO_LAI, d);
-s(u, "in_horse", c.eTotalEndDetailType.ZHONG_MA, d);
-s(u, "winner_count", c.eTotalEndDetailType.D7_COUNT_WIN, d);
-s(u, "max_level", c.eTotalEndDetailType.D7_MAX_LEVEL, d);
-s(u, "pdk_winner_count", c.eTotalEndDetailType.PDK_COUNT_WIN, d);
-s(u, "pdk_lose_count", c.eTotalEndDetailType.PDK_COUNT_LOSE, d);
-s(u, "pdk_max_score", c.eTotalEndDetailType.PDK_SINGLE_WIN_SCORE, d);
-s(u, "pdk_bomb_num", c.eTotalEndDetailType.PDK_COUNT_BOMB, d);
-s(u, "wsk_winner_count", c.eTotalEndDetailType.WSK_COUNT_WIN, d);
-s(u, "wsk_lose_count", c.eTotalEndDetailType.WSK_COUNT_LOSE, d);
-s(u, "dbd_lose_count", c.eTotalEndDetailType.DBD_LOSE_COUNT, d);
-s(u, "dbd_winner_count", c.eTotalEndDetailType.DBD_WINNEW_COUNT, d);
-s(u, "hz_count", c.eTotalEndDetailType.HZ_COUNT, d);
-s(u, "hall_score", c.eTotalEndDetailType.DBD_HALL_SCORE, d);
+var v = t[l], d = [];
+s(v, "ag", c.eTotalEndDetailType.AN_GANG, d);
+s(v, "mg", c.eTotalEndDetailType.MING_GANG, d);
+s(v, "zm", c.eTotalEndDetailType.ZI_MO, d);
+s(v, "dg", c.eTotalEndDetailType.DIAN_PAO, d);
+s(v, "jg", c.eTotalEndDetailType.JIE_PAO, d);
+s(v, "plyj", c.eTotalEndDetailType.PIAO_LAI, d);
+s(v, "in_horse", c.eTotalEndDetailType.ZHONG_MA, d);
+s(v, "winner_count", c.eTotalEndDetailType.D7_COUNT_WIN, d);
+s(v, "max_level", c.eTotalEndDetailType.D7_MAX_LEVEL, d);
+s(v, "pdk_winner_count", c.eTotalEndDetailType.PDK_COUNT_WIN, d);
+s(v, "pdk_lose_count", c.eTotalEndDetailType.PDK_COUNT_LOSE, d);
+s(v, "pdk_max_score", c.eTotalEndDetailType.PDK_SINGLE_WIN_SCORE, d);
+s(v, "pdk_bomb_num", c.eTotalEndDetailType.PDK_COUNT_BOMB, d);
+s(v, "wsk_winner_count", c.eTotalEndDetailType.WSK_COUNT_WIN, d);
+s(v, "wsk_lose_count", c.eTotalEndDetailType.WSK_COUNT_LOSE, d);
+s(v, "wsk_first_count", c.eTotalEndDetailType.WSK_COUNT_FIRST, d);
+s(v, "wsk_last_count", c.eTotalEndDetailType.WSK_COUNT_LAST, d);
+s(v, "dbd_lose_count", c.eTotalEndDetailType.DBD_LOSE_COUNT, d);
+s(v, "dbd_winner_count", c.eTotalEndDetailType.DBD_WINNEW_COUNT, d);
+r.default.config.index !== u.eGameIds.QJHH && s(v, "hz_count", c.eTotalEndDetailType.HZ_COUNT, d);
+s(v, "hall_score", c.eTotalEndDetailType.DBD_HALL_SCORE, d);
 a.push({
-uid: u.uid,
-score: u.score,
-winer: u.winner || !1,
+uid: v.uid,
+score: v.score,
+winer: v.winner || !1,
 loser: !1,
 details: d
 });
@@ -215,7 +217,8 @@ C.view ? S.pos = -9999 : S.pos = this.oldPlayerIndex2NewPos(C.index);
 S.score = S.score || 0;
 S.gender = 1 === C.sex ? s.pb.eGender.MAN : s.pb.eGender.WOMAN;
 S.onLine = C.line;
-S.ready = S.ready || !1;
+// 重连必须以服务端快照为准；老服务端未下发 ready 时才保留本地状态。
+S.ready = void 0 !== C.ready ? !!C.ready : S.ready || !1;
 S.isManager = C.force_close || !1;
 r.default.updatePlayerData(S);
 var w = C.trustee || {};

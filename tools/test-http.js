@@ -9,6 +9,8 @@ const net = require('net');
 const { spawn } = require('child_process');
 const { WebSocket } = require('ws');
 const { protocol } = require('../server/proto/protocol');
+const WX_APP_A = 'wxaaaaaaaaaaaaaaaa';
+const WX_APP_B = 'wxbbbbbbbbbbbbbbbb';
 
 let pass = 0;
 const t = (name, actual, expected) => {
@@ -90,6 +92,11 @@ const main = async () => {
   try {
     const port = await freePort();
     fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify({
+      nextUid: 285634,
+      players: [{
+        token: 'wx-old-token', uid: 285633, nickname: '微信迁移玩家', cardNum: 200,
+        wechatOpenid: 'wx-old-openid', wechatUnionid: 'wx-old-unionid', roomId: 0,
+      }],
       records: [{
         id: 'R1000371234567890', shareCode: 'abcdef0123456789abcdef01', roomId: 100037,
         gameId: 2, gameCount: 1, totalCount: 8, time: Date.now(), scoreRatio: 10,
@@ -97,6 +104,23 @@ const main = async () => {
         details: [{ id: '10003701', scores: [{ uid: 100001, score: 50 }, { uid: 100002, score: -50 }] }],
         uids: [100001, 100002],
       }],
+    }));
+    const hotUpdateRoot = path.join(dir, 'hot-update');
+    const hotUpdateConfig = path.join(dir, 'hot-update.json');
+    fs.mkdirSync(path.join(hotUpdateRoot, 'android', '236', 'res'), { recursive: true });
+    fs.writeFileSync(path.join(hotUpdateRoot, 'android', '236', 'res', 'check.bin'), 'hot-update-ok');
+    fs.writeFileSync(hotUpdateConfig, JSON.stringify({
+      schemaVersion: 1,
+      platforms: {
+        android: {
+          enabled: true,
+          latestAssetVersion: 236,
+          minimumPackageVersion: '1.0.6',
+          packageAction: 2,
+          packageUrl: 'https://updates.example.test/hot-update/packages/game.apk',
+          packageName: 'game.apk',
+        },
+      },
     }));
     child = spawn(process.execPath, [path.join(__dirname, '../server/index.js')], {
       env: {
@@ -106,6 +130,11 @@ const main = async () => {
         QJQP_STATE: path.join(dir, 'state.json'),
         QJQP_FILLBOTS: '0',
         QJQP_LOAD_DEV_VARS: '0',
+        QJQP_WECHAT_APPID: WX_APP_A,
+        QJQP_WECHAT_APPSECRET: 'secret-a',
+        QJQP_WECHAT_APPS: JSON.stringify({ [WX_APP_B]: 'secret-b' }),
+        QJQP_HOT_UPDATE_ROOT: hotUpdateRoot,
+        QJQP_HOT_UPDATE_CONFIG: hotUpdateConfig,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -133,6 +162,39 @@ const main = async () => {
     ws.on('error', () => {}); // 未等待事件时也不让清理期间的错误变成未捕获异常
     await wsEvent(ws, 'open');
     t('正常 HTTP 可用', (await request(port, '/version')).status, 200);
+    const oldPackageUpdate = await request(port,
+      '/version?os_type=qjqp_android_yuanlai&package_version=1.0.5&assert_version=234');
+    t('旧安装包收到强制整包升级',
+      [oldPackageUpdate.body.data.action, oldPackageUpdate.body.data.package_action], ['2', '2']);
+    const assetUpdate = await request(port,
+      '/version?os_type=qjqp_android_yuanlai&package_version=1.0.6&assert_version=235');
+    t('新安装包收到资源热更新',
+      [assetUpdate.body.data.action, assetUpdate.body.data.assert_version, assetUpdate.body.data.assert_url],
+      ['1', '236', `http://127.0.0.1:${port}/hot-update/android/`]);
+    t('最新资源不重复更新', (await request(port,
+      '/version?os_type=qjqp_android_yuanlai&package_version=1.0.6&assert_version=236')).body.data, {});
+    const hotAsset = await requestText(port, '/hot-update/android/236/res/check.bin');
+    t('热更新资源路由可用', [hotAsset.status, hotAsset.text], [200, 'hot-update-ok']);
+    const downloadPage = await requestText(port, '/download', {
+      'User-Agent': 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/124 Mobile',
+    });
+    t('客户端下载页可访问', downloadPage.status, 200);
+    t('下载页使用独立样式和脚本',
+      downloadPage.text.includes('/download/app.css') && downloadPage.text.includes('/download/app.js'), true);
+    t('下载页包含安卓安装包入口',
+      downloadPage.text.includes('href="https://l.heiwuya.cn/QeQZ6I"'), true);
+    t('下载页标明内置资源版本', downloadPage.text.includes('资源 R274'), true);
+    t('下载页包含 iOS 安装入口',
+      downloadPage.text.includes('id="iosInstall" href="https://l.heiwuya.cn/UTsdzR"'), true);
+    t('下载页包含法律条款且不展示公司名称',
+      downloadPage.text.includes('/legal/privacy-policy')
+        && !downloadPage.text.includes('湖北浩克互娱科技有限公司'), true);
+    const downloadScript = await requestText(port, '/download/app.js');
+    t('下载页脚本不覆盖外部安装链接',
+      downloadScript.text.includes('itms-services://?action=download-manifest'), false);
+    const downloadIcon = await requestText(port, '/download/app-icon-v2.webp');
+    t('下载页压缩图标可访问',
+      [downloadIcon.status, downloadIcon.headers['content-type']], [200, 'image/webp']);
     const aasa = await requestText(port, '/.well-known/apple-app-site-association');
     t('AASA 配置可访问', aasa.status, 200);
     t('AASA 使用 JSON 类型', aasa.headers['content-type'], 'application/json; charset=utf-8');
@@ -149,6 +211,12 @@ const main = async () => {
     t('分享图标可以直接访问', shareIcon.status, 200);
     t('分享图标保持 PNG 格式', shareIcon.headers['content-type'], 'image/png');
     t('分享图标含 PNG 签名', shareIcon.text.slice(1, 4), 'PNG');
+    const agreement = await requestText(port, '/legal/user-agreement');
+    t('用户协议网页可访问', agreement.status, 200);
+    t('用户协议包含运营主体', agreement.text.includes('湖北浩克互娱科技有限公司'), true);
+    const privacy = await requestText(port, '/legal/privacy-policy');
+    t('隐私政策网页可访问', privacy.status, 200);
+    t('隐私政策包含儿童规则', privacy.text.includes('儿童个人信息保护规则'), true);
     const record = await requestText(port, '/download/record?id=abcdef0123456789abcdef01');
     t('战绩链接可显示详情', record.status, 200);
     t('战绩有房间号与玩法名称', record.text.includes('潜江干瞪眼 战绩 房间号：100037'), true);
@@ -169,8 +237,14 @@ const main = async () => {
     const login = await request(port, '/login?accountType=guest');
     t('正常游客登录可用', login.body.err_code, 0);
     const wxLogin = await request(port, '/login?accountType=wx&code=test-code&appId=test-app');
-    t('微信未配置时拒绝登录', wxLogin.body.err_code, 3);
-    t('微信未配置时返回明确提示', wxLogin.body.err_msg, '服务器尚未配置微信登录');
+    t('非配置 AppID 被拒绝', wxLogin.body.err_code, 4);
+    t('非配置 AppID 返回明确提示', wxLogin.body.err_msg, '微信 AppID 不匹配，请更新客户端');
+    const migration = await request(port,
+      `/login?accountType=wxMigration&token=wx-old-token&appId=${WX_APP_B}`);
+    t('旧微信登录凭证可申请一次性迁移票据', migration.body.err_code, 0);
+    t('迁移票据不是原登录 token',
+      /^wm_[A-Za-z0-9_-]{40,}$/.test(migration.body.data.migrationTicket), true);
+    t('迁移票据有效期 10 分钟', migration.body.data.expiresIn, 600);
     const tokenLogin = await request(port, `/login?accountType=token&token=${encodeURIComponent(login.body.data.token)}`);
     t('查询参数解析保持正常', tokenLogin.body.data.token, login.body.data.token);
     t('请求处理没有未捕获异常', output.includes('uncaughtException'), false);

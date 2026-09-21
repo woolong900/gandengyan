@@ -113,12 +113,12 @@ s.default.isInstallXianLiao() ? this.share(c.eAccountType.xianLiao, c.eShareScen
 };
 t.prototype.onClickShareWxFriend = function() {
 if (!s.default.isInstallWX()) return l.default.uiHelper.showTip("您尚未安装微信客户端！");
-if (cc.sys.os === cc.sys.OS_IOS && !d.default.sdkInfo("SDK_WX_APPLINK")) return l.default.uiHelper.showTip("iOS 微信分享需先配置 Universal Link");
+if (cc.sys.os === cc.sys.OS_IOS && !s.default.sdkInfo("SDK_WX_APPLINK")) return l.default.uiHelper.showTip("iOS 微信分享需先配置 Universal Link");
 this.share(c.eAccountType.wechat, c.eShareScene.Friend);
 };
 t.prototype.onClickShareWxCircle = function() {
 if (!s.default.isInstallWX()) return l.default.uiHelper.showTip("您尚未安装微信客户端！");
-if (cc.sys.os === cc.sys.OS_IOS && !d.default.sdkInfo("SDK_WX_APPLINK")) return l.default.uiHelper.showTip("iOS 微信分享需先配置 Universal Link");
+if (cc.sys.os === cc.sys.OS_IOS && !s.default.sdkInfo("SDK_WX_APPLINK")) return l.default.uiHelper.showTip("iOS 微信分享需先配置 Universal Link");
 this.share(c.eAccountType.wechat, c.eShareScene.Circle);
 };
 t.prototype.onClickShareDingTalk = function() {

@@ -10,6 +10,21 @@ const page = (items, query = {}) => {
   return { items: items.slice((pageNumber - 1) * limit, pageNumber * limit), total: items.length, page: pageNumber, limit };
 };
 
+const memberHand = (round, member, gameType) => {
+  if (!round || !member || member.view || typeof round.seatOf !== 'function') {
+    return { hand: [], drawnCard: null };
+  }
+  const seat = round.seatOf(member.player.uid);
+  if (seat < 0 || !Array.isArray(round.hands && round.hands[seat])) {
+    return { hand: [], drawnCard: null };
+  }
+  const hand = round.hands[seat].slice();
+  const drawnCard = Number(gameType) === 17 || !round.drawn || round.drawn[seat] == null
+    ? null : Number(round.drawn[seat]);
+  if (drawnCard != null) hand.push(drawnCard);
+  return { hand, drawnCard };
+};
+
 class AdminData {
   constructor(app, store) { this.app = app; this.store = store; }
 
@@ -53,6 +68,8 @@ class AdminData {
       cardNum: Number(player.cardNum || 0), online: online.has(player.uid), roomId: Number(player.roomId || 0),
       identityVerified: !!player.identityVerified, disabled: !!player.disabled,
       createdAt: Number(player.createdAt || 0), lastLoginAt: Number(player.lastLoginAt || 0),
+      lastIp: player.lastIp || '', lastIpCity: player.lastIpCity || '',
+      lastIpAt: Number(player.lastIpAt || 0), lastIpLocatedAt: Number(player.lastIpLocatedAt || 0),
       clubCount: this.app.clubStore.listFor(player.uid).length };
   }
 
@@ -61,8 +78,15 @@ class AdminData {
     const online = this.onlineUids();
     const items = [...this.app.playersByUid.values()].filter((player) => !player.bot && (
       !term || String(player.uid).includes(term) || String(player.nickname || '').toLowerCase().includes(term)
+        || String(player.lastIp || '').toLowerCase().includes(term)
+        || String(player.lastIpCity || '').toLowerCase().includes(term)
     )).sort((a, b) => b.uid - a.uid).map((player) => this.playerSummary(player, online));
     return page(items, query);
+  }
+
+  agentApplications(query) {
+    if (!this.store || !this.store.listAgentApplications) return page([], query);
+    return this.store.listAgentApplications(query);
   }
 
   player(uid) {
@@ -133,17 +157,26 @@ class AdminData {
     if (!table || table.closed) return fail('房间不存在或已结束', 404);
     const round = table.round && !table.round.over ? table.round : null;
     return { ...this.roomSummary(table), config: table.config,
+      nextWskHandPlan: table.nextWskHandPlan ? {
+        ...table.nextWskHandPlan, counts: { ...table.nextWskHandPlan.counts },
+      } : null,
       wall: round ? { remaining: round.wall.remain(), cards: round.wall.remainCards(),
         drawPlan: round.drawPlan ? { ...round.drawPlan, cards: round.drawPlan.cards.slice() } : null } : null,
-      members: table.members.map((member) => ({ uid: member.player.uid, nickname: member.player.nickname,
-        site: member.site, score: Number(member.score || 0) / rules.RATIO,
-        bot: !!member.bot, spectator: !!member.view, online: !!member.online, trustee: !!member.trustee })) };
+      members: table.members.map((member) => {
+        const cards = memberHand(round, member, table.gameType);
+        return { uid: member.player.uid, nickname: member.player.nickname,
+          avatarUrl: member.player.avatarUrl || '', hand: cards.hand, drawnCard: cards.drawnCard,
+          site: member.site, score: Number(member.score || 0) / (table.gameRules ? table.gameRules.RATIO : rules.RATIO),
+          bot: !!member.bot, spectator: !!member.view, online: !!member.online, trustee: !!member.trustee };
+      }) };
   }
 
   setRoomDrawPlan(id, body) {
     const table = this.app.tables.get(Number(id));
     if (!table || table.closed) return fail('房间不存在或已结束', 404);
-    if (!table.round || table.round.over) return fail('只有正在进行的牌局可以设置摸牌顺序');
+    if (!table.round || table.round.over || typeof table.round.setDrawPlan !== 'function') {
+      return fail('该玩法没有可设置的摸牌牌堆');
+    }
     const result = table.round.setDrawPlan(body.uid, body.cards);
     if (result.error) return fail(result.error);
     this.app.persist();
@@ -153,7 +186,9 @@ class AdminData {
   editRoomDrawPlan(id, operation, body) {
     const table = this.app.tables.get(Number(id));
     if (!table || table.closed) return fail('房间不存在或已结束', 404);
-    if (!table.round || table.round.over) return fail('只有正在进行的牌局可以修改摸牌顺序');
+    if (!table.round || table.round.over || typeof table.round.appendDrawCard !== 'function') {
+      return fail('该玩法没有可修改的摸牌牌堆');
+    }
     let result;
     if (operation === 'append') result = table.round.appendDrawCard(body.uid, body.card);
     else if (operation === 'move') result = table.round.moveDrawCard(body.uid, body.from, body.to);
@@ -167,10 +202,31 @@ class AdminData {
   clearRoomDrawPlan(id) {
     const table = this.app.tables.get(Number(id));
     if (!table || table.closed) return fail('房间不存在或已结束', 404);
-    if (!table.round || table.round.over) return fail('牌局未在进行中');
+    if (!table.round || table.round.over || typeof table.round.clearDrawPlan !== 'function') {
+      return fail('该玩法没有可清除的摸牌牌堆');
+    }
     const previous = table.round.clearDrawPlan();
     if (previous) this.app.persist();
     return { roomId: table.roomId, cleared: previous ? { ...previous, cards: previous.cards.slice() } : null };
+  }
+
+  setNextWskHandPlan(id, body) {
+    const table = this.app.tables.get(Number(id));
+    if (!table || table.closed) return fail('房间不存在或已结束', 404);
+    if (typeof table.setNextWskHandPlan !== 'function') return fail('该房间不支持指定起手牌');
+    const result = table.setNextWskHandPlan(body.uid, body.counts);
+    if (result.error) return fail(result.error);
+    this.app.persist();
+    return { roomId: table.roomId, nextWskHandPlan: result };
+  }
+
+  clearNextWskHandPlan(id) {
+    const table = this.app.tables.get(Number(id));
+    if (!table || table.closed) return fail('房间不存在或已结束', 404);
+    if (typeof table.clearNextWskHandPlan !== 'function') return fail('该房间不支持指定起手牌');
+    const previous = table.clearNextWskHandPlan();
+    if (previous) this.app.persist();
+    return { roomId: table.roomId, cleared: previous };
   }
 
   dissolveRoom(id, body) {
@@ -277,7 +333,11 @@ class AdminData {
   }
 
   updateEconomy(body) {
-    const keys = { clubJoinBonus: '俱乐部新成员奖励', inviteBindBonus: '邀请码绑定奖励' };
+    const keys = {
+      newPlayerCards: '新注册用户初始房卡',
+      clubJoinBonus: '俱乐部新成员奖励',
+      inviteBindBonus: '邀请码绑定奖励',
+    };
     const next = { ...this.app.economySettings };
     for (const [key, label] of Object.entries(keys)) {
       if (body[key] == null) continue;
@@ -285,6 +345,11 @@ class AdminData {
         return fail(`${label}须为0至100万的整数`);
       }
       next[key] = body[key];
+    }
+    if (body.invitePageText != null) {
+      const text = String(body.invitePageText).trim();
+      if (!text || text.length > 100) return fail('邀请码页面文案须为1至100个字');
+      next.invitePageText = text;
     }
     this.app.economySettings = next;
     this.app.persist();

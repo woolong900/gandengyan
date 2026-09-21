@@ -14,6 +14,7 @@ var a = new (function() {
 function e() {
 this.lastGameClub = this._builder("last_game_club", n.user, -1);
 this.wxToken = this._builder("wx_token", n.global);
+this.wxAppId = this._builder("wx_app_id", n.global);
 this.xlToken = this._builder("xl_token", n.global);
 this.guestToken = this._builder("guest_token", n.global);
 this.mobileToken = this._builder("mobile_token", n.global);

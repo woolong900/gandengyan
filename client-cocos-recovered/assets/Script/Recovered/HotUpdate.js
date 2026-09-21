@@ -107,7 +107,7 @@ t.prototype.reStartGame = function() {
 if (this._am) {
 var e = jsb.fileUtils.getSearchPaths(), t = this._am.getLocalManifest().getSearchPaths();
 console.log("reStartGame new path is:", JSON.stringify(t));
-Array.prototype.unshift(e, t);
+Array.prototype.unshift.apply(e, t);
 cc.sys.localStorage.setItem("__KY_Hot_Update_Search_Paths__", JSON.stringify(e));
 jsb.fileUtils.setSearchPaths(e);
 a.default.stopAll();

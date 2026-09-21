@@ -10,6 +10,8 @@ const t = (name, actual, expected) => {
 };
 
 const response = (body) => ({ ok: true, status: 200, json: async () => body });
+const APP_A = 'wxaaaaaaaaaaaaaaaa';
+const APP_B = 'wxbbbbbbbbbbbbbbbb';
 
 const main = async () => {
   await assert.rejects(
@@ -35,18 +37,62 @@ const main = async () => {
   t('返回微信 openid', profile.openid, 'openid-1');
   t('返回微信昵称', profile.nickname, '微信玩家');
 
-  const app = new GameApp();
-  const first = app.loginWechat(profile);
-  const again = app.loginWechat({ ...profile, nickname: '新昵称' });
+  const migrations = [];
+  const app = new GameApp({ onAccountMigration: (entry) => migrations.push(entry) });
+  const first = app.loginWechat(profile, { appId: APP_A });
+  const again = app.loginWechat({ ...profile, nickname: '新昵称' }, { appId: APP_A });
   t('同一微信身份复用 token', again.token, first.token);
   t('同一微信身份复用 uid', again.player.uid, first.player.uid);
   t('再次授权刷新昵称', again.player.nickname, '新昵称');
+
+  // 微信 AppID 迁移后，已人工确认的旧 openid/unionid 和旧登录凭证
+  // 必须继续指向同一玩家，避免再生成第二个 UID。
+  first.player.wechatOpenids.push('openid-old');
+  first.player.wechatUnionids.push('unionid-old');
+  first.player.tokenAliases.push('legacy-token');
+  first.player.inviteCodeAliases.push('OLDXY');
 
   const restored = new GameApp();
   restored.restore(app.dump());
   const afterRestart = restored.loginWechat(profile);
   t('服务重启后仍复用微信账号', afterRestart.token, first.token);
   t('服务重启后保留头像', afterRestart.player.avatarUrl, 'https://img.test/a');
+  const byOldWechat = restored.loginWechat({
+    openid: 'openid-old', unionid: 'unionid-old', nickname: '旧 AppID 玩家',
+  });
+  t('旧 AppID 微信身份复用同一 uid', byOldWechat.player.uid, first.player.uid);
+  t('旧登录凭证仍指向同一 uid', restored.playerForToken('legacy-token').uid, first.player.uid);
+  t('旧邀请码仍指向同一 uid', restored.playerByInviteCode('OLDXY').uid, first.player.uid);
+  t('不能绑定自己的旧邀请码', restored.bindInvite(byOldWechat.player, 'OLDXY').what, '不能绑定自己的邀请码');
+
+  const migration = app.issueWechatMigrationTicket(first.token, APP_B);
+  t('迁移凭证有效期为 10 分钟', migration.expiresIn, 600);
+  const migrated = app.loginWechat({
+    openid: 'openid-new-app', unionid: 'unionid-new-app', nickname: '新 AppID 玩家',
+  }, { appId: APP_B, migrationTicket: migration.ticket });
+  t('更换 AppID 后保留原 uid', migrated.player.uid, first.player.uid);
+  t('更换 AppID 后保留原 token', migrated.token, first.token);
+  t('返回已完成迁移标记', migrated.migrated, true);
+  t('记录 AppID 与 openid 的精确绑定',
+    migrated.player.wechatIdentities.map((item) => [item.appId, item.openid]),
+    [[APP_A, 'openid-1'], [APP_B, 'openid-new-app']]);
+  t('迁移写入审计回调', migrations.map((item) => item.uid), [first.player.uid]);
+  assert.throws(
+    () => app.loginWechat({ openid: 'replay-openid' }, { appId: APP_B, migrationTicket: migration.ticket }),
+    (error) => error.code === 68,
+  );
+  pass++;
+
+  const conflict = app.loginWechat({ openid: 'other-openid', unionid: 'other-unionid' }, { appId: APP_B });
+  const conflictTicket = app.issueWechatMigrationTicket(first.token, APP_B);
+  assert.throws(
+    () => app.loginWechat({ openid: 'other-openid', unionid: 'other-unionid' }, {
+      appId: APP_B, migrationTicket: conflictTicket.ticket,
+    }),
+    (error) => error.code === 69,
+  );
+  pass++;
+  t('冲突身份仍保留原独立账号', conflict.player.uid !== first.player.uid, true);
 
   const bad = async () => response({ errcode: 40029, errmsg: 'invalid code' });
   await assert.rejects(
