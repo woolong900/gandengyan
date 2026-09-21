@@ -144,7 +144,7 @@ const buildReleaseProjectSource = ({
     const output = path.join(targetWork, 'canonical-project.js');
     execFileSync(process.execPath, [
       path.join(root, 'tools', 'build-recovered-bundle.js'),
-      path.join(root, 'client-cocos-recovered'),
+      path.join(root, 'client-release-source'),
       output,
     ], { stdio: ['ignore', 'pipe', 'pipe'] });
     let source = fs.readFileSync(output).toString('binary');

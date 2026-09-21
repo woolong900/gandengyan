@@ -23,7 +23,8 @@ const arg = (name, fallback) => {
 
 const ROOT = path.join(__dirname, '..');
 const APK = path.resolve(arg('apk', path.join(ROOT, 'tools', '.cache', 'qjqp-base.apk')));
-const OUT = path.resolve(arg('out', path.join(ROOT, 'client-cocos-recovered')));
+const OUT = path.resolve(arg('out', process.env.QJQP_COCOS_PROJECT
+  || path.join(ROOT, '..', 'CocosCreator工程', '潜江干瞪眼')));
 const APKTOOL = process.env.APKTOOL || '/tmp/apktool.jar';
 const BASE64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 const IMPORTED_TYPES = new Set([

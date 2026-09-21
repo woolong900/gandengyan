@@ -304,11 +304,11 @@ const main = async () => {
     publishedProject.includes('rollout_key: f()') && publishedProject.includes('__QJQP_ROLLOUT_UID__') &&
     publishedProject.includes('device_name:'), true);
   const clientHotUpdate = fs.readFileSync(path.join(__dirname,
-    '../client-cocos-recovered/assets/Script/Recovered/HotUpdate.js'), 'utf8');
+    '../client-release-source/assets/Script/Recovered/HotUpdate.js'), 'utf8');
   check('客户端会保存更新后搜索路径',
     clientHotUpdate.includes('Array.prototype.unshift.apply(e, t);'), true);
   const gameConstant = fs.readFileSync(path.join(__dirname,
-    '../client-cocos-recovered/assets/Script/Recovered/GameConstant.js'), 'utf8');
+    '../client-release-source/assets/Script/Recovered/GameConstant.js'), 'utf8');
   check('客户端引导基线与整包版本一致',
     gameConstant.includes('assertVer: 235') && gameConstant.includes('packageVer: "1.0.6"'), true);
 

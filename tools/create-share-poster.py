@@ -31,7 +31,7 @@ def main():
     poster.paste(qr.resize((174, 174), Image.Resampling.NEAREST), (493, 1078))
     outputs = (
         BRANDING / "moments-poster.jpg",
-        ROOT / "client-cocos-recovered/assets/resources/Hall/Res/Texture/Share/shareGame.jpg",
+        ROOT / "client-release-source/assets/resources/Hall/Res/Texture/Share/shareGame.jpg",
     )
     for output in outputs:
         output.parent.mkdir(parents=True, exist_ok=True)

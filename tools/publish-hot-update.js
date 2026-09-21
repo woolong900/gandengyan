@@ -45,9 +45,9 @@ const stage = fs.mkdtempSync(path.join(path.dirname(output), `.hot-update-${VERS
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'qjqp-hot-update-'));
 const manifestAsset = 'res/raw-assets/2c/2c8a7447-5900-4cca-b1ef-51d750d90396.manifest';
 const qjshzSources = {
-  table: path.join(ROOT, 'client-cocos-recovered', 'assets', 'resources', '_RecoveredDependencies', 'Textures', '609a7ea7-dcd3-4770-9830-847e4aecacbf.jpg'),
-  action: path.join(ROOT, 'client-cocos-recovered', 'assets', 'resources', '_RecoveredDependencies', 'Textures', '19c83aa89.png'),
-  quick: path.join(ROOT, 'client-cocos-recovered', 'assets', 'resources', '_RecoveredDependencies', 'Textures', '0968299a-e998-4a49-9435-69aa1a61b8ff.png'),
+  table: path.join(ROOT, 'client-release-source', 'assets', 'resources', '_RecoveredDependencies', 'Textures', '609a7ea7-dcd3-4770-9830-847e4aecacbf.jpg'),
+  action: path.join(ROOT, 'client-release-source', 'assets', 'resources', '_RecoveredDependencies', 'Textures', '19c83aa89.png'),
+  quick: path.join(ROOT, 'client-release-source', 'assets', 'resources', '_RecoveredDependencies', 'Textures', '0968299a-e998-4a49-9435-69aa1a61b8ff.png'),
   busyExit: path.join(ROOT, 'assets', 'branding', 'settlement', 'btn-exit-busy-orange-v4.png'),
 };
 const shareSources = {

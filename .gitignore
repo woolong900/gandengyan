@@ -6,11 +6,4 @@ worker-configuration.d.ts
 tools/.cache/
 dist/
 originals/**/*.ipa
-client-cocos-recovered/build/
-client-cocos-recovered/library/
-client-cocos-recovered/local/
-client-cocos-recovered/temp/
-client-cocos-recovered/node_modules/
-
-
 .DS_Store

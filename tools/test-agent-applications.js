@@ -75,7 +75,7 @@ try {
 
   store.close();
   check('关闭再打开数据库后申请仍存在', store.listAgentApplications().total, 4);
-  const source = fs.readFileSync(path.join(__dirname, '..', 'client-cocos-recovered', 'assets', 'Script',
+  const source = fs.readFileSync(path.join(__dirname, '..', 'client-release-source', 'assets', 'Script',
     'Recovered', 'ActivityLayer.js'), 'utf8');
   check('客户端会显示服务端校验错误', source.includes('else if (t.res.error) a.default.uiHelper.showTip(t.res.what);'), true);
   check('客户端联系方式输入框允许完整微信号', source.includes('this.input.maxLength = 32'), true);

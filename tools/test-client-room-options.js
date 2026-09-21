@@ -5,19 +5,19 @@ const path = require('path');
 
 const root = path.join(__dirname, '..');
 const config = fs.readFileSync(
-  path.join(root, 'client-cocos-recovered/assets/Script/Recovered/RoomConfig.js'),
+  path.join(root, 'client-release-source/assets/Script/Recovered/RoomConfig.js'),
   'utf8',
 );
 const cells = fs.readFileSync(
-  path.join(root, 'client-cocos-recovered/assets/Script/Recovered/RoomConfigCellData.js'),
+  path.join(root, 'client-release-source/assets/Script/Recovered/RoomConfigCellData.js'),
   'utf8',
 );
 const gameConstant = fs.readFileSync(
-  path.join(root, 'client-cocos-recovered/assets/Script/Recovered/GameConstant.js'),
+  path.join(root, 'client-release-source/assets/Script/Recovered/GameConstant.js'),
   'utf8',
 );
 const qjshzLogic = fs.readFileSync(
-  path.join(root, 'client-cocos-recovered/assets/Script/Recovered/GameLogicWSK_QJSHZ.js'),
+  path.join(root, 'client-release-source/assets/Script/Recovered/GameLogicWSK_QJSHZ.js'),
   'utf8',
 );
 

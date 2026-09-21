@@ -14,7 +14,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
 LEGAL = ROOT / "legal"
-CLIENT = ROOT / "client-cocos-recovered/assets/resources/Hall/Res/Texture/Login"
+CLIENT = ROOT / "client-release-source/assets/resources/Hall/Res/Texture/Login"
 LEGACY = ROOT / "assets/branding/legacy-cleanup"
 PUBLIC = ROOT / "server/public/legal"
 FONT_FILE = next(path for path in (

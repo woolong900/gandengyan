@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const PROJECT = path.resolve(process.argv[2] || path.join(ROOT, 'client-cocos-recovered'));
+const PROJECT = path.resolve(process.argv[2] || path.join(ROOT, 'client-release-source'));
 const OUTPUT = process.argv[3] && path.resolve(process.argv[3]);
 if (!OUTPUT) throw new Error('用法：build-recovered-bundle.js <project> <output.js>');
 

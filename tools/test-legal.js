@@ -24,11 +24,11 @@ for (const [markdownName, expectedPages, htmlName] of docs) {
   assert(!/待完善|正式发布前，将补充/.test(markdown), `${markdownName} 仍有占位内容`);
 }
 
-const textures = fs.readdirSync(path.join(ROOT, 'client-cocos-recovered/assets/resources/Hall/Res/Texture/Login'))
+const textures = fs.readdirSync(path.join(ROOT, 'client-release-source/assets/resources/Hall/Res/Texture/Login'))
   .filter((name) => /^agreement_(?:sec_)?desc\d+\.png$/.test(name));
 assert.strictEqual(textures.length, 20, '协议图片应为 20 张');
 for (const name of textures) {
-  const file = path.join(ROOT, 'client-cocos-recovered/assets/resources/Hall/Res/Texture/Login', name);
+  const file = path.join(ROOT, 'client-release-source/assets/resources/Hall/Res/Texture/Login', name);
   assert(fs.statSync(file).size > 10_000, `${name} 内容异常`);
 }
 

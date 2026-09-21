@@ -36,9 +36,10 @@ node tools/publish-hot-update.js \
 
 ## 整包与热更一致性
 
-`tools/client-release-project.js` 是 Android 整包、iOS 整包与热更新的共用客户端脚本生成器。三条发布流程都从 `client-cocos-recovered` 生成完整 `project.jsc`，不再分别对旧包维护容易漏项的字符串补丁。因此：
+`tools/client-release-project.js` 是 Android 整包、iOS 整包与热更新的共用客户端脚本生成器。三条发布流程都从 `client-release-source` 生成完整 `project.jsc`，不再分别对旧包维护容易漏项的字符串补丁。因此：
 
-- 新修复应先落到 `client-cocos-recovered` 的可编辑源码。
+- 新修复应先落到 `client-release-source` 的可编辑源码。
+- 完整 Cocos Creator 恢复工程保存在仓库外，不参与正式打包。
 - `patchapk.js`、`build-ios-ipa.js` 和 `publish-hot-update.js` 会自动携带同一批修复。
 - `node tools/test-client-release.js` 校验三条流程仍使用共用生成器，并检查 2D/3D 碰后听牌提示等关键回归项。
 - 整包中的序列化资源修复也必须与热更同步；当前已包含说胡子总结算四项统计行距修复。

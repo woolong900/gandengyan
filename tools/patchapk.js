@@ -121,9 +121,9 @@ const CLUB_CHARACTER_SOURCE = path.join(__dirname, '..', 'assets', 'branding', '
 const TABLE_BACKGROUND_2D_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'table', 'table-background-2d.jpg');
 const TABLE_BACKGROUND_3D_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'table', 'table-background-3d.jpg');
 const SPLASH_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'startup', 'splash-screen.png');
-const QJSHZ_TABLE_SOURCE = path.join(__dirname, '..', 'client-cocos-recovered', 'assets', 'resources', '_RecoveredDependencies', 'Textures', '609a7ea7-dcd3-4770-9830-847e4aecacbf.jpg');
-const QJSHZ_ACTION_SOURCE = path.join(__dirname, '..', 'client-cocos-recovered', 'assets', 'resources', '_RecoveredDependencies', 'Textures', '19c83aa89.png');
-const QJSHZ_QUICK_SOURCE = path.join(__dirname, '..', 'client-cocos-recovered', 'assets', 'resources', '_RecoveredDependencies', 'Textures', '0968299a-e998-4a49-9435-69aa1a61b8ff.png');
+const QJSHZ_TABLE_SOURCE = path.join(__dirname, '..', 'client-release-source', 'assets', 'resources', '_RecoveredDependencies', 'Textures', '609a7ea7-dcd3-4770-9830-847e4aecacbf.jpg');
+const QJSHZ_ACTION_SOURCE = path.join(__dirname, '..', 'client-release-source', 'assets', 'resources', '_RecoveredDependencies', 'Textures', '19c83aa89.png');
+const QJSHZ_QUICK_SOURCE = path.join(__dirname, '..', 'client-release-source', 'assets', 'resources', '_RecoveredDependencies', 'Textures', '0968299a-e998-4a49-9435-69aa1a61b8ff.png');
 const QJSHZ_BUSY_EXIT_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'settlement', 'btn-exit-busy-orange-v4.png');
 const QJSHZ_BUSY_EXIT_TEXTURE_UUID = 'e07c10f8-e75a-5ae8-d2f6-40c4b109d372';
 const QJSHZ_BUSY_EXIT_SPRITE_UUID = 'e9e4084a-b40b-f780-a5dd-ed4476da7ba7';
@@ -163,7 +163,7 @@ console.log(`打包地址 ${TLS ? 'https' : 'http'}://${HOST}`);
 /** 中文规则要按 UTF-8 字节进 binary 串，否则 split 对不上 */
 const u2b = (s) => Buffer.from(s, 'utf8').toString('binary');
 const recoveredBetween = (file, start, end) => {
-  const source = fs.readFileSync(path.join(__dirname, '..', 'client-cocos-recovered', 'assets', 'Script', 'Recovered', file), 'utf8');
+  const source = fs.readFileSync(path.join(__dirname, '..', 'client-release-source', 'assets', 'Script', 'Recovered', file), 'utf8');
   const from = source.indexOf(start);
   const to = source.indexOf(end, from + start.length);
   if (from < 0 || to < 0) throw new Error(`恢复的脚本缺少预期代码：${file} ${start}`);

@@ -20,7 +20,8 @@ if (fs.existsSync(envFile)) {
     process.env[match[1]] = value;
   }
 }
-const SOURCE = path.join(ROOT, 'client-cocos-recovered');
+const SOURCE = path.resolve(process.env.QJQP_COCOS_PROJECT
+  || path.join(ROOT, '..', 'CocosCreator工程', '潜江干瞪眼'));
 const CREATOR = process.env.COCOS_CREATOR || '/tmp/CocosCreator-2.4.13/CocosCreator.app/Contents/MacOS/CocosCreator';
 const SDK = process.env.ANDROID_HOME || '/opt/homebrew/share/android-commandlinetools';
 const NDK = process.env.ANDROID_NDK_HOME || path.join(SDK, 'ndk', '21.4.7075529');

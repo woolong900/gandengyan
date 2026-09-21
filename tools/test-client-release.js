@@ -52,7 +52,7 @@ assert(source.includes('S.ready = void 0 !== C.ready ? !!C.ready : S.ready || !1
 new Function(source);
 
 const loginSceneSource = fs.readFileSync(path.join(ROOT,
-  'client-cocos-recovered/assets/resources/Hall/Scene/LoginScene.fire'));
+  'client-release-source/assets/resources/Hall/Scene/LoginScene.fire'));
 const patchedLoginScene = JSON.parse(patchLoginScene(loginSceneSource).toString('utf8'));
 for (const name of ['editboxTestAccount', 'buttonTestLogin']) {
   const node = patchedLoginScene.find((entry) => entry?.__type__ === 'cc.Node' && entry._name === name);

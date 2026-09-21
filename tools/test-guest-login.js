@@ -95,11 +95,11 @@ const afterRestart = restored.http('/login', query({ accountType: 'guest', devic
 t('服务重启后仍按设备复用游客', afterRestart.body.data.token, first.body.data.token);
 
 const root = path.join(__dirname, '..');
-const loginLayer = fs.readFileSync(path.join(root, 'client-cocos-recovered/assets/Script/Recovered/LoginLayer.js'), 'utf8');
-const loginControl = fs.readFileSync(path.join(root, 'client-cocos-recovered/assets/Script/Recovered/LoginControl.js'), 'utf8');
+const loginLayer = fs.readFileSync(path.join(root, 'client-release-source/assets/Script/Recovered/LoginLayer.js'), 'utf8');
+const loginControl = fs.readFileSync(path.join(root, 'client-release-source/assets/Script/Recovered/LoginControl.js'), 'utf8');
 const patchApk = fs.readFileSync(path.join(root, 'tools/patchapk.js'), 'utf8');
 const loginScene = JSON.parse(fs.readFileSync(path.join(root,
-  'client-cocos-recovered/assets/resources/Hall/Scene/LoginScene.fire'), 'utf8'));
+  'client-release-source/assets/resources/Hall/Scene/LoginScene.fire'), 'utf8'));
 const descBg = loginScene.find((entry) => entry.__type__ === 'cc.Node' && entry._name === 'DescBg');
 t('恢复工程默认显示游客登录', loginLayer.includes('this.guestNode.active = true;'), true);
 t('恢复工程强制隐藏测试账号输入框', loginLayer.includes('this.ebTestAccount.node.active = false;'), true);

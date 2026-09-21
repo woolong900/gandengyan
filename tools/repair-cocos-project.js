@@ -6,7 +6,8 @@ const vm = require('vm');
 const { execFileSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
-const PROJECT = path.resolve(process.argv[2] || path.join(ROOT, 'client-cocos-recovered'));
+const PROJECT = path.resolve(process.argv[2] || process.env.QJQP_COCOS_PROJECT
+  || path.join(ROOT, '..', 'CocosCreator工程', '潜江干瞪眼'));
 const REPORT = path.join(PROJECT, 'recovery-report');
 const SCRIPTS = path.join(PROJECT, 'assets', 'Script', 'Recovered');
 const BASE64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';

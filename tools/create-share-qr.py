@@ -13,7 +13,7 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 URL = "https://gmhiu.com/download"
 OUTPUT = ROOT / "assets/branding/share/download-qr.png"
-RECOVERED_OUTPUT = ROOT / "client-cocos-recovered/assets/resources/Hall/Res/Texture/Game/record_share/qrcode_hg.png"
+RECOVERED_OUTPUT = ROOT / "client-release-source/assets/resources/Hall/Res/Texture/Game/record_share/qrcode_hg.png"
 ICON = ROOT / "assets/branding/icon.png"
 
 
