@@ -46,6 +46,32 @@ const WEIGHT = {
 };
 
 const digit = (value, n) => Math.floor(Number(value || 0) / 10 ** n) % 10;
+// Keep the legacy base-score value in the lowest two digits of param1. The
+// four per-player xi amounts use three decimal digits each, so the complete
+// value remains below Number.MAX_SAFE_INTEGER and protobuf uint64 stays exact.
+const XI_BASE = 100;
+const XI_LIMIT = 999;
+const baseParam1 = (param1) => Number(param1) % XI_BASE;
+const xiAmount = (param1, power) => Math.floor(Number(param1) / 10 ** power) % 1000;
+const xiConfig = (param1) => {
+  const enabled = Math.floor(Number(param1) / XI_BASE) % 10 === 1;
+  return {
+    enabled,
+    bomb6: enabled ? xiAmount(param1, 3) : 0,
+    bomb7: enabled ? xiAmount(param1, 6) : 0,
+    bomb8: enabled ? xiAmount(param1, 9) : 0,
+    kings: enabled ? xiAmount(param1, 12) : 0,
+  };
+};
+const encodeXiConfig = (base, xi = {}) => {
+  if (!xi.enabled) return Number(base);
+  const amounts = ['bomb6', 'bomb7', 'bomb8', 'kings'].map((name) => Number(xi[name] || 0));
+  if (!amounts.every((amount) => Number.isInteger(amount) && amount >= 0 && amount <= XI_LIMIT)) {
+    throw new Error('喜钱分值必须为 0–999 的整数');
+  }
+  return Number(base) + 100 + amounts[0] * 1e3 + amounts[1] * 1e6
+    + amounts[2] * 1e9 + amounts[3] * 1e12;
+};
 const cardValue = (card) => {
   if (card === 170) return 16;
   if (card === 180) return 17;
@@ -195,7 +221,7 @@ function shuffle(cards) {
 
 /**
  * 把指定点数的牌放进某个座位的下一局起手牌。未指定的部分仍随机，
- * 但优先用其他点数补齐，避免像“5 张 3”被随机牌又补成 6 张。
+ * 指定数量是该玩家最终起手牌中该点数的总数，补牌不能再使用指定点数。
  */
 function buildDeckForSeat(config, counts, targetSeat, peopleCount = 4) {
   const deck = shuffle(buildDeck(!!config.去掉34));
@@ -221,8 +247,10 @@ function buildDeckForSeat(config, counts, targetSeat, peopleCount = 4) {
     (selectedRanks.has(rank) ? fallback : preferred).push(card);
   }
   const fillerCount = handSize - wanted.length;
+  if (preferred.length < fillerCount) {
+    throw new Error('指定牌面过多，剩余牌无法在保持指定数量的情况下补齐手牌');
+  }
   const filler = preferred.splice(0, fillerCount);
-  if (filler.length < fillerCount) filler.push(...fallback.splice(0, fillerCount - filler.length));
   const targetCards = shuffle(wanted.concat(filler));
   const rest = shuffle(preferred.concat(fallback));
   const arranged = [];
@@ -239,7 +267,8 @@ function parseConfig(param1, param2) {
   return {
     人数: 4,
     房费: pay,
-    底分: Number(param1 || 10) / 10 || 1,
+    底分: Number(baseParam1(param1) || 10) / 10 || 1,
+    喜钱: xiConfig(param1),
     底子: [10, 20, 50, 100, 200][digit(param2, 8)] || 10,
     彩倍: [1, 1.5, 2][digit(param2, 4)] || 1,
     尾游捡分: digit(param2, 5) === 1,
@@ -259,9 +288,18 @@ function parseConfig(param1, param2) {
 function validateRoomConfig({ gameType, num, param1, param2 } = {}) {
   if (Number(gameType) !== GAME_TYPE) return '暂不支持该玩法';
   if (!Number.isInteger(Number(num)) || Number(num) < 1 || Number(num) > 4) return '局数参数无效';
-  if (!Number.isInteger(Number(param1)) || ![1, 2, 5, 10, 20, 50].includes(Number(param1))) {
+  if (!Number.isSafeInteger(Number(param1))
+    || ![1, 2, 5, 10, 20, 50].includes(baseParam1(param1))) {
     return '底分参数无效';
   }
+  const xi = xiConfig(param1);
+  const flag = Math.floor(Number(param1) / XI_BASE) % 10;
+  if (xi.enabled && ![xi.bomb6, xi.bomb7, xi.bomb8, xi.kings].some(Boolean)) {
+    return '开启喜钱后，请至少填写一项大于 0 的分值';
+  }
+  if (flag > 1
+    || (xi.enabled && encodeXiConfig(baseParam1(param1), xi) !== Number(param1))
+    || (!xi.enabled && Number(param1) !== baseParam1(param1))) return '喜钱参数无效';
   if (!Number.isSafeInteger(Number(param2)) || Number(param2) < 0) return '玩法参数无效';
   const config = parseConfig(Number(param1), Number(param2));
   if (config.语音房) return '暂不支持语音房';
@@ -338,7 +376,7 @@ function findBeat(hand, previous, config) {
 
 module.exports = {
   GAME_TYPE, RATIO, TYPE, WEIGHT,
-  parseConfig, validateRoomConfig, roomCardCost, unit,
+  parseConfig, validateRoomConfig, roomCardCost, unit, baseParam1, xiConfig, encodeXiConfig,
   cardValue, cardColor, cardScore, compareCard, sortPut,
   classify, canBeat, sameCards, parsePlay, buildDeck, shuffle, buildDeckForSeat, findBeat,
 };

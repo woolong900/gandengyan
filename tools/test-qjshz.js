@@ -3,6 +3,7 @@ const assert = require('assert');
 const rules = require('../server/qjshz-rules');
 const { WskRound } = require('../server/qjshz-round');
 const { Table } = require('../server/table');
+const { roomInfo } = require('../server/shared');
 const { protocol } = require('../server/proto/protocol');
 
 const type = (cards) => rules.classify(cards);
@@ -21,6 +22,30 @@ assert.equal(rules.buildDeck(true).length, 92);
   }
   assert.deepEqual(deck.slice().sort((a, b) => a - b), rules.buildDeck(false).sort((a, b) => a - b),
     '指定起手牌不能改变整副牌');
+}
+{
+  const config = rules.parseConfig(10, 0);
+  for (let targetSeat = 0; targetSeat < 4; targetSeat++) {
+    const deck = rules.buildDeckForSeat(config, { 3: 5 }, targetSeat, 4);
+    for (const flipIndex of [0, 1, 2, 3, 17, 53, 107]) {
+      const uid = 720001 + targetSeat;
+      const seats = Array.from({ length: 4 }, (_, index) => ({
+        player: { uid: 720001 + index, nickname: `指定牌${index + 1}` }, site: index + 1,
+      }));
+      const table = { gameType: 17, roomId: 123457, hostUid: seats[0].player.uid,
+        num: 1, param1: 10, param2: 0, step: 1 };
+      const round = new WskRound(seats, { config, flipIndex }, {
+        table, log: () => {}, each: () => {}, all: () => {},
+      });
+      round.start(deck);
+      const hand = round.hands[round.seatOf(uid)];
+      assert.equal(hand.filter((card) => rules.cardValue(card) === 3).length, 5,
+        '翻牌及换座后，指定玩家仍只能收到恰好 5 张 3');
+    }
+  }
+  const impossible = Object.fromEntries(Array.from({ length: 12 }, (_, index) => [index + 3, 1]));
+  assert.throws(() => rules.buildDeckForSeat(config, impossible, 0, 4), /保持指定数量/,
+    '无法避开所有已指定点数时，不能悄悄多发指定牌');
 }
 assert.equal(type([31]).type, rules.TYPE.SINGLE);
 assert.equal(type([31, 32]).type, rules.TYPE.DOUBLE);
@@ -44,6 +69,8 @@ const bomb8 = type([31, 31, 32, 32, 33, 33, 34, 34]);
 const kingBomb = type([170, 170, 180, 180]);
 assert(rules.canBeat(kingBomb, bomb8, plain), '默认四大天王大过八炸');
 assert(!rules.canBeat(bomb8, kingBomb, plain));
+assert.equal(rules.findBeat([180, 133, 131, 83, 82, 61, 54, 53], type([71, 71, 73, 74]), plain), null,
+  '单大王、对子和散牌不能压四个 7');
 const bomb8First = { ...plain, 八炸大过四大天王: true };
 assert(rules.canBeat(bomb8, kingBomb, bomb8First), '勾选后八炸大过四大天王');
 assert(!rules.canBeat(kingBomb, bomb8, bomb8First));
@@ -70,6 +97,27 @@ assert.equal(rules.validateRoomConfig({ gameType: 17, num: 1, param1: 10, param2
 assert.equal(rules.validateRoomConfig({ gameType: 17, num: 5, param1: 10, param2: 0 }), '局数参数无效');
 assert.equal(rules.validateRoomConfig({ gameType: 17, num: 1, param1: 3, param2: 0 }), '底分参数无效');
 assert.equal(rules.parseConfig(1, 10 ** 13).八炸大过四大天王, true);
+const xiParam1 = rules.encodeXiConfig(10, {
+  enabled: true, bomb6: 10, bomb7: 20, bomb8: 30, kings: 40,
+});
+assert.equal(rules.baseParam1(xiParam1), 10);
+assert.deepEqual(rules.parseConfig(xiParam1, 0).喜钱, {
+  enabled: true, bomb6: 10, bomb7: 20, bomb8: 30, kings: 40,
+});
+assert.equal(rules.validateRoomConfig({ gameType: 17, num: 1, param1: xiParam1, param2: 0 }), null);
+assert.equal(rules.validateRoomConfig({ gameType: 17, num: 1, param1: 110, param2: 0 }),
+  '开启喜钱后，请至少填写一项大于 0 的分值',
+  '开启喜钱但四项全为零应拒绝');
+assert(Number.isSafeInteger(rules.encodeXiConfig(50, {
+  enabled: true, bomb6: 999, bomb7: 999, bomb8: 999, kings: 999,
+})), '喜钱配置必须能在客户端数值范围内精确传输');
+{
+  const publicRoom = roomInfo({ gameType: 17, roomId: 123456, clubId: 0, hostUid: 700001,
+    num: 1, param1: xiParam1, param2: 0, step: 0, members: [],
+    config: rules.parseConfig(xiParam1, 0), gameRules: rules });
+  assert.equal(publicRoom.param1, 10, '旧客户端收到的底分不能被喜钱编码放大');
+  assert.deepEqual(publicRoom.xi_money, rules.xiConfig(xiParam1));
+}
 
 const seats = Array.from({ length: 4 }, (_, index) => ({
   player: { uid: 700001 + index, nickname: `机器人${index + 1}`, sex: 1 },
@@ -126,6 +174,12 @@ assert.deepEqual(round.hands.map((hand) => hand.length), [27, 27, 27, 27]);
 const mine = round.snapshot(0);
 assert.equal(mine.players[0].card.hand_card.length, 27);
 assert(mine.players[1].card.hand_card.every((card) => card === 0));
+assert.equal(mine.last_put_uid, 0, '开局快照不应包含上一手出牌人');
+
+const openingSeat = round.turn;
+round.autoPlay(openingSeat);
+assert.equal(round.snapshot(0).last_put_uid, seats[openingSeat].player.uid,
+  '断线重连快照必须明确携带真实最新出牌人');
 
 let turns = 0;
 while (!round.over && turns++ < 3000) round.autoPlay(round.turn);
@@ -181,6 +235,52 @@ const scenario = ({ hands, turn = 0, ranks = [0, 0, 0, 0], finishOrder = [], fir
   tested.over = false;
   return { round: tested, events: scenarioEvents, final: () => scenarioFinal };
 };
+
+// 喜钱按实际一手出牌的完整张数计，不按开局摸到的最大张数锁定。
+{
+  const config = { ...plain, 喜钱: { enabled: true, bomb6: 10, bomb7: 20, bomb8: 30, kings: 40 } };
+  const eightThrees = [31, 31, 32, 32, 33, 33, 34, 34];
+  const sevenThrees = [31, 32, 32, 33, 33, 34, 34];
+  const test = scenario({ hands: [[...eightThrees, 41], [51], [61], [71]], config });
+  assert.equal(test.round.play(0, [31, 31]), null);
+  for (const seat of [1, 2, 3]) assert.equal(test.round.pass(seat), null);
+  assert.deepEqual(test.round.xiScores, [0, 0, 0, 0]);
+  assert.equal(test.round.play(0, sevenThrees.concat(sevenThrees)), null);
+  for (const seat of [1, 2, 3]) assert.equal(test.round.pass(seat), null);
+  assert.deepEqual(test.round.xiScores, [6000, -2000, -2000, -2000],
+    '原先 8 张 3 拆出 1 张后，剩余 7 张赢墩按 7 炸结算且对家也支付');
+  assert.equal(test.events.filter((event) => event.msghead === 'game_xi').length, 1);
+  assert.equal(test.round.snapshot(0).players[0].bomb_score, 6000);
+}
+{
+  const config = { ...plain, 喜钱: { enabled: true, bomb6: 10, bomb7: 20, bomb8: 30, kings: 40 } };
+  const sevenThrees = [31, 32, 32, 33, 33, 34, 34];
+  const test = scenario({ hands: [[31, 31, 32, 32, 33, 33, 34, 34, 41], [51], [61], [71]], config });
+  assert.equal(test.round.play(0, sevenThrees.concat(sevenThrees)), null);
+  for (const seat of [1, 2, 3]) assert.equal(test.round.pass(seat), null);
+  assert.deepEqual(test.round.xiScores, [0, 0, 0, 0], '手中仍有第 8 张时只出 7 张，不应给喜钱');
+}
+{
+  const config = { ...plain, 喜钱: { enabled: true, bomb6: 10, bomb7: 20, bomb8: 30, kings: 40 } };
+  const sixThrees = [31, 31, 32, 32, 33, 33];
+  const sevenFours = [41, 41, 42, 42, 43, 43, 44];
+  const test = scenario({ hands: [[...sixThrees, 51], [...sevenFours, 52], [61], [71]], config });
+  assert.equal(test.round.play(0, sixThrees.concat(sixThrees)), null);
+  assert.equal(test.round.play(1, sevenFours.concat(sevenFours)), null);
+  for (const seat of [2, 3, 0]) assert.equal(test.round.pass(seat), null);
+  assert.deepEqual(test.round.xiScores, [-2000, 6000, -2000, -2000],
+    '6 炸被 7 炸压死不算喜钱，只给最终赢墩的 7 炸');
+}
+{
+  const config = { ...plain, 喜钱: { enabled: true, bomb6: 10, bomb7: 20, bomb8: 30, kings: 40 } };
+  const kings = [170, 170, 180, 180];
+  const test = scenario({ hands: [[...kings], [51], [], [71]], config,
+    ranks: [0, 0, 1, 0], finishOrder: [2], firstOutSeat: 2 });
+  assert.equal(test.round.play(0, kings.concat(kings)), null);
+  assert(test.round.over, '对家已出完且本人最后一手出完时应立即结束');
+  assert.deepEqual(test.round.xiScores, [12000, -4000, -4000, -4000]);
+  assert.equal(test.final().scores.reduce((sum, score) => sum + score, 0), 0);
+}
 
 // 普通一墩结束只应让赢家继续领牌，不能播放“接风”。
 {

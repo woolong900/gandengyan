@@ -140,7 +140,9 @@ class WskRound {
     this.finishOrder = [];
     this.firstOutSeat = -1;
     this.pickScores = new Array(this.n).fill(0);
+    this.xiScores = new Array(this.n).fill(0);
     this.roundScore = new Array(this.n).fill(0);
+    this.lastXi = null;
     this.tableScore = 0;
     this.tableScoreCards = [];
     this.allPutCards = [];
@@ -180,7 +182,7 @@ class WskRound {
       score: this.roundScore[seat] || 0,
       card_step_out: this.ranks[seat] || 0,
       grasp_score: this.pickScores[seat] || 0,
-      bomb_score: 0,
+      bomb_score: this.xiScores[seat] || 0,
       show_xi_card: [],
       pass: state === 'pass',
       card: {
@@ -203,6 +205,7 @@ class WskRound {
       hard_card_uid: 0,
       banker_uid: this.uid(this.dealerSeat),
       friend_uid: this.uid(this.teammate(this.dealerSeat)),
+      last_put_uid: this.lastPlaySeat >= 0 ? this.uid(this.lastPlaySeat) : 0,
       desktop_score: this.tableScore,
       desk_card_scores: this.tableScoreCards.slice(),
       step_card_info: this.allPutCards.slice(),
@@ -260,6 +263,38 @@ class WskRound {
     this.io.all('game_operator', { uid: this.uid(seat), ot: 2, round });
   }
 
+  xiForPlay(seat, info) {
+    const xi = this.config.喜钱;
+    if (!xi || !xi.enabled || !info) return null;
+    let kind;
+    if (info.type === rules.TYPE.BOMB_KING) {
+      kind = 'kings';
+    } else if (info.type === rules.TYPE.BOMB && info.cards.length >= 6 && info.cards.length <= 8) {
+      // A 7-card bomb left after playing one of an original 8 is a complete
+      // 7-card bomb. Playing only seven while still holding eight is not.
+      const held = this.hands[seat].filter((card) => rules.cardValue(card) === info.key).length;
+      if (held !== info.cards.length) return null;
+      kind = `bomb${info.cards.length}`;
+    } else return null;
+    const each = Number(xi[kind] || 0);
+    return Number.isInteger(each) && each > 0 ? { seat, kind, each } : null;
+  }
+
+  settleXi() {
+    const xi = this.lastXi;
+    this.lastXi = null;
+    if (!xi || xi.seat !== this.lastPlaySeat) return;
+    const each = xi.each * rules.RATIO;
+    for (let seat = 0; seat < this.n; seat++) {
+      this.xiScores[seat] += seat === xi.seat ? each * (this.n - 1) : -each;
+    }
+    this.io.all('game_xi', {
+      uid: this.uid(xi.seat), kind: xi.kind, each, total: each * (this.n - 1),
+      scores: this.xiScores.slice(),
+    });
+    this.io.log(`说胡子喜钱 ${this.uid(xi.seat)} ${xi.kind} 每家=${xi.each}分`);
+  }
+
   play(seat, payload) {
     if (this.over) return '这局已经结束了';
     if (seat !== this.turn) return '还没轮到你出牌';
@@ -269,6 +304,7 @@ class WskRound {
     if (!this.hasCards(seat, parsed.real)) return '手里没有这些牌';
     if (this.lastPlay && !rules.canBeat(parsed.info, this.lastPlay.info, this.config)) return '这手牌压不过上一手';
 
+    const pendingXi = this.xiForPlay(seat, parsed.info);
     this.removeCards(seat, parsed.real);
     const combined = parsed.real.concat(parsed.virtual);
     this.clearTurnState();
@@ -276,6 +312,7 @@ class WskRound {
     this.lastCards[seat] = combined;
     this.lastPlay = { real: parsed.real, virtual: parsed.virtual, info: parsed.info };
     this.lastPlaySeat = seat;
+    this.lastXi = pendingXi;
     this.passed.clear();
     this.curRound.push({ ot: 0, uid: this.uid(seat), cards: combined });
     this.allPutCards.push(...parsed.real);
@@ -344,6 +381,7 @@ class WskRound {
 
   finishTrick({ ending = false } = {}) {
     const taker = this.lastPlaySeat;
+    this.settleXi();
     if (taker >= 0 && this.tableScore > 0) {
       this.pickScores[taker] += this.tableScore;
       this.io.all('game_score', { uid: this.uid(taker), score: this.tableScore });
@@ -446,7 +484,8 @@ class WskRound {
     const scorePart = Math.round(one * (result.settlementScore - 100) * result.multiple);
     const amount = scorePart + Math.round(this.config.底子 * rules.RATIO);
     for (let seat = 0; seat < this.n; seat++) {
-      this.roundScore[seat] = this.teamOf(seat) === result.winnerTeam ? amount : -amount;
+      this.roundScore[seat] = (this.teamOf(seat) === result.winnerTeam ? amount : -amount)
+        + this.xiScores[seat];
       this.seats[seat].score = (this.seats[seat].score || 0) + this.roundScore[seat];
       if (this.teamOf(seat) === result.winnerTeam) this.stat[seat].wsk_winner_count += 1;
       else this.stat[seat].wsk_lose_count += 1;
@@ -506,7 +545,9 @@ class WskRound {
       finishOrder: this.finishOrder,
       firstOutSeat: this.firstOutSeat,
       pickScores: this.pickScores,
+      xiScores: this.xiScores,
       roundScore: this.roundScore,
+      lastXi: this.lastXi,
       tableScore: this.tableScore,
       tableScoreCards: this.tableScoreCards,
       allPutCards: this.allPutCards,
@@ -533,7 +574,9 @@ class WskRound {
     round.finishOrder = data.finishOrder || [];
     round.firstOutSeat = data.firstOutSeat == null ? -1 : data.firstOutSeat;
     round.pickScores = data.pickScores || new Array(round.n).fill(0);
+    round.xiScores = data.xiScores || new Array(round.n).fill(0);
     round.roundScore = data.roundScore || new Array(round.n).fill(0);
+    round.lastXi = data.lastXi || null;
     round.tableScore = data.tableScore || 0;
     round.tableScoreCards = data.tableScoreCards || [];
     round.allPutCards = data.allPutCards || [];

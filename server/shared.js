@@ -4,6 +4,7 @@
 const { pack } = require('./net');
 const crypto = require('crypto');
 const rules = require('./rules');
+const qjshzRules = require('./qjshz-rules');
 
 const GAME_COUNT_MUL = {
   1: 8, 2: 8, 3: 8, 4: 8, 5: 8, 6: 8, 7: 8, 8: 8, 9: 8, 10: 8, 11: 8, 12: 8,
@@ -23,8 +24,11 @@ const roomInfo = (room) => ({
   maxstep: maxStep(room),
   step: room.round && room.step < 1 ? 1 : room.step,
   score_ratio: room.gameRules ? room.gameRules.RATIO : rules.RATIO,
-  param1: room.param1,
+  // Legacy clients interpret all of param1 as the base score. Keep their
+  // score display intact while new clients read xi settings from xi_money.
+  param1: Number(room.gameType) === 17 ? qjshzRules.baseParam1(room.param1) : room.param1,
   param2: room.param2,
+  ...(Number(room.gameType) === 17 ? { xi_money: room.config.喜钱 || qjshzRules.xiConfig(room.param1) } : {}),
   person: room.members.map((m) => ({
     uid: m.player.uid,
     name: m.player.nickname,
@@ -153,6 +157,7 @@ const emptyPlayer = (uid, extra = {}) => ({
     .map((code) => code.toUpperCase()).filter((code) => /^[A-Z]{5}$/.test(code)),
   invitedBy: extra.invitedBy || '',
   bot: !!extra.bot,
+  botStrategy: extra.botStrategy === 'jev' ? 'jev' : 'local',
 });
 
 const emptyMember = (player, extra = {}) => ({
@@ -163,10 +168,14 @@ const emptyMember = (player, extra = {}) => ({
   score: extra.score || 0,
   online: extra.online !== false,
   trustee: !!extra.trustee,
+  managedTrustee: !!extra.managedTrustee,
+  managedTrusteeOptOut: !!extra.managedTrusteeOptOut,
+  trusteeBeforeManaged: !!extra.trusteeBeforeManaged,
   turnDeadline: extra.turnDeadline || 0,
   stat: extra.stat || { ag: 0, mg: 0, zm: 0, dg: 0, jg: 0, plyj: 0 },
   view: !!extra.view,
   bot: !!extra.bot,
+  botStrategy: extra.botStrategy === 'jev' ? 'jev' : (player.botStrategy === 'jev' ? 'jev' : 'local'),
 });
 
 const versionBody = () => ({ err_code: '0', data: {} });

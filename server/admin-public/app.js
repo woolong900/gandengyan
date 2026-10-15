@@ -2,14 +2,16 @@
   'use strict';
   var state = { csrf: '', view: 'dashboard', page: 1, q: '', loading: false };
   var labels = { dashboard: '数据面板', players: '玩家管理', rooms: '房间管理', records: '牌局管理',
-    clubs: '俱乐部管理', economy: '房卡与奖励', bots: '机器人管理',
-    'agent-applications': '合伙人申请', messages: '通知管理', notices: '大厅公告',
+    clubs: '俱乐部管理', economy: '房卡与奖励', bots: '机器人管理', trustees: '托管白名单',
+    'agent-applications': '合伙人申请', support: '客服会话', messages: '通知管理', notices: '大厅公告',
     'hot-update': '热更新灰度', audit: '操作日志', system: '备份与系统' };
   var content = document.getElementById('content');
   var modal = document.getElementById('modal');
   var modalCard = document.getElementById('modal-card');
   var toastNode = document.getElementById('toast');
   var activeRoomId = null;
+  var activeSupportUid = null;
+  var supportPollBusy = false;
   var roomDraft = { uid: 0, cards: [] };
   var wskHandDraft = { roomId: 0, uid: 0, counts: {}, dirty: false };
   var currentRoom = null;
@@ -59,13 +61,15 @@
   }
   function openModal(title, body, wide) {
     activeRoomId = null;
+    activeSupportUid = null;
     modalCard.classList.toggle('room-modal-card', !!wide);
     modalCard.innerHTML = '<div class="modal-head"><h3>' + escape(title) +
       '</h3><button type="button" data-action="close-modal" aria-label="关闭">×</button></div>' + body;
     modal.classList.remove('hidden');
   }
   function closeModal() {
-    activeRoomId = null; roomEditVersion++; wskHandDraft = { roomId: 0, uid: 0, counts: {}, dirty: false };
+    activeRoomId = null; activeSupportUid = null; roomEditVersion++;
+    wskHandDraft = { roomId: 0, uid: 0, counts: {}, dirty: false };
     modal.classList.add('hidden'); modalCard.innerHTML = '';
   }
   async function api(path, method, body) {
@@ -94,7 +98,7 @@
     try {
       var view = state.view;
       var query = '?page=' + state.page + '&q=' + encodeURIComponent(state.q);
-      var data = await api('/' + view + (['players', 'rooms', 'records', 'clubs', 'agent-applications'].includes(view) ? query : ''));
+      var data = await api('/' + view + (['players', 'rooms', 'records', 'clubs', 'agent-applications', 'support'].includes(view) ? query : ''));
       if (view === 'dashboard') renderDashboard(data);
       else if (view === 'players') renderPlayers(data);
       else if (view === 'rooms') renderRooms(data);
@@ -102,7 +106,9 @@
       else if (view === 'clubs') renderClubs(data);
       else if (view === 'economy') renderEconomy(data);
       else if (view === 'bots') renderBots(data);
+      else if (view === 'trustees') renderTrustees(data);
       else if (view === 'agent-applications') renderAgentApplications(data);
+      else if (view === 'support') renderSupport(data);
       else if (view === 'messages') renderMessages(data);
       else if (view === 'notices') renderNotices(data);
       else if (view === 'hot-update') renderHotUpdate(data);
@@ -218,21 +224,50 @@
   function renderBots(data) {
     var rows = data.rooms.map(function (room) { return '<tr><td class="mono">' + room.roomId +
       '</td><td>' + badge(room.status, room.status === '进行中' ? 'green' : 'gold') +
-      '</td><td>' + room.humans + '</td><td>' + room.bots + '</td></tr>'; });
-    content.innerHTML = intro('机器人管理', '统一控制服务端是否自动向用户 285636 创建、且只有一位真人的等待房间补充陪玩机器人。') +
+      '</td><td>' + room.humans + '</td><td>' + room.localBots + '</td><td>' + room.jevBots + '</td></tr>'; });
+    var strategyName = { local: '本地规则', jev: 'Jev', ab: 'A/B 混合' };
+    var stats = ['local', 'jev'].map(function (key) { var item = data.stats[key]; return '<tr><td>' +
+      escape(strategyName[key]) + '</td><td>' + number(item.rounds) + '</td><td>' + number(item.wins) +
+      '</td><td>' + item.winRate + '%</td><td>' + number(item.draws) + '</td><td>' + number(item.score) + '</td></tr>'; });
+    content.innerHTML = intro('机器人管理', '统一控制服务端是否自动向用户 285636、100055 创建、且只有一位真人的等待房间补充陪玩机器人。') +
       '<div class="grid metrics"><div class="metric"><span class="label">自动补充</span><strong class="' +
       (data.enabled ? 'accent' : '') + '">' + (data.enabled ? '已开启' : '已关闭') +
       '</strong><span class="hint">设置会持久保存</span></div><div class="metric"><span class="label">当前机器人</span><strong>' +
       number(data.totalBots) + '</strong><span class="hint">所有活跃房间</span></div><div class="metric"><span class="label">牌局中</span><strong>' +
       number(data.playingBots) + '</strong><span class="hint">关闭后完成当前小局再离开</span></div><div class="metric"><span class="label">等待中</span><strong>' +
-      number(data.waitingBots) + '</strong><span class="hint">关闭时立即移除</span></div></div>' +
+      number(data.waitingBots) + '</strong><span class="hint">关闭时立即移除</span></div><div class="metric"><span class="label">Jev 接口</span><strong class="' +
+      (data.jevApi.configured ? 'accent' : '') + '">' + (data.jevApi.configured ? '已配置' : '未配置') +
+      '</strong><span class="hint">成功 ' + number(data.jevApi.successes) + ' · 回退 ' + number(data.jevApi.fallbacks) + '</span></div></div>' +
       '<section class="card"><form id="bots-form">' + field('机器人自动补位',
         '<select name="enabled"><option value="true"' + (data.enabled ? ' selected' : '') +
         '>开启</option><option value="false"' + (!data.enabled ? ' selected' : '') + '>关闭</option></select>') +
-      '<p class="note">开启后，仅用户 285636 创建的符合条件的等待房间会立即补位。关闭后不再加入新机器人；等待中的机器人立即离开，正在打牌的机器人完成当前小局后离开。</p>' +
+      field('决策策略', '<select name="mode"><option value="ab"' + (data.mode === 'ab' ? ' selected' : '') +
+        '>A/B 混合</option><option value="local"' + (data.mode === 'local' ? ' selected' : '') +
+        '>仅本地规则</option><option value="jev"' + (data.mode === 'jev' ? ' selected' : '') + '>仅 Jev</option></select>') +
+      '<p class="note">A/B 混合会按房号和座位交替分配本地规则、Jev 机器人。Jev 超时、低置信度或异常时自动回退本地策略。切换策略时，等待中的机器人立即重建，牌局中的机器人从下一小局起更新。</p>' +
       '<button class="button primary" type="submit">保存机器人设置</button></form></section>' +
+      '<section class="card" style="margin-top:18px"><h3>胜率对照</h3>' +
+      table(['策略', '参赛局数', '获胜局数', '胜率', '流局', '累计原始分'], stats) + '</section>' +
       '<section class="card" style="margin-top:18px"><h3>机器人所在房间</h3>' +
-      table(['房号', '状态', '真人', '机器人'], rows) + '</section>';
+      table(['房号', '状态', '真人', '本地机器人', 'Jev 机器人'], rows) + '</section>';
+  }
+  function renderTrustees(data) {
+    var rows = data.items.map(function (item) { return '<tr><td class="mono">' + item.uid +
+      '</td><td>' + short(item.nickname, 20) + '</td><td>' +
+      badge(item.status, item.active ? 'green' : (item.roomId ? 'gold' : '')) + '</td><td>' +
+      (item.roomId || '—') + '</td><td>' + badge(item.online ? '在线' : '离线', item.online ? 'green' : '') +
+      '</td><td>' + button('trustee-remove', '移出白名单', item.uid, 'danger') + '</td></tr>'; });
+    content.innerHTML = intro('托管白名单', '白名单玩家只有在干瞪眼小局进行中才会由系统接管，并按当前机器人策略自动出牌。',
+      button('refresh', '刷新数据', '', 'primary')) +
+      '<div class="grid metrics"><div class="metric"><span class="label">白名单人数</span><strong>' +
+      number(data.count) + '</strong><span class="hint">设置会持久保存</span></div><div class="metric"><span class="label">当前托管中</span><strong class="accent">' +
+      number(data.activeCount) + '</strong><span class="hint">仅统计正在进行的干瞪眼牌局</span></div></div>' +
+      '<section class="card"><form id="trustee-form"><div class="form-grid">' +
+      field('玩家 ID', '<input name="uid" type="number" min="1" step="1" placeholder="请输入玩家 ID" required>') +
+      '</div><p class="note">加入后立即生效；如果玩家尚未进入干瞪眼小局，则在下次开局时自动托管。其他玩法、等待房间和局间阶段不会托管。</p>' +
+      '<button class="button primary" type="submit">加入托管白名单</button></form></section>' +
+      '<section class="card" style="margin-top:18px"><h3>已加入的玩家</h3>' +
+      table(['玩家 ID', '昵称', '状态', '房间', '在线', '操作'], rows) + '</section>';
   }
   function renderAgentApplications(data) {
     var rows = data.items.map(function (application) { return '<tr><td class="mono">' + application.id +
@@ -243,6 +278,56 @@
       '<section class="card"><div class="toolbar">' + search('玩家 ID、昵称或联系方式') +
       '<span class="muted">共 ' + number(data.total) + ' 条申请</span></div>' +
       table(['编号', '玩家', '类型', '联系方式', '提交时间'], rows) + pager(data) + '</section>';
+  }
+  function renderSupport(data) {
+    var rows = data.items.map(function (conversation) {
+      var last = conversation.lastMessage || {};
+      return '<tr><td class="mono">' + conversation.uid + '</td><td>' +
+        short(conversation.nickname, 18) + '</td><td>' +
+        badge(conversation.online ? '在线' : '离线', conversation.online ? 'green' : '') + '</td><td>' +
+        (conversation.adminUnread ? badge(conversation.adminUnread + ' 条待回复', 'red') : badge('已读', 'green')) + '</td><td>' +
+        short(last.content || '暂无消息', 42) + '<br><span class="muted">' + date(last.createdAt) + '</span></td><td>' +
+        badge(conversation.closed ? '已结束' : '进行中', conversation.closed ? '' : 'gold') + '</td><td>' +
+        button('support-detail', '打开会话', conversation.uid, conversation.adminUnread ? 'primary' : '') + '</td></tr>';
+    });
+    content.innerHTML = intro('客服会话', '查看玩家反馈并实时回复；红色标记为尚未处理的玩家消息。',
+      button('refresh', '刷新数据', '', 'primary')) +
+      '<div class="grid metrics"><div class="metric"><span class="label">全部会话</span><strong>' +
+      number(data.total) + '</strong><span class="hint">已保存的玩家会话</span></div><div class="metric"><span class="label">待处理消息</span><strong class="accent">' +
+      number(data.unread) + '</strong><span class="hint">打开会话后标记为已读</span></div></div>' +
+      '<section class="card"><div class="toolbar">' + search('玩家 ID、昵称或消息内容') +
+      '<span class="muted">共 ' + number(data.total) + ' 个会话</span></div>' +
+      table(['玩家 ID', '昵称', '状态', '待处理', '最后消息', '会话', '操作'], rows) + '</section>';
+  }
+  function renderSupportModal(conversation) {
+    var scroll = modalCard.scrollTop;
+    var messages = (conversation.messages || []).map(function (message) {
+      var mine = message.from === 'admin';
+      var context = message.context && message.context.roomId ? '<small>玩家发送时：房间 #' +
+        escape(message.context.roomId) + (message.context.step ? ' · 第 ' + escape(message.context.step) + ' 局' : '') + '</small>' : '';
+      return '<div class="support-message ' + (mine ? 'admin' : 'player') + '"><div><strong>' +
+        (mine ? '客服' : escape(conversation.nickname)) + '</strong><time>' + date(message.createdAt) + '</time></div><p>' +
+        escape(message.content).replace(/\n/g, '<br>') + '</p>' + context + '</div>';
+    }).join('');
+    openModal('客服会话 · 玩家 #' + conversation.uid,
+      '<div class="support-meta">' + badge(conversation.online ? '玩家在线' : '玩家离线', conversation.online ? 'green' : '') +
+      badge(conversation.closed ? '会话已结束' : '会话进行中', conversation.closed ? '' : 'gold') +
+      '<span>' + escape(conversation.nickname) + ' · 共 ' + number(conversation.messages.length) + ' 条消息</span></div>' +
+      '<div id="support-thread" class="support-thread">' + (messages || '<div class="empty">暂无消息</div>') + '</div>' +
+      '<form id="support-reply-form" data-target="' + conversation.uid + '" class="support-reply">' +
+      '<textarea name="content" maxlength="500" placeholder="输入回复内容…" required></textarea><div class="button-row">' +
+      '<button class="button primary" type="submit">发送回复</button>' +
+      button(conversation.closed ? 'support-reopen' : 'support-close', conversation.closed ? '重新打开会话' : '结束会话', conversation.uid,
+        conversation.closed ? '' : 'danger') + '</div></form>', true);
+    activeSupportUid = String(conversation.uid);
+    var thread = document.getElementById('support-thread');
+    if (thread) thread.scrollTop = thread.scrollHeight;
+    if (scroll && thread) modalCard.scrollTop = scroll;
+  }
+  async function detailSupport(uid) {
+    await api('/support/' + encodeURIComponent(uid) + '/read', 'POST', {});
+    var data = await api('/support/' + encodeURIComponent(uid));
+    renderSupportModal(data.conversation);
   }
   function renderMessages(data) {
     var rows = data.messages.map(function (message) { return '<tr><td class="mono">' + message.id +
@@ -721,6 +806,12 @@
       }
       if (action === 'record-detail') return detailRecord(target);
       if (action === 'club-detail') return detailClub(target);
+      if (action === 'support-detail') return detailSupport(target);
+      if (action === 'support-close' || action === 'support-reopen') {
+        await api('/support/' + target + '/close', 'POST', { closed: action === 'support-close' });
+        toast(action === 'support-close' ? '会话已结束' : '会话已重新打开');
+        await detailSupport(target); return;
+      }
       if (action === 'club-cards') {
         actionForm('调整俱乐部房卡 · #' + target, 'club-cards-form', target,
           field('调整数量（增加填正数，扣除填负数）', '<input name="delta" type="number" min="-1000000" max="1000000" required>') +
@@ -751,6 +842,11 @@
       if (action === 'message-delete') {
         if (!window.confirm('确定撤回通知 #' + target + '？收件人的消息列表将不再显示它。')) return;
         await api('/messages/' + target, 'DELETE'); toast('通知已撤回'); render(); return;
+      }
+      if (action === 'trustee-remove') {
+        if (!window.confirm('确定将玩家 #' + target + ' 移出托管白名单？正在进行的后台托管会立即停止。')) return;
+        await api('/trustees', 'PUT', { uid: Number(target), enabled: false });
+        toast('已移出托管白名单'); render(); return;
       }
       if (action === 'backup') {
         var result = await api('/backup', 'POST', {});
@@ -792,6 +888,11 @@
           targetUid: Number(values.targetUid || 0), days: Number(values.days) });
         toast('通知已发布'); render(); return;
       }
+      if (form.id === 'support-reply-form') {
+        var supportUid = form.getAttribute('data-target');
+        await api('/support/' + supportUid + '/reply', 'POST', { content: values.content });
+        toast('回复已发送'); await detailSupport(supportUid); return;
+      }
       if (form.id === 'notices-form') {
         await api('/notices', 'PUT', values); toast('大厅公告已更新'); render(); return;
       }
@@ -802,8 +903,12 @@
         toast('奖励设置已更新'); render(); return;
       }
       if (form.id === 'bots-form') {
-        var bots = await api('/bots', 'PUT', { enabled: values.enabled === 'true' });
+        var bots = await api('/bots', 'PUT', { enabled: values.enabled === 'true', mode: values.mode });
         toast(bots.enabled ? '机器人已开启' : '机器人已关闭'); render(); return;
+      }
+      if (form.id === 'trustee-form') {
+        await api('/trustees', 'PUT', { uid: Number(values.uid), enabled: true });
+        toast('玩家已加入托管白名单'); render(); return;
       }
       if (form.id.indexOf('hot-update-form-') === 0) {
         var splitList = function (value) { return String(value || '').split(/[,，\s]+/).map(function (item) {
@@ -893,6 +998,19 @@
       if (String(activeRoomId) === String(id)) { closeModal(); toast(error.message, true); }
     } finally { roomPollBusy = false; }
   }, 2500);
+  window.setInterval(async function () {
+    if (!activeSupportUid || modal.classList.contains('hidden') || supportPollBusy) return;
+    if (document.activeElement && document.activeElement.closest &&
+      document.activeElement.closest('#support-reply-form')) return;
+    var uid = activeSupportUid;
+    supportPollBusy = true;
+    try {
+      var result = await api('/support/' + encodeURIComponent(uid));
+      if (String(activeSupportUid) === String(uid)) renderSupportModal(result.conversation);
+    } catch (error) {
+      if (String(activeSupportUid) === String(uid)) { closeModal(); toast(error.message, true); }
+    } finally { supportPollBusy = false; }
+  }, 3000);
   document.getElementById('current-time').textContent = date(Date.now());
   window.setInterval(function () { document.getElementById('current-time').textContent = date(Date.now()); }, 60000);
   api('/session').then(function (session) { state.csrf = session.csrf; showWorkspace(); render(); })

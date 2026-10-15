@@ -11,7 +11,7 @@ const { WebSocketServer } = require('ws');
 const devVars = path.join(__dirname, '..', '.dev.vars');
 if (process.env.QJQP_LOAD_DEV_VARS !== '0' && fs.existsSync(devVars)) {
   for (const line of fs.readFileSync(devVars, 'utf8').split('\n')) {
-    const match = line.match(/^(QJQP_WECHAT_APPID|QJQP_WECHAT_APPSECRET|QJQP_WECHAT_APPS|QJQP_ID_HASH_KEY|QJQP_APPLE_TEAM_ID|QJQP_PUBLIC_BASE_URL)=(.*)$/);
+    const match = line.match(/^(QJQP_WECHAT_APPID|QJQP_WECHAT_APPSECRET|QJQP_WECHAT_APPS|QJQP_WECHAT_WEB_APPID|QJQP_WECHAT_WEB_APPSECRET|QJQP_ID_HASH_KEY|QJQP_APPLE_TEAM_ID|QJQP_PUBLIC_BASE_URL)=(.*)$/);
     if (match && !process.env[match[1]]) process.env[match[1]] = match[2].trim();
   }
 }
@@ -41,6 +41,28 @@ const LEGAL_PAGES = new Map([
   ['/legal/privacy-policy', fs.readFileSync(path.join(__dirname, 'public', 'legal', 'privacy-policy.html'))],
 ]);
 const DOWNLOAD_ROOT = path.join(__dirname, 'public', 'download');
+const PWA_ROOT = path.resolve(process.env.QJQP_PWA_ROOT || path.join(__dirname, '..', 'pwa'));
+const PWA_TYPES = {
+  '.bin': 'application/octet-stream',
+  '.cconb': 'application/octet-stream',
+  '.css': 'text/css; charset=utf-8',
+  '.html': 'text/html; charset=utf-8',
+  '.ico': 'image/x-icon',
+  '.jpeg': 'image/jpeg',
+  '.jpg': 'image/jpeg',
+  '.js': 'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.m4a': 'audio/mp4',
+  '.manifest': 'application/json; charset=utf-8',
+  '.mp3': 'audio/mpeg',
+  '.ogg': 'audio/ogg',
+  '.png': 'image/png',
+  '.ttf': 'font/ttf',
+  '.wav': 'audio/wav',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
+  '.webp': 'image/webp',
+  '.wasm': 'application/wasm',
+};
 const DOWNLOAD_ASSETS = new Map([
   ['/download', { filename: 'index.html', type: 'text/html; charset=utf-8', cache: 'public, max-age=300' }],
   ['/download/', { filename: 'index.html', type: 'text/html; charset=utf-8', cache: 'public, max-age=300' }],
@@ -53,6 +75,54 @@ const DOWNLOAD_ASSETS = new Map([
 for (const asset of DOWNLOAD_ASSETS.values()) {
   if (!asset.body) asset.body = fs.readFileSync(path.join(DOWNLOAD_ROOT, asset.filename));
 }
+
+const servePwa = async (req, res, url) => {
+  if (url.pathname === '/pwa') {
+    res.writeHead(308, { Location: '/pwa/', 'Cache-Control': 'no-store' });
+    return res.end();
+  }
+  let relative;
+  try { relative = decodeURIComponent(url.pathname.slice('/pwa/'.length)); }
+  catch (_) { return res.writeHead(400).end(); }
+  if (!relative || relative.endsWith('/')) relative += 'index.html';
+  const filename = path.resolve(PWA_ROOT, relative);
+  if (filename !== PWA_ROOT && !filename.startsWith(`${PWA_ROOT}${path.sep}`)) {
+    return res.writeHead(403).end();
+  }
+
+  let stat;
+  try { stat = await fs.promises.stat(filename); }
+  catch (_) { return res.writeHead(404).end(); }
+  if (!stat.isFile()) return res.writeHead(404).end();
+
+  const basename = path.basename(filename);
+  const headers = {
+    'Content-Type': PWA_TYPES[path.extname(filename).toLowerCase()] || 'application/octet-stream',
+    'Content-Length': stat.size,
+    'Cache-Control': /^(index\.html|sw\.js|pwa-register\.js|web-config\.js|manifest\.webmanifest)$/.test(basename)
+      ? 'no-cache' : 'public, max-age=3600',
+    'X-Content-Type-Options': 'nosniff',
+    'Accept-Ranges': 'bytes',
+  };
+  if (basename === 'sw.js') headers['Service-Worker-Allowed'] = '/pwa/';
+
+  const range = String(req.headers.range || '').match(/^bytes=(\d*)-(\d*)$/);
+  if (range && stat.size) {
+    const start = range[1] ? Number(range[1]) : Math.max(0, stat.size - Number(range[2] || 0));
+    const end = range[2] ? Math.min(Number(range[2]), stat.size - 1) : stat.size - 1;
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || start > end || start >= stat.size) {
+      res.writeHead(416, { 'Content-Range': `bytes */${stat.size}` });
+      return res.end();
+    }
+    headers['Content-Length'] = end - start + 1;
+    headers['Content-Range'] = `bytes ${start}-${end}/${stat.size}`;
+    res.writeHead(206, headers);
+    return req.method === 'HEAD' ? res.end() : fs.createReadStream(filename, { start, end }).pipe(res);
+  }
+
+  res.writeHead(200, headers);
+  return req.method === 'HEAD' ? res.end() : fs.createReadStream(filename).pipe(res);
+};
 const operatorKeyFile = process.env.QJQP_OPERATOR_KEY_FILE || path.join(path.dirname(store.FILE), 'operator.key');
 const operatorKey = String(process.env.QJQP_OPERATOR_KEY || (
   fs.existsSync(operatorKeyFile) ? fs.readFileSync(operatorKeyFile, 'utf8') : ''
@@ -82,6 +152,38 @@ const wechatCredentials = (requestedAppId) => {
 const hasWechatCredentials = () => !!(
   String(process.env.QJQP_WECHAT_APPID || '').trim() && String(process.env.QJQP_WECHAT_APPSECRET || '').trim()
 ) || !!String(process.env.QJQP_WECHAT_APPS || '').trim();
+
+const webWechatCredentials = () => {
+  const appId = String(process.env.QJQP_WECHAT_WEB_APPID || '').trim();
+  const appSecret = String(process.env.QJQP_WECHAT_WEB_APPSECRET || '').trim();
+  if (appId && appSecret) return { appId, appSecret };
+  return wechatCredentials();
+};
+const webWechatStates = new Map();
+const webWechatTickets = new Map();
+const WEB_WECHAT_STATE_TTL = 10 * 60 * 1000;
+const WEB_WECHAT_TICKET_TTL = 2 * 60 * 1000;
+const cleanWebWechatTokens = () => {
+  const now = Date.now();
+  for (const [key, value] of webWechatStates) {
+    if (!value || value.expiresAt <= now) webWechatStates.delete(key);
+  }
+  for (const [key, value] of webWechatTickets) {
+    if (!value || value.expiresAt <= now) webWechatTickets.delete(key);
+  }
+};
+const issueWebWechatToken = (map, value, ttl) => {
+  cleanWebWechatTokens();
+  const key = crypto.randomBytes(32).toString('base64url');
+  map.set(key, { ...value, expiresAt: Date.now() + ttl });
+  return key;
+};
+const consumeWebWechatToken = (map, key) => {
+  cleanWebWechatTokens();
+  const token = map.get(String(key || ''));
+  map.delete(String(key || ''));
+  return token && token.expiresAt > Date.now() ? token : null;
+};
 
 let saveTimer = null;
 let saveQueue = Promise.resolve();
@@ -182,6 +284,20 @@ const publicOrigin = (req) => {
   return `${protocol}://${host}`;
 };
 
+const redirect = (res, location) => {
+  res.writeHead(302, {
+    Location: location,
+    'Cache-Control': 'no-store',
+    'Referrer-Policy': 'no-referrer',
+  });
+  res.end();
+};
+
+const pwaWechatResultUrl = (key, value) => {
+  const query = new URLSearchParams({ [key]: String(value || '') });
+  return `/pwa/?${query}`;
+};
+
 const sharePage = (req, roomId) => {
   const room = /^\d{4,10}$/.test(String(roomId || '')) ? String(roomId) : '';
   const roomText = room ? `<p class="room">房间号 <strong>${escapeHtml(room)}</strong></p>` : '';
@@ -227,7 +343,7 @@ const aasa = () => ({
 
 const logUrl = (url) => {
   const query = new URLSearchParams(url.searchParams);
-  for (const key of ['token', 'code', 'migrationTicket', 'deviceId', 'device_id', 'rollout_key', 'access_token', 'authorization']) {
+  for (const key of ['token', 'code', 'migrationTicket', 'ticket', 'wechat_ticket', 'state', 'deviceId', 'device_id', 'rollout_key', 'access_token', 'authorization']) {
     if (query.has(key)) query.set(key, '[redacted]');
   }
   const suffix = query.toString();
@@ -326,6 +442,10 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && LEGAL_PAGES.has(url.pathname)) {
     return html(res, LEGAL_PAGES.get(url.pathname));
   }
+  if ((req.method === 'GET' || req.method === 'HEAD')
+      && (url.pathname === '/pwa' || url.pathname.startsWith('/pwa/'))) {
+    return servePwa(req, res, url);
+  }
   if ((req.method === 'GET' || req.method === 'HEAD') && DOWNLOAD_ASSETS.has(url.pathname)) {
     const asset = DOWNLOAD_ASSETS.get(url.pathname);
     const headers = {
@@ -339,6 +459,44 @@ const server = http.createServer(async (req, res) => {
     }
     res.writeHead(200, headers);
     return res.end(req.method === 'HEAD' ? undefined : asset.body);
+  }
+  if (req.method === 'GET' && url.pathname === '/wechat/pwa-login') {
+    const credentials = webWechatCredentials();
+    if (!credentials) return redirect(res,
+      pwaWechatResultUrl('wechat_error', '服务器尚未配置微信网页登录'));
+    if (!/MicroMessenger/i.test(String(req.headers['user-agent'] || ''))) {
+      return redirect(res, pwaWechatResultUrl('wechat_error', '微信登录请在微信内打开此页面'));
+    }
+    const state = issueWebWechatToken(webWechatStates, { credentials }, WEB_WECHAT_STATE_TTL);
+    const callback = `${publicOrigin(req)}/wechat/pwa-callback`;
+    const authorize = new URL('https://open.weixin.qq.com/connect/oauth2/authorize');
+    authorize.search = new URLSearchParams({
+      appid: credentials.appId,
+      redirect_uri: callback,
+      response_type: 'code',
+      scope: 'snsapi_userinfo',
+      state,
+    });
+    return redirect(res, `${authorize}#wechat_redirect`);
+  }
+  if (req.method === 'GET' && url.pathname === '/wechat/pwa-callback') {
+    const state = consumeWebWechatToken(webWechatStates, url.searchParams.get('state'));
+    if (!state) return redirect(res,
+      pwaWechatResultUrl('wechat_error', '微信授权已失效，请重新登录'));
+    if (url.searchParams.get('error') || !url.searchParams.get('code')) {
+      return redirect(res, pwaWechatResultUrl('wechat_error', '已取消微信登录'));
+    }
+    try {
+      const profile = await authorizeWechat(url.searchParams.get('code'), state.credentials);
+      const login = app.loginWechat(profile, { appId: state.credentials.appId });
+      recordLoginNetwork(login.player, req);
+      const ticket = issueWebWechatToken(webWechatTickets, { token: login.token }, WEB_WECHAT_TICKET_TTL);
+      console.log(`  PWA 微信登录 uid=${login.player.uid}`);
+      return redirect(res, pwaWechatResultUrl('wechat_ticket', ticket));
+    } catch (err) {
+      console.error(`PWA 微信登录失败：${err.message}`);
+      return redirect(res, pwaWechatResultUrl('wechat_error', err.message || '微信登录失败'));
+    }
   }
   if (req.method === 'GET' && /^\/avatars\/(0[1-9]|10)\.png$/.test(url.pathname)) {
     const filename = path.join(__dirname, 'public', 'avatars', path.basename(url.pathname));
@@ -412,6 +570,14 @@ const server = http.createServer(async (req, res) => {
       console.error(`微信账号迁移准备失败：${err.message}`);
       return json(res, { err_code: err.code || 1, err_msg: err.message }, 400);
     }
+  }
+
+  if (req.method === 'GET' && url.pathname === '/login'
+      && url.searchParams.get('accountType') === 'webWechatTicket') {
+    const login = consumeWebWechatToken(webWechatTickets, url.searchParams.get('ticket'));
+    if (!login) return json(res, { err_code: 66, err_msg: '微信登录已失效，请重新登录' }, 400);
+    recordLoginNetwork(app.playerForToken(login.token), req);
+    return json(res, { err_code: 0, data: { token: login.token } });
   }
 
   if (req.method === 'GET' && url.pathname === '/login' && url.searchParams.get('accountType') === 'wx') {

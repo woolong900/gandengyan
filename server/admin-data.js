@@ -167,7 +167,8 @@ class AdminData {
         return { uid: member.player.uid, nickname: member.player.nickname,
           avatarUrl: member.player.avatarUrl || '', hand: cards.hand, drawnCard: cards.drawnCard,
           site: member.site, score: Number(member.score || 0) / (table.gameRules ? table.gameRules.RATIO : rules.RATIO),
-          bot: !!member.bot, spectator: !!member.view, online: !!member.online, trustee: !!member.trustee };
+          bot: !!member.bot, spectator: !!member.view, online: !!member.online, trustee: !!member.trustee,
+          managedTrustee: !!member.managedTrustee };
       }) };
   }
 
@@ -358,24 +359,82 @@ class AdminData {
 
   bots() {
     const rooms = [...this.app.tables.values()].filter((table) => !table.closed);
-    const roomStats = rooms.map((table) => ({ roomId: table.roomId,
+    const roomStats = rooms.map((table) => {
+      const bots = table.members.filter((member) => member.bot);
+      return { roomId: table.roomId,
       status: table.round ? '进行中' : table.step ? '局间' : '等待中',
-      bots: table.members.filter((member) => member.bot).length,
-      humans: table.members.filter((member) => !member.bot && !member.view).length }));
+      bots: bots.length,
+      localBots: bots.filter((member) => member.botStrategy !== 'jev').length,
+      jevBots: bots.filter((member) => member.botStrategy === 'jev').length,
+      humans: table.members.filter((member) => !member.bot && !member.view).length };
+    });
+    const rawStats = this.app.botSettings.stats || {};
+    const stats = {};
+    for (const strategy of ['local', 'jev']) {
+      const item = rawStats[strategy] || {};
+      stats[strategy] = {
+        rounds: Number(item.rounds) || 0,
+        wins: Number(item.wins) || 0,
+        draws: Number(item.draws) || 0,
+        score: Number(item.score) || 0,
+        winRate: item.rounds ? Number(((Number(item.wins) || 0) / Number(item.rounds) * 100).toFixed(2)) : 0,
+      };
+    }
     return {
       enabled: this.app.fillBotsOn(),
+      mode: this.app.botSettings.mode || 'local',
       totalBots: roomStats.reduce((sum, room) => sum + room.bots, 0),
       playingBots: roomStats.filter((room) => room.status === '进行中').reduce((sum, room) => sum + room.bots, 0),
       waitingBots: roomStats.filter((room) => room.status !== '进行中').reduce((sum, room) => sum + room.bots, 0),
+      stats,
+      jevApi: this.app.jevBot ? this.app.jevBot.stats() : { configured: false },
       rooms: roomStats.filter((room) => room.bots > 0),
     };
   }
 
   updateBots(body) {
     if (typeof body.enabled !== 'boolean') return fail('机器人开关参数无效');
-    const changed = this.app.setBotsEnabled(body.enabled);
+    const mode = body.mode == null ? this.app.botSettings.mode : String(body.mode);
+    const changed = this.app.setBotSettings({ enabled: body.enabled, mode });
     if (changed.error) return fail(changed.error);
     return { ...this.bots(), changed };
+  }
+
+  trustees() {
+    const rooms = [...this.app.tables.values()].filter((table) => !table.closed);
+    const uids = (this.app.botSettings.trusteeWhitelist || []).slice().sort((a, b) => a - b);
+    const items = uids.map((uid) => {
+      const player = this.app.playerByUid(uid);
+      const table = rooms.find((candidate) => candidate.members.some(
+        (member) => !member.bot && !member.view && Number(member.player.uid) === Number(uid)
+      ));
+      const member = table && table.members.find((candidate) => Number(candidate.player.uid) === Number(uid));
+      let status = '不在房间';
+      if (table && Number(table.gameType) !== 2) status = '其他玩法中';
+      else if (table && !table.round) status = '等待干瞪眼开局';
+      else if (member && member.managedTrustee) status = '干瞪眼托管中';
+      else if (table && table.round) status = '等待托管同步';
+      return {
+        uid,
+        nickname: player ? player.nickname : `玩家${uid}`,
+        roomId: table ? table.roomId : 0,
+        online: !!(member && member.online),
+        active: !!(member && member.managedTrustee),
+        status,
+      };
+    });
+    return { count: items.length, activeCount: items.filter((item) => item.active).length, items };
+  }
+
+  updateTrustee(body) {
+    const uid = Number(body.uid);
+    if (!Number.isSafeInteger(uid) || uid <= 0) return fail('玩家 ID 无效');
+    if (typeof body.enabled !== 'boolean') return fail('托管白名单参数无效');
+    const player = this.app.playerByUid(uid);
+    if (!player || player.bot) return fail('玩家不存在', 404);
+    const changed = this.app.setTrusteeWhitelist(uid, body.enabled);
+    if (changed.error) return fail(changed.error);
+    return { ...this.trustees(), changed };
   }
 
   updateNotices(body) {

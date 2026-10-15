@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#073f3d">
-  <meta name="description" content="潜江干瞪眼官方客户端下载安装">
-  <title>下载潜江干瞪眼</title>
+  <meta name="description" content="潜江干瞪眼安卓客户端下载与 PWA 网页版">
+  <title>潜江干瞪眼下载与网页版</title>
   <link rel="icon" type="image/webp" href="/download/app-icon-v2.webp">
   <link rel="stylesheet" href="/download/app.css">
 </head>
@@ -21,7 +21,7 @@
   <main class="shell">
     <header class="brand-bar">
       <img src="/download/game-logo.webp" alt="潜江麻将" width="159" height="54">
-      <span>官方客户端下载</span>
+      <span>官方客户端与网页版</span>
     </header>
 
     <section class="hero" aria-labelledby="pageTitle">
@@ -59,9 +59,17 @@
           <span><strong>iPhone 立即安装</strong><small>iOS 版 · 版本 1.0.6 · 资源 R274</small></span>
           <span class="arrow" aria-hidden="true">›</span>
         </a>
+
+        <a class="download-button pwa-link" id="pwaInstall" href="https://gandengyan.top/pwa/">
+          <span class="platform-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm6.9 6h-3.1a15.7 15.7 0 0 0-1.4-3.6A8.1 8.1 0 0 1 18.9 8ZM12 4c.8 1 1.5 2.3 1.9 4h-3.8c.4-1.7 1.1-3 1.9-4ZM9.6 4.4A15.7 15.7 0 0 0 8.2 8H5.1a8.1 8.1 0 0 1 4.5-3.6ZM4.3 10h3.5a16.5 16.5 0 0 0 0 4H4.3a8.1 8.1 0 0 1 0-4Zm.8 6h3.1a15.7 15.7 0 0 0 1.4 3.6A8.1 8.1 0 0 1 5.1 16Zm6.9 4c-.8-1-1.5-2.3-1.9-4h3.8c-.4 1.7-1.1 3-1.9 4Zm2.3-6H9.7a14.5 14.5 0 0 1 0-4h4.6a14.5 14.5 0 0 1 0 4Zm.1 5.6a15.7 15.7 0 0 0 1.4-3.6h3.1a8.1 8.1 0 0 1-4.5 3.6Zm1.8-5.6a16.5 16.5 0 0 0 0-4h3.5a8.1 8.1 0 0 1 0 4h-3.5Z"/></svg>
+          </span>
+          <span><strong>PWA 网页版立即玩</strong><small>iPhone / iPad / 电脑 · 可添加到主屏幕</small></span>
+          <span class="arrow" aria-hidden="true">›</span>
+        </a>
       </div>
 
-      <p class="compatibility" id="compatibility">支持 Android 手机与 iPhone</p>
+      <p class="compatibility" id="compatibility">支持 Android、iOS 客户端与 PWA 网页版</p>
     </section>
 
     <section class="instructions" aria-labelledby="guideTitle">
@@ -77,8 +85,13 @@
         </article>
         <article class="guide ios-guide">
           <div class="guide-number">02</div>
-          <h3>iPhone</h3>
+          <h3>iPhone 原生版</h3>
           <p>点“安装”并等待图标出现。如提示未受信任，请到“设置 → 通用 → VPN 与设备管理”完成信任。</p>
+        </article>
+        <article class="guide pwa-guide">
+          <div class="guide-number">03</div>
+          <h3>PWA 网页版</h3>
+          <p>使用 Safari 打开 PWA，点击“分享”，再选择“添加到主屏幕”，之后可像 App 一样启动。</p>
         </article>
       </div>
     </section>
@@ -100,6 +113,6 @@
     </footer>
   </main>
 
-  <script src="/download/app.js?v=20260920-external-links-2" defer></script>
+  <script src="/download/app.js?v=20261008-ios-pwa" defer></script>
 </body>
 </html>

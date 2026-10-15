@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { AdminAuth } = require('./admin-auth');
+const { AdminAuth, secureEqual } = require('./admin-auth');
 const { AdminData } = require('./admin-data');
 
 const json = (res, body, status = 200) => {
@@ -41,7 +41,8 @@ for (let suit = 0; suit < 3; suit++) for (let point = 1; point <= 9; point++) {
   publicFiles[`/admin/tiles/${filename}`] = [`tiles/${filename}`, 'image/png'];
 }
 
-const createAdminHttp = ({ app, store, flush, hotUpdate, authFile, publicBaseUrl = '' }) => {
+const createAdminHttp = ({ app, store, flush, hotUpdate, authFile, publicBaseUrl = '',
+  mobileToken = process.env.QJQP_ADMIN_MOBILE_TOKEN || '' }) => {
   const auth = new AdminAuth({
     file: authFile || path.join(path.dirname(store.FILE), 'admin-password.json'),
     sessionStore: store,
@@ -59,7 +60,23 @@ const createAdminHttp = ({ app, store, flush, hotUpdate, authFile, publicBaseUrl
     let parsed;
     try { parsed = new URL(origin); } catch { return false; }
     const base = publicBaseUrl ? new URL(publicBaseUrl) : null;
-    return base ? parsed.origin === base.origin : parsed.host === req.headers.host;
+    if (base && parsed.origin === base.origin) return true;
+    const host = String(req.headers.host || '').trim();
+    if (!host || parsed.host !== host) return false;
+    return parsed.protocol === (secureRequest(req) ? 'https:' : 'http:');
+  };
+  const mobileAuthorized = (req) => {
+    const configured = String(mobileToken || '').trim();
+    const header = String(req.headers.authorization || '');
+    const match = header.match(/^Bearer\s+([^\s]+)$/i);
+    return configured.length >= 32 && !!match && secureEqual(match[1], configured);
+  };
+  const mobileRouteAllowed = (pathname, method) => {
+    if (method === 'GET') return pathname === '/rooms' || /^\/rooms\/\d+$/.test(pathname);
+    if (method === 'POST') return /^\/rooms\/\d+\/draw-plan\/(card|move|remove)$/.test(pathname)
+      || /^\/rooms\/\d+\/next-wsk-hand$/.test(pathname);
+    return method === 'DELETE' && (/^\/rooms\/\d+\/draw-plan$/.test(pathname)
+      || /^\/rooms\/\d+\/next-wsk-hand$/.test(pathname));
   };
 
   const handler = async (req, res, url) => {
@@ -91,12 +108,16 @@ const createAdminHttp = ({ app, store, flush, hotUpdate, authFile, publicBaseUrl
       res.setHeader('Set-Cookie', auth.cookie(result.session.sid, secureRequest(req)));
       return json(res, { actor: result.session.actor, csrf: result.session.csrf }), true;
     }
-    const session = auth.session(req);
+    const mobile = mobileAuthorized(req);
+    const session = mobile ? { actor: '秘密武器 iOS' } : auth.session(req);
     if (!session) return json(res, { error: '请先登录管理后台' }, 401), true;
+    if (mobile && !mobileRouteAllowed(pathname, req.method)) {
+      return json(res, { error: '此设备仅允许查看房间和设置牌序' }, 403), true;
+    }
     if (pathname === '/session' && req.method === 'GET') {
       return json(res, { actor: session.actor, csrf: session.csrf, expiresAt: session.expiresAt }), true;
     }
-    if (req.method !== 'GET' && (!auth.csrfOk(req, session) || !sameOrigin(req))) {
+    if (!mobile && req.method !== 'GET' && (!auth.csrfOk(req, session) || !sameOrigin(req))) {
       return json(res, { error: '会话校验失败' }, 403), true;
     }
     if (pathname === '/logout' && req.method === 'POST') {
@@ -129,9 +150,12 @@ const createAdminHttp = ({ app, store, flush, hotUpdate, authFile, publicBaseUrl
       else if (pathname === '/clubs') result = data.clubs(query);
       else if (/^\/clubs\/\d+$/.test(pathname)) result = data.club(pathname.split('/').pop());
       else if (pathname === '/messages') result = { messages: app.operatorMessages.slice().reverse() };
+      else if (pathname === '/support') result = app.listSupportConversations(query);
+      else if (/^\/support\/\d+$/.test(pathname)) result = app.supportConversation(pathname.split('/').pop());
       else if (pathname === '/notices') result = app.publicNotices;
       else if (pathname === '/economy') result = app.economySettings;
       else if (pathname === '/bots') result = data.bots();
+      else if (pathname === '/trustees') result = data.trustees();
       else if (pathname === '/audit') result = { entries: store.listAudit(query.limit) };
       else if (pathname === '/hot-update' && hotUpdate) result = hotUpdate.status();
       else if (pathname === '/system') result = { sqliteFile: store.FILE,
@@ -175,6 +199,15 @@ const createAdminHttp = ({ app, store, flush, hotUpdate, authFile, publicBaseUrl
       target = pathname.split('/')[2]; action = 'club.cards'; result = data.adjustClubCards(target, body);
     } else if (req.method === 'POST' && pathname === '/messages') {
       action = 'message.create'; result = app.createOperatorMessage(body); target = result.message && result.message.id;
+    } else if (req.method === 'POST' && /^\/support\/\d+\/reply$/.test(pathname)) {
+      target = pathname.split('/')[2]; action = 'support.reply';
+      result = app.replySupportMessage(target, body.content, session.actor);
+    } else if (req.method === 'POST' && /^\/support\/\d+\/read$/.test(pathname)) {
+      target = pathname.split('/')[2]; action = 'support.read';
+      result = app.supportConversation(target, true);
+    } else if (req.method === 'POST' && /^\/support\/\d+\/close$/.test(pathname)) {
+      target = pathname.split('/')[2]; action = body.closed === false ? 'support.reopen' : 'support.close';
+      result = app.closeSupportConversation(target, body.closed !== false);
     } else if (req.method === 'DELETE' && /^\/messages\/\d+$/.test(pathname)) {
       target = pathname.split('/')[2]; action = 'message.delete'; result = app.deleteOperatorMessage(Number(target));
     } else if (req.method === 'PUT' && pathname === '/notices') {
@@ -183,6 +216,8 @@ const createAdminHttp = ({ app, store, flush, hotUpdate, authFile, publicBaseUrl
       target = '全局房卡奖励'; action = 'economy.update'; result = data.updateEconomy(body);
     } else if (req.method === 'PUT' && pathname === '/bots') {
       target = '机器人'; action = 'bots.update'; result = data.updateBots(body);
+    } else if (req.method === 'PUT' && pathname === '/trustees') {
+      target = String(body.uid || ''); action = 'trustee_whitelist.update'; result = data.updateTrustee(body);
     } else if (req.method === 'PUT' && /^\/hot-update\/(android|ios)$/.test(pathname) && hotUpdate) {
       target = pathname.split('/').pop(); action = `hot_update.${body.action || 'rollout'}`;
       result = hotUpdate.updateRollout(target, body);
@@ -198,6 +233,7 @@ const createAdminHttp = ({ app, store, flush, hotUpdate, authFile, publicBaseUrl
     store.appendAudit({ actor: session.actor, action, target,
       details: action === 'message.create' ? { title: result.message.title, targetUid: result.message.targetUid }
         : action === 'message.delete' ? { title: result.message.title }
+          : action.startsWith('support.') ? { uid: Number(target) }
           : action.startsWith('hot_update.') ? {
             stableAssetVersion: result.stableAssetVersion,
             latestAssetVersion: result.latestAssetVersion,

@@ -5,16 +5,18 @@ const { pack, unpack, hasRes, protocol } = require('./net');
 const crypto = require('crypto');
 const { Table } = require('./table');
 const rules = require('./rules');
+const qjshzRules = require('./qjshz-rules');
 const { ClubStore, MASTER, ADMIN, PLAYER, MAX_CLUB_CARDS } = require('./clubs');
 const {
   num, maxStep, roomInfo, versionBody, configBody, emptyPlayer, NEW_PLAYER_CARDS,
-  INVITE_GIVE, INVITE_AMBIGUOUS, mintInviteCode,
+  INVITE_GIVE, INVITE_AMBIGUOUS, mintInviteCode, push,
 } = require('./shared');
 const { buildRecord, listFor, toListItem, keepLatest, DAY_SEC } = require('./records');
 const { findPlayback, mintPlaybackId } = require('./playback');
 const { identityDigest, maskIdCard, validateIdentity } = require('./identity');
 const { avatarUrls, assignAvatarIfMissing } = require('./avatars');
 const { mintGuestNickname } = require('./nicknames');
+const { JevBot } = require('./jev-bot');
 
 const FIRST_PLAYER_UID = 285633;
 const ROOM_ID_MIN = 100000;
@@ -22,12 +24,41 @@ const ROOM_ID_MAX = 1000000;
 const BOT_UID_MIN = 800000000;
 const BOT_UID_MAX = 900000000;
 /** 陪玩机器人只为指定运营账号创建的房间补位。 */
-const BOT_ROOM_OWNER_UID = 285636;
+const BOT_ROOM_OWNER_UIDS = new Set([285636, 100055]);
+const BOT_MODES = new Set(['local', 'jev', 'ab']);
+const emptyBotStat = () => ({ rounds: 0, wins: 0, draws: 0, score: 0 });
+const defaultBotMode = () => {
+  const configured = String(process.env.QJQP_BOT_MODE || '').toLowerCase();
+  if (BOT_MODES.has(configured)) return configured;
+  return process.env.QJQP_JEV_API_KEY || process.env.JEV_API_KEY ? 'ab' : 'local';
+};
+const normalizeBotStat = (value) => ({
+  rounds: Math.max(0, Number(value && value.rounds) || 0),
+  wins: Math.max(0, Number(value && value.wins) || 0),
+  draws: Math.max(0, Number(value && value.draws) || 0),
+  score: Number(value && value.score) || 0,
+});
+const normalizeTrusteeWhitelist = (value) => [...new Set((Array.isArray(value) ? value : [])
+  .map(Number).filter((uid) => Number.isSafeInteger(uid) && uid > 0 && uid < BOT_UID_MIN))]
+  .sort((a, b) => a - b);
+const normalizeBotSettings = (value = {}) => ({
+  enabled: typeof value.enabled === 'boolean' ? value.enabled : process.env.QJQP_FILLBOTS !== '0',
+  mode: BOT_MODES.has(value.mode) ? value.mode : defaultBotMode(),
+  trusteeWhitelist: normalizeTrusteeWhitelist(value.trusteeWhitelist),
+  stats: {
+    local: normalizeBotStat(value.stats && value.stats.local),
+    jev: normalizeBotStat(value.stats && value.stats.jev),
+  },
+});
 // 右上角消息的 id 是 uint32。高位段用于把待审核入会申请映射成动态消息，
 // 审核后即自动消失，也不会污染运营通知存档。
 const CLUB_APPLICATION_MESSAGE_ID_BASE = 4000000000;
 const UINT32_MAX = 4294967295;
 const defaultInvitePageText = (bonus) => `绑定推荐人邀请码，可获得${bonus}张房卡！`;
+const SUPPORT_MAX_MESSAGES = 100;
+const SUPPORT_MAX_CONVERSATIONS = 1000;
+const cleanSupportText = (value) => String(value == null ? '' : value)
+  .replace(/\r\n?/g, '\n').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '').trim();
 
 class GameApp {
   constructor({ persist, now, onRecord, onAgentApplication, onAccountMigration,
@@ -53,7 +84,8 @@ class GameApp {
       inviteBindBonus: INVITE_GIVE,
       invitePageText: defaultInvitePageText(INVITE_GIVE),
     };
-    this.botSettings = { enabled: process.env.QJQP_FILLBOTS !== '0' };
+    this.botSettings = normalizeBotSettings();
+    this.jevBot = new JevBot();
     this.clubStore = new ClubStore({ now: () => this.now(), memberBonus: () => this.economySettings.clubJoinBonus });
     this.nextUid = FIRST_PLAYER_UID;
     this.nextRoomId = 100000;
@@ -65,6 +97,9 @@ class GameApp {
     this.operatorMessages = [];
     this.nextOperatorMessageId = 1000000000;
     this.publicNotices = { hallMarquee: '', serviceWechat: '', serviceQQ: '' };
+    this.supportConversations = new Map();
+    this.nextSupportMessageId = 1;
+    this.supportRate = new Map();
   }
 
   now() {
@@ -176,6 +211,160 @@ class GameApp {
   broadcastNotices() {
     const message = pack(1007, this.noticeBody());
     for (const conn of this.conns.values()) if (conn.player && !conn.player.disabled) conn.send(message);
+  }
+
+  supportOnline() {
+    const hour = (new Date(this.now()).getUTCHours() + 8) % 24;
+    return hour >= 9 && hour < 22;
+  }
+
+  supportSnapshot(conversation) {
+    return {
+      uid: conversation.uid,
+      nickname: conversation.nickname || `玩家${conversation.uid}`,
+      updatedAt: conversation.updatedAt || 0,
+      adminUnread: conversation.adminUnread || 0,
+      playerUnread: conversation.playerUnread || 0,
+      closed: !!conversation.closed,
+      online: [...this.conns.values()].some((conn) => conn.player
+        && Number(conn.player.uid) === Number(conversation.uid) && !conn.superseded),
+      messages: (conversation.messages || []).slice(-SUPPORT_MAX_MESSAGES),
+    };
+  }
+
+  supportPayload(player, markRead = false) {
+    const uid = Number(player.uid);
+    let conversation = this.supportConversations.get(uid);
+    if (!conversation) {
+      conversation = {
+        uid, nickname: player.nickname || `玩家${uid}`, updatedAt: this.now(),
+        adminUnread: 0, playerUnread: 0, closed: false, messages: [],
+      };
+      this.supportConversations.set(uid, conversation);
+    }
+    conversation.nickname = player.nickname || conversation.nickname;
+    if (markRead && conversation.playerUnread) {
+      conversation.playerUnread = 0;
+      this.persist();
+    }
+    return {
+      conversation: this.supportSnapshot(conversation),
+      serviceOnline: this.supportOnline(),
+      serviceHours: '09:00–22:00',
+      serviceWechat: this.publicNotices.serviceWechat || '',
+      serviceQQ: this.publicNotices.serviceQQ || '',
+    };
+  }
+
+  pushSupport(uid, msghead, data) {
+    const message = push(msghead, data);
+    for (const conn of this.conns.values()) {
+      if (conn.player && Number(conn.player.uid) === Number(uid) && !conn.superseded) conn.send(message);
+    }
+  }
+
+  checkSupportRate(uid) {
+    const now = this.now();
+    const recent = (this.supportRate.get(uid) || []).filter((at) => now - at < 10 * 60 * 1000);
+    if (recent.length && now - recent[recent.length - 1] < 800) return '发送太快，请稍后再试';
+    if (recent.length >= 20) return '消息过于频繁，请10分钟后再试';
+    recent.push(now);
+    this.supportRate.set(uid, recent);
+    return '';
+  }
+
+  sendSupportMessage(player, content, context = {}) {
+    const text = cleanSupportText(content);
+    if (!text || text.length > 200) return { error: '请输入1至200个字的反馈内容' };
+    const rateError = this.checkSupportRate(player.uid);
+    if (rateError) return { error: rateError };
+    const payload = this.supportPayload(player, false);
+    const conversation = this.supportConversations.get(Number(player.uid));
+    const message = {
+      id: this.nextSupportMessageId++, from: 'player', content: text, createdAt: this.now(),
+      context: {
+        roomId: Number(context.roomId) || 0,
+        gameType: Number(context.gameType) || 0,
+        step: Number(context.step) || 0,
+        clientVersion: String(context.clientVersion || '').slice(0, 32),
+      },
+    };
+    conversation.messages.push(message);
+    conversation.messages = conversation.messages.slice(-SUPPORT_MAX_MESSAGES);
+    conversation.updatedAt = message.createdAt;
+    conversation.adminUnread = Math.min(999, Number(conversation.adminUnread || 0) + 1);
+    conversation.closed = false;
+    this.trimSupportConversations();
+    this.persist();
+    const result = { ...payload, conversation: this.supportSnapshot(conversation), message };
+    this.pushSupport(player.uid, 'support_message', result);
+    return result;
+  }
+
+  trimSupportConversations() {
+    if (this.supportConversations.size <= SUPPORT_MAX_CONVERSATIONS) return;
+    const old = [...this.supportConversations.values()]
+      .sort((a, b) => Number(a.updatedAt || 0) - Number(b.updatedAt || 0));
+    for (let i = 0; i < old.length - SUPPORT_MAX_CONVERSATIONS; i++) {
+      this.supportConversations.delete(Number(old[i].uid));
+    }
+  }
+
+  listSupportConversations({ q = '' } = {}) {
+    const term = String(q || '').trim().toLowerCase().slice(0, 64);
+    const items = [...this.supportConversations.values()]
+      .filter((conversation) => !term || String(conversation.uid).includes(term)
+        || String(conversation.nickname || '').toLowerCase().includes(term)
+        || (conversation.messages || []).some((message) => String(message.content || '').toLowerCase().includes(term)))
+      .sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0))
+      .map((conversation) => {
+        const snapshot = this.supportSnapshot(conversation);
+        const lastMessage = snapshot.messages[snapshot.messages.length - 1] || null;
+        return { ...snapshot, messages: undefined, lastMessage, messageCount: snapshot.messages.length };
+      });
+    return { items, total: items.length, unread: items.reduce((sum, item) => sum + item.adminUnread, 0) };
+  }
+
+  supportConversation(uid, markRead = false) {
+    const conversation = this.supportConversations.get(Number(uid));
+    if (!conversation) return { error: '客服会话不存在', status: 404 };
+    if (markRead && conversation.adminUnread) {
+      conversation.adminUnread = 0;
+      this.persist();
+    }
+    return { conversation: this.supportSnapshot(conversation), serviceOnline: this.supportOnline() };
+  }
+
+  replySupportMessage(uid, content, actor = '管理员') {
+    const conversation = this.supportConversations.get(Number(uid));
+    if (!conversation) return { error: '客服会话不存在', status: 404 };
+    const text = cleanSupportText(content);
+    if (!text || text.length > 500) return { error: '请输入1至500个字的回复内容' };
+    const message = {
+      id: this.nextSupportMessageId++, from: 'admin', content: text,
+      createdAt: this.now(), actor: String(actor || '管理员').slice(0, 64),
+    };
+    conversation.messages.push(message);
+    conversation.messages = conversation.messages.slice(-SUPPORT_MAX_MESSAGES);
+    conversation.updatedAt = message.createdAt;
+    conversation.adminUnread = 0;
+    conversation.playerUnread = Math.min(999, Number(conversation.playerUnread || 0) + 1);
+    conversation.closed = false;
+    this.persist();
+    const result = { conversation: this.supportSnapshot(conversation), message,
+      serviceOnline: this.supportOnline() };
+    this.pushSupport(uid, 'support_message', result);
+    return result;
+  }
+
+  closeSupportConversation(uid, closed = true) {
+    const conversation = this.supportConversations.get(Number(uid));
+    if (!conversation) return { error: '客服会话不存在', status: 404 };
+    conversation.closed = !!closed;
+    conversation.adminUnread = 0;
+    conversation.updatedAt = this.now();
+    this.persist();
+    return { conversation: this.supportSnapshot(conversation) };
   }
 
   messageForPlayer(message, player) {
@@ -608,11 +797,37 @@ class GameApp {
   }
 
   botRoomEligible(table) {
-    return !!table && Number(table.creatorUid) === BOT_ROOM_OWNER_UID;
+    return !!table && BOT_ROOM_OWNER_UIDS.has(Number(table.creatorUid));
   }
 
   botsAllowed(table) {
     return this.fillBotsOn() && this.botRoomEligible(table);
+  }
+
+  trusteeWhitelisted(uid) {
+    return this.botSettings.trusteeWhitelist.includes(Number(uid));
+  }
+
+  setTrusteeWhitelist(uid, enabled) {
+    const target = Number(uid);
+    if (!Number.isSafeInteger(target) || target <= 0 || target >= BOT_UID_MIN) {
+      return { error: '玩家 ID 无效' };
+    }
+    if (typeof enabled !== 'boolean') return { error: '托管白名单参数无效' };
+    const next = new Set(this.botSettings.trusteeWhitelist);
+    if (enabled) next.add(target);
+    else next.delete(target);
+    this.botSettings.trusteeWhitelist = normalizeTrusteeWhitelist([...next]);
+    let active = 0;
+    for (const table of this.tables.values()) {
+      if (table.closed || typeof table.syncManagedTrustees !== 'function') continue;
+      if (typeof table.resetManagedTrusteeOptOut === 'function') {
+        table.resetManagedTrusteeOptOut(target);
+      }
+      active += table.syncManagedTrustees();
+    }
+    this.persist();
+    return { uid: target, enabled, active };
   }
 
   forgetBot(uid) {
@@ -624,14 +839,26 @@ class GameApp {
   }
 
   setBotsEnabled(enabled) {
+    return this.setBotSettings({ enabled, mode: this.botSettings.mode });
+  }
+
+  setBotSettings({ enabled, mode }) {
     if (typeof enabled !== 'boolean') return { error: '机器人开关参数无效' };
+    if (!BOT_MODES.has(mode)) return { error: '机器人策略参数无效' };
+    const modeChanged = this.botSettings.mode !== mode;
     this.botSettings.enabled = enabled;
+    this.botSettings.mode = mode;
     let removed = 0;
     let filledRooms = 0;
     for (const table of this.tables.values()) {
       if (table.closed) continue;
-      if (!enabled || !this.botRoomEligible(table)) removed += table.removeBots();
+      if (!enabled || !this.botRoomEligible(table) || (modeChanged && !table.round)) removed += table.removeBots();
       else {
+        const before = table.members.filter((member) => member.bot).length;
+        this.maybeFillBots(table);
+        if (table.members.filter((member) => member.bot).length > before) filledRooms++;
+      }
+      if (enabled && modeChanged && !table.round && this.botRoomEligible(table)) {
         const before = table.members.filter((member) => member.bot).length;
         this.maybeFillBots(table);
         if (table.members.filter((member) => member.bot).length > before) filledRooms++;
@@ -640,10 +867,15 @@ class GameApp {
     this.persist();
     const playingBots = [...this.tables.values()].reduce((count, table) => count
       + (table.round ? table.members.filter((member) => member.bot).length : 0), 0);
-    return { enabled, removed, filledRooms, playingBots };
+    return { enabled, mode, removed, filledRooms, playingBots };
   }
 
-  mintBot(site, roomId) {
+  botStrategy(site, roomId) {
+    if (this.botSettings.mode !== 'ab') return this.botSettings.mode;
+    return (Number(roomId) + Number(site)) % 2 ? 'local' : 'jev';
+  }
+
+  mintBot(site, roomId, strategy = this.botStrategy(site, roomId)) {
     let uid;
     do { uid = crypto.randomInt(BOT_UID_MIN, BOT_UID_MAX); }
     while (this.playersByUid.has(uid));
@@ -654,6 +886,7 @@ class GameApp {
       avatarUrl: avatarUrls[crypto.randomInt(avatarUrls.length)],
       roomId,
       bot: true,
+      botStrategy: strategy,
       cardNum: 0,
     });
     this.players.set(token, player);
@@ -665,9 +898,21 @@ class GameApp {
     if (!this.botsAllowed(table) || !table.needsBots()) return;
     const bots = [];
     for (let site = 2; site <= table.config.人数; site++) {
-      bots.push({ player: this.mintBot(site, table.roomId), site });
+      const strategy = this.botStrategy(site, table.roomId);
+      bots.push({ player: this.mintBot(site, table.roomId, strategy), site, botStrategy: strategy });
     }
     table.addBots(bots);
+  }
+
+  recordBotResult(entries) {
+    for (const entry of entries || []) {
+      const strategy = entry.strategy === 'jev' ? 'jev' : 'local';
+      const stat = this.botSettings.stats[strategy] || (this.botSettings.stats[strategy] = emptyBotStat());
+      stat.rounds += 1;
+      if (entry.won) stat.wins += 1;
+      if (entry.draw) stat.draws += 1;
+      stat.score += Number(entry.score) || 0;
+    }
   }
 
   dump() {
@@ -708,11 +953,14 @@ class GameApp {
         inviteCodeAliases: p.inviteCodeAliases || [],
         invitedBy: p.invitedBy || '',
         bot: !!p.bot,
+        botStrategy: p.botStrategy === 'jev' ? 'jev' : 'local',
       })),
       rooms: [...this.tables.values()].filter((t) => !t.closed).map((t) => t.dump()),
       records: this.records,
       operatorMessages: this.operatorMessages,
       nextOperatorMessageId: this.nextOperatorMessageId,
+      supportConversations: [...this.supportConversations.values()],
+      nextSupportMessageId: this.nextSupportMessageId,
       publicNotices: this.publicNotices,
       economySettings: this.economySettings,
       botSettings: this.botSettings,
@@ -742,6 +990,33 @@ class GameApp {
       Math.min(CLUB_APPLICATION_MESSAGE_ID_BASE, Number(data.nextOperatorMessageId) || 0),
       ...this.operatorMessages.map((message) => Number(message.id) + 1),
     );
+    this.supportConversations.clear();
+    let maxSupportMessageId = 0;
+    for (const raw of Array.isArray(data.supportConversations) ? data.supportConversations : []) {
+      const uid = Number(raw && raw.uid);
+      if (!Number.isSafeInteger(uid) || uid <= 0 || !Array.isArray(raw.messages)) continue;
+      const messages = raw.messages.filter((message) => message && Number.isSafeInteger(Number(message.id))
+        && ['player', 'admin'].includes(message.from) && cleanSupportText(message.content))
+        .slice(-SUPPORT_MAX_MESSAGES).map((message) => {
+          maxSupportMessageId = Math.max(maxSupportMessageId, Number(message.id));
+          return {
+            id: Number(message.id), from: message.from,
+            content: cleanSupportText(message.content).slice(0, message.from === 'admin' ? 500 : 200),
+            createdAt: Number(message.createdAt) || 0,
+            ...(message.actor ? { actor: String(message.actor).slice(0, 64) } : {}),
+            ...(message.context && typeof message.context === 'object' ? { context: message.context } : {}),
+          };
+        });
+      this.supportConversations.set(uid, {
+        uid, nickname: String(raw.nickname || `玩家${uid}`).slice(0, 32),
+        updatedAt: Number(raw.updatedAt) || (messages.length ? messages[messages.length - 1].createdAt : 0),
+        adminUnread: Math.max(0, Math.min(999, Number(raw.adminUnread) || 0)),
+        playerUnread: Math.max(0, Math.min(999, Number(raw.playerUnread) || 0)),
+        closed: !!raw.closed, messages,
+      });
+    }
+    this.trimSupportConversations();
+    this.nextSupportMessageId = Math.max(1, Number(data.nextSupportMessageId) || 0, maxSupportMessageId + 1);
     const notices = data.publicNotices && typeof data.publicNotices === 'object' ? data.publicNotices : {};
     this.publicNotices = {
       hallMarquee: String(notices.hallMarquee || ''),
@@ -762,8 +1037,7 @@ class GameApp {
       invitePageText: configuredInvitePageText || defaultInvitePageText(inviteBindBonus),
     };
     const botSettings = data.botSettings && typeof data.botSettings === 'object' ? data.botSettings : {};
-    this.botSettings = { enabled: typeof botSettings.enabled === 'boolean'
-      ? botSettings.enabled : process.env.QJQP_FILLBOTS !== '0' };
+    this.botSettings = normalizeBotSettings(botSettings);
     this.playbackSeq = data.playbackSeq || 0;
     this.clubStore.restore(data.clubs);
     const byUid = new Map();
@@ -820,6 +1094,7 @@ class GameApp {
         // 兼容旧存档：旧版本可能已经向其他房主的等待房补了机器人。
         // 等待房在恢复时立即清理；正在打牌的房间由小局结束回调再清理。
         if (!this.botsAllowed(table)) removedBotsByPolicy += table.removeBots();
+        if (typeof table.syncManagedTrustees === 'function') table.syncManagedTrustees({ arm: false });
         table.rearmTimers();
       }
     }
@@ -868,7 +1143,11 @@ class GameApp {
       // Table 在小局结束时会再查一次：全局开关关闭，或创建者
       // 不符合准入条件时，机器人都只在局间退出，不破坏正在进行的牌局。
       botsEnabled: () => app.botsAllowed(app.tables.get(roomId)),
+      trusteeWhitelisted: (uid) => app.trusteeWhitelisted(uid),
+      trusteeStrategy: (site) => app.botStrategy(site, roomId),
       forgetBot: (uid) => app.forgetBot(uid),
+      jevBot: app.jevBot,
+      recordBotResult: (entries) => app.recordBotResult(entries),
     };
   }
 
@@ -928,7 +1207,7 @@ class GameApp {
       owner: { avatarUrl: host.avatarUrl || '', code: String(table.hostUid), nickname: host.nickname || `玩家${table.hostUid}` },
       gameType: table.gameType,
       num: table.num,
-      param1: table.param1,
+      param1: Number(table.gameType) === 17 ? qjshzRules.baseParam1(table.param1) : table.param1,
       param2: table.param2,
       players: seats.map((m) => ({
         avatarUrl: m.player.avatarUrl || '', code: String(m.player.uid), nickname: m.player.nickname || `玩家${m.player.uid}`,
@@ -1007,6 +1286,10 @@ class GameApp {
   }
 
   clubRecordStats(club, records) {
+    // 俱乐部统计会同时汇总不同玩法。麻将用十分之一分保存，
+    // 说胡子为了保留 1.5 倍与小数底分，使用百分之一分保存；不能把两种
+    // 原始整数直接相加后统一按 10 除，否则说胡子会被放大十倍。
+    const scoreRatio = 100;
     return club.members.map((member) => {
       const player = this.playerByUid(member.uid) || {};
       let score = 0;
@@ -1016,12 +1299,15 @@ class GameApp {
         const item = (record.players || []).find((p) => Number(p.uid) === Number(member.uid));
         if (!item) continue;
         number++;
-        score += Number(item.score || 0);
+        const recordRatio = Number(record.scoreRatio)
+          || Number(rules.forGame(record.gameId).RATIO)
+          || rules.RATIO;
+        score += Math.round(Number(item.score || 0) * scoreRatio / recordRatio);
         if (item.winner) winner++;
       }
       return {
         avatarUrl: player.avatarUrl || '', nickname: player.nickname || `玩家${member.uid}`, code: String(member.uid),
-        winner, score, number, scoreRatio: 10, remark: member.remark || '',
+        winner, score, number, scoreRatio, remark: member.remark || '',
       };
     }).filter((item) => item.number > 0);
   }
@@ -1326,7 +1612,8 @@ class GameApp {
       if (!club || !this.clubStore.member(club, c.player.uid)) {
         return c.send(pack(124, { res: { error: 1, what: '无权查看玩法方案' }, data: [] }));
       }
-      return c.send(pack(124, { res: { error: 0, what: '' }, data: club.schemes || [], count: (club.schemes || []).length, total: (club.schemes || []).length }));
+      const schemeData = club.schemes || [];
+      return c.send(pack(124, { res: { error: 0, what: '' }, data: schemeData, count: schemeData.length, total: schemeData.length }));
     }
 
     if (proto === 133 || proto === 162) {
@@ -1787,6 +2074,26 @@ class GameApp {
         || (msgdata != null && typeof msgdata !== 'string')
         || !body || typeof body !== 'object' || Array.isArray(body)) {
         return c.send(pack(200, { res: { error: 1, what: '房内消息格式无效' } }));
+      }
+      if (msghead === 'support_history') {
+        const result = this.supportPayload(c.player, true);
+        c.send(push('support_history', result));
+        return c.send(pack(200, { res: { error: 0, what: '' } }));
+      }
+      if (msghead === 'support_send') {
+        const tableContext = this.tables.get(c.roomId);
+        const result = this.sendSupportMessage(c.player, body.content, {
+          roomId: tableContext && !tableContext.closed ? tableContext.roomId : 0,
+          gameType: tableContext && !tableContext.closed ? tableContext.gameType : 0,
+          step: tableContext && !tableContext.closed ? tableContext.step : 0,
+          clientVersion: body.clientVersion,
+        });
+        return c.send(pack(200, { res: { error: result.error ? 1 : 0, what: result.error || '' } }));
+      }
+      if (msghead === 'support_read') {
+        const result = this.supportPayload(c.player, true);
+        c.send(push('support_read', result));
+        return c.send(pack(200, { res: { error: 0, what: '' } }));
       }
       if (msghead === 'chatroom') {
         let kind = 'chat';

@@ -15,8 +15,10 @@ const empty = () => ({
   nextUid: 285633,
   nextRoomId: 100000,
   nextOperatorMessageId: 1000000000,
+  nextSupportMessageId: 1,
   players: [],
   operatorMessages: [],
+  supportConversations: [],
   publicNotices: { hallMarquee: '', serviceWechat: '', serviceQQ: '' },
   economySettings: {
     newPlayerCards: 200,
@@ -24,7 +26,15 @@ const empty = () => ({
     inviteBindBonus: 1000,
     invitePageText: '绑定推荐人邀请码，可获得1000张房卡！',
   },
-  botSettings: { enabled: process.env.QJQP_FILLBOTS !== '0' },
+  botSettings: {
+    enabled: process.env.QJQP_FILLBOTS !== '0',
+    mode: process.env.QJQP_BOT_MODE || 'local',
+    trusteeWhitelist: [],
+    stats: {
+      local: { rounds: 0, wins: 0, draws: 0, score: 0 },
+      jev: { rounds: 0, wins: 0, draws: 0, score: 0 },
+    },
+  },
   rooms: [],
   records: [],
   playbackSeq: 0,
@@ -40,13 +50,15 @@ const normalize = (data) => {
     nextUid: Number(raw.nextUid) || base.nextUid,
     nextRoomId: Number(raw.nextRoomId) || base.nextRoomId,
     nextOperatorMessageId: Number(raw.nextOperatorMessageId) || base.nextOperatorMessageId,
+    nextSupportMessageId: Number(raw.nextSupportMessageId) || base.nextSupportMessageId,
     players: Array.isArray(raw.players) ? raw.players : [],
     operatorMessages: Array.isArray(raw.operatorMessages) ? raw.operatorMessages : [],
+    supportConversations: Array.isArray(raw.supportConversations) ? raw.supportConversations : [],
     publicNotices: raw.publicNotices && typeof raw.publicNotices === 'object' ? raw.publicNotices : base.publicNotices,
     economySettings: raw.economySettings && typeof raw.economySettings === 'object'
       ? raw.economySettings : base.economySettings,
     botSettings: raw.botSettings && typeof raw.botSettings === 'object'
-      ? { enabled: raw.botSettings.enabled !== false } : base.botSettings,
+      ? raw.botSettings : base.botSettings,
     rooms: Array.isArray(raw.rooms) ? raw.rooms : [],
     records: Array.isArray(raw.records) ? raw.records : [],
     playbackSeq: Number(raw.playbackSeq) || 0,
@@ -85,6 +97,7 @@ const open = () => {
       club_next_id INTEGER NOT NULL,
       club_next_op_id INTEGER NOT NULL,
       next_operator_message_id INTEGER NOT NULL DEFAULT 1000000000,
+      next_support_message_id INTEGER NOT NULL DEFAULT 1,
       updated_at INTEGER NOT NULL
     );
     CREATE TABLE IF NOT EXISTS players (
@@ -101,6 +114,13 @@ const open = () => {
       id INTEGER NOT NULL UNIQUE,
       data TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS support_conversations (
+      position INTEGER NOT NULL,
+      uid INTEGER PRIMARY KEY,
+      updated_at INTEGER NOT NULL DEFAULT 0,
+      data TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS support_conversations_updated_at ON support_conversations(updated_at DESC);
     CREATE TABLE IF NOT EXISTS public_notices (
       id INTEGER PRIMARY KEY CHECK (id = 1),
       data TEXT NOT NULL
@@ -183,10 +203,14 @@ const open = () => {
   if (!db.pragma('table_info(meta)').some((column) => column.name === 'next_operator_message_id')) {
     db.exec('ALTER TABLE meta ADD COLUMN next_operator_message_id INTEGER NOT NULL DEFAULT 1000000000');
   }
+  if (!db.pragma('table_info(meta)').some((column) => column.name === 'next_support_message_id')) {
+    db.exec('ALTER TABLE meta ADD COLUMN next_support_message_id INTEGER NOT NULL DEFAULT 1');
+  }
   statements = {
     meta: db.prepare(`INSERT INTO meta
-      (id, schema_version, next_uid, next_room_id, playback_seq, club_next_id, club_next_op_id, next_operator_message_id, updated_at)
-      VALUES (1, 1, ?, ?, ?, ?, ?, ?, ?)
+      (id, schema_version, next_uid, next_room_id, playback_seq, club_next_id, club_next_op_id,
+        next_operator_message_id, next_support_message_id, updated_at)
+      VALUES (1, 1, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         schema_version=excluded.schema_version,
         next_uid=excluded.next_uid,
@@ -195,9 +219,12 @@ const open = () => {
         club_next_id=excluded.club_next_id,
         club_next_op_id=excluded.club_next_op_id,
         next_operator_message_id=excluded.next_operator_message_id,
+        next_support_message_id=excluded.next_support_message_id,
         updated_at=excluded.updated_at`),
     player: db.prepare('INSERT INTO players (position, token, uid, invite_code, data) VALUES (?, ?, ?, ?, ?)'),
     operatorMessage: db.prepare('INSERT INTO operator_messages (position, id, data) VALUES (?, ?, ?)'),
+    supportConversation: db.prepare(`INSERT INTO support_conversations
+      (position, uid, updated_at, data) VALUES (?, ?, ?, ?)`),
     publicNotices: db.prepare('INSERT INTO public_notices (id, data) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET data=excluded.data'),
     economySettings: db.prepare('INSERT INTO economy_settings (id, data) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET data=excluded.data'),
     botSettings: db.prepare('INSERT INTO bot_settings (id, data) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET data=excluded.data'),
@@ -215,21 +242,27 @@ const writeTransaction = (data) => {
     // 先序列化再删除，常见的数据错误不会触碰现有快照；事务还负责兜底回滚。
     const players = state.players.map((item) => encode(item));
     const operatorMessages = state.operatorMessages.map((item) => encode(item));
+    const supportConversations = state.supportConversations.map((item) => encode(item));
     const publicNotices = encode(state.publicNotices);
     const economySettings = encode(state.economySettings);
     const botSettings = encode(state.botSettings);
     const rooms = state.rooms.map((item) => encode(item));
     const records = state.records.map((item) => encode(item));
     const clubs = state.clubs.clubs.map((item) => encode(item));
-    db.exec('DELETE FROM players; DELETE FROM operator_messages; DELETE FROM rooms; DELETE FROM records; DELETE FROM clubs;');
+    db.exec(`DELETE FROM players; DELETE FROM operator_messages; DELETE FROM support_conversations;
+      DELETE FROM rooms; DELETE FROM records; DELETE FROM clubs;`);
     statements.meta.run(
       state.nextUid, state.nextRoomId, state.playbackSeq,
-      state.clubs.nextId, state.clubs.nextOpId, state.nextOperatorMessageId, Date.now(),
+      state.clubs.nextId, state.clubs.nextOpId, state.nextOperatorMessageId,
+      state.nextSupportMessageId, Date.now(),
     );
     state.players.forEach((item, i) => statements.player.run(
       i, String(item.token || ''), Number(item.uid), String(item.inviteCode || ''), players[i],
     ));
     state.operatorMessages.forEach((item, i) => statements.operatorMessage.run(i, Number(item.id), operatorMessages[i]));
+    state.supportConversations.forEach((item, i) => statements.supportConversation.run(
+      i, Number(item.uid), Number(item.updatedAt || 0), supportConversations[i],
+    ));
     statements.publicNotices.run(publicNotices);
     statements.economySettings.run(economySettings);
     statements.botSettings.run(botSettings);
@@ -269,8 +302,11 @@ const load = () => {
     nextUid: Number(meta.next_uid),
     nextRoomId: Number(meta.next_room_id),
     nextOperatorMessageId: Number(meta.next_operator_message_id),
+    nextSupportMessageId: Number(meta.next_support_message_id),
     players: db.prepare('SELECT data FROM players ORDER BY position').all().map((row) => JSON.parse(row.data)),
     operatorMessages: db.prepare('SELECT data FROM operator_messages ORDER BY position').all().map((row) => JSON.parse(row.data)),
+    supportConversations: db.prepare('SELECT data FROM support_conversations ORDER BY position').all()
+      .map((row) => JSON.parse(row.data)),
     publicNotices: JSON.parse((db.prepare('SELECT data FROM public_notices WHERE id=1').get() || { data: '{}' }).data),
     economySettings: JSON.parse((db.prepare('SELECT data FROM economy_settings WHERE id=1').get() || { data: '{}' }).data),
     botSettings: JSON.parse((db.prepare('SELECT data FROM bot_settings WHERE id=1').get() || { data: '{}' }).data),

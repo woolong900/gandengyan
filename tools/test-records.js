@@ -174,18 +174,44 @@ const fakeTable = (extra = {}) => ({
   const stats = last(adminBox, 146);
   t('俱乐部统计默认按所选日期', Number(stats.data.find((item) => item.code === '100001').number), 1);
   t('俱乐部统计返回当日参与成员', stats.data.length, 3);
+  t('俱乐部统计统一使用百分之一分', Number(stats.data.find((item) => item.code === '100001').scoreRatio), 100);
+  t('麻将战绩换算后总分不变', Number(stats.data.find((item) => item.code === '100001').score), 800);
+
+  const wskRecord = app.saveRecord(fakeTable({
+    roomId: 100017,
+    clubId: club.id,
+    gameType: 17,
+    gameRules: { RATIO: 100 },
+    members: [
+      { view: false, player: { uid: 100001, nickname: '甲' }, score: 1250 },
+      { view: false, player: { uid: 100002, nickname: '乙' }, score: -1250 },
+    ],
+    hands: [{
+      id: '100017010001',
+      scores: [{ uid: 100001, score: 1250 }, { uid: 100002, score: -1250 }],
+    }],
+  }));
+  t('说胡子测试战绩已保存', wskRecord.scoreRatio, 100);
+  adminBox.sent.length = 0;
+  app.onMessage('club-admin', packCs(146, {
+    clubId: club.id, userCode: '', date: DAY, startDate: 0, endDate: 0,
+  }));
+  const mixedStats = last(adminBox, 146);
+  const mixedFirst = mixedStats.data.find((item) => item.code === '100001');
+  t('跨玩法总分统一换算后再相加',
+    [Number(mixedFirst.score), Number(mixedFirst.scoreRatio), Number(mixedFirst.number)], [2050, 100, 2]);
 
   adminBox.sent.length = 0;
   app.onMessage('club-admin', packCs(125, {
     type: 1, clubId: club.id, time: DAY, userCode: '100002', startTime: 0, endTime: 0,
   }));
-  t('俱乐部战绩可按用户ID查询', last(adminBox, 125).records.length, 1);
+  t('俱乐部战绩可按用户ID查询', last(adminBox, 125).records.length, 2);
 
   adminBox.sent.length = 0;
   app.onMessage('club-admin', packCs(125, {
     type: 1, clubId: club.id, time: DAY, userCode: '乙', startTime: 0, endTime: 0,
   }));
-  t('俱乐部战绩可按昵称查询', last(adminBox, 125).records.length, 1);
+  t('俱乐部战绩可按昵称查询', last(adminBox, 125).records.length, 2);
 
   adminBox.sent.length = 0;
   app.onMessage('club-admin', packCs(126, { id: rec.id }));

@@ -122,6 +122,14 @@ const main = async () => {
         },
       },
     }));
+    const pwaRoot = path.join(dir, 'pwa');
+    fs.mkdirSync(pwaRoot, { recursive: true });
+    fs.writeFileSync(path.join(pwaRoot, 'index.html'), '<!doctype html><title>潜江干瞪眼 PWA</title>');
+    fs.writeFileSync(path.join(pwaRoot, 'manifest.webmanifest'), JSON.stringify({
+      name: '潜江干瞪眼', start_url: './', display: 'fullscreen',
+    }));
+    fs.writeFileSync(path.join(pwaRoot, 'sw.js'), 'self.addEventListener("fetch", () => {});');
+    fs.writeFileSync(path.join(pwaRoot, 'sound.mp3'), '0123456789');
     child = spawn(process.execPath, [path.join(__dirname, '../server/index.js')], {
       env: {
         ...process.env,
@@ -135,6 +143,7 @@ const main = async () => {
         QJQP_WECHAT_APPS: JSON.stringify({ [WX_APP_B]: 'secret-b' }),
         QJQP_HOT_UPDATE_ROOT: hotUpdateRoot,
         QJQP_HOT_UPDATE_CONFIG: hotUpdateConfig,
+        QJQP_PWA_ROOT: pwaRoot,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -184,8 +193,46 @@ const main = async () => {
     t('下载页包含安卓安装包入口',
       downloadPage.text.includes('href="https://l.heiwuya.cn/QeQZ6I"'), true);
     t('下载页标明内置资源版本', downloadPage.text.includes('资源 R274'), true);
-    t('下载页包含 iOS 安装入口',
-      downloadPage.text.includes('id="iosInstall" href="https://l.heiwuya.cn/UTsdzR"'), true);
+    t('下载页同时包含 iOS 原生版和 PWA 入口',
+      downloadPage.text.includes('id="iosInstall" href="https://l.heiwuya.cn/UTsdzR"')
+        && downloadPage.text.includes('id="pwaInstall" href="https://gandengyan.top/pwa/"'), true);
+    const pwaRedirect = await requestText(port, '/pwa');
+    t('PWA 无斜杠入口规范化',
+      [pwaRedirect.status, pwaRedirect.headers.location], [308, '/pwa/']);
+    const pwaPage = await requestText(port, '/pwa/');
+    t('PWA 首页可访问', [pwaPage.status, pwaPage.text.includes('潜江干瞪眼 PWA')], [200, true]);
+    const pwaManifest = await requestText(port, '/pwa/manifest.webmanifest');
+    t('PWA 清单使用正确类型',
+      [pwaManifest.status, pwaManifest.headers['content-type']],
+      [200, 'application/manifest+json; charset=utf-8']);
+    const pwaWorker = await requestText(port, '/pwa/sw.js');
+    t('Service Worker 使用 PWA 作用域且不缓存',
+      [pwaWorker.headers['service-worker-allowed'], pwaWorker.headers['cache-control']],
+      ['/pwa/', 'no-cache']);
+    const pwaRange = await requestText(port, '/pwa/sound.mp3', { Range: 'bytes=2-5' });
+    t('PWA 音频支持 Range 请求',
+      [pwaRange.status, pwaRange.headers['content-range'], pwaRange.text],
+      [206, 'bytes 2-5/10', '2345']);
+    const pwaWechatOutside = await requestText(port, '/wechat/pwa-login');
+    t('普通浏览器微信登录返回微信内打开提示',
+      [pwaWechatOutside.status, pwaWechatOutside.headers.location.startsWith('/pwa/?wechat_error=')],
+      [302, true]);
+    const pwaWechatInside = await requestText(port, '/wechat/pwa-login', {
+      'User-Agent': 'Mozilla/5.0 MicroMessenger/8.0.56',
+      Host: 'gandengyan.top',
+      'X-Forwarded-Proto': 'https',
+    });
+    const pwaWechatAuthorize = new URL(pwaWechatInside.headers.location);
+    t('微信内 PWA 登录跳转到官方网页授权',
+      [pwaWechatInside.status, pwaWechatAuthorize.origin, pwaWechatAuthorize.pathname,
+        pwaWechatAuthorize.searchParams.get('appid'), pwaWechatAuthorize.searchParams.get('scope')],
+      [302, 'https://open.weixin.qq.com', '/connect/oauth2/authorize', WX_APP_A, 'snsapi_userinfo']);
+    t('微信网页授权回调使用线上 HTTPS 地址',
+      pwaWechatAuthorize.searchParams.get('redirect_uri'),
+      'https://gandengyan.top/wechat/pwa-callback');
+    const staleWebWechat = await request(port, '/login?accountType=webWechatTicket&ticket=missing');
+    t('无效 PWA 微信票据被拒绝',
+      [staleWebWechat.status, staleWebWechat.body.err_code], [400, 66]);
     t('下载页包含法律条款且不展示公司名称',
       downloadPage.text.includes('/legal/privacy-policy')
         && !downloadPage.text.includes('湖北浩克互娱科技有限公司'), true);

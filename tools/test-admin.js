@@ -55,7 +55,8 @@ const run = async () => {
     assert_version: '268', rollout_key: 'admin-test-phone', uid: String(player.uid),
     device_name: 'Android 15' }), 'https://game.example');
   const { createAdminHttp } = require('../server/admin-http');
-  const admin = createAdminHttp({ app, store, hotUpdate, authFile,
+  const mobileToken = 'mobile-test-token-0123456789-abcdefghijklmnopqrstuvwxyz';
+  const admin = createAdminHttp({ app, store, hotUpdate, authFile, publicBaseUrl: 'https://gmhiu.com', mobileToken,
     flush: async () => store.save(app.dump()) });
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://localhost');
@@ -75,8 +76,36 @@ const run = async () => {
     const payload = await response.json();
     return { status: response.status, body: payload, cookie: response.headers.get('set-cookie') };
   };
+  const mobileRequest = async (route, method = 'GET', body, token = mobileToken) => {
+    const headers = { Authorization: `Bearer ${token}` };
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    const response = await fetch(`${base}/admin/api${route}`, { method, headers,
+      body: body === undefined ? undefined : JSON.stringify(body) });
+    return { status: response.status, body: await response.json() };
+  };
+  const loginFromOrigin = (origin, host) => new Promise((resolve, reject) => {
+    const bytes = Buffer.from(JSON.stringify({ password: 'VeryStrongAdminPassword123!' }));
+    const target = new URL(`${base}/admin/api/login`);
+    const loginRequest = http.request({
+      hostname: target.hostname,
+      port: target.port,
+      path: target.pathname,
+      method: 'POST',
+      headers: { Host: host, Origin: origin, 'X-Forwarded-Proto': 'https',
+        'Content-Type': 'application/json', 'Content-Length': bytes.length },
+    }, (response) => {
+      const chunks = [];
+      response.on('data', (chunk) => chunks.push(chunk));
+      response.on('end', () => resolve({ status: response.statusCode,
+        body: JSON.parse(Buffer.concat(chunks).toString('utf8')) }));
+    });
+    loginRequest.on('error', reject);
+    loginRequest.end(bytes);
+  });
   try {
-    check('后台页面可打开', (await fetch(`${base}/admin`)).status, 200);
+    const adminPage = await fetch(`${base}/admin`);
+    const adminIndex = await adminPage.text();
+    check('后台页面可打开', adminPage.status, 200);
     const adminScript = await (await fetch(`${base}/admin/app.js`)).text();
     const adminStyle = await (await fetch(`${base}/admin/style.css`)).text();
     check('侧边栏菜单可独立滚动且底部系统菜单不溢出深色背景',
@@ -120,16 +149,43 @@ const run = async () => {
     check('后台提供热更新灰度配置与全量提升入口',
       adminScript.includes('热更新灰度发布') && adminScript.includes('hot-update-promote') &&
       adminScript.includes('includeDeviceIds'), true);
+    check('后台提供托管白名单页面和增删操作',
+      adminIndex.includes('data-view="trustees"') && adminScript.includes('trustee-form') &&
+      adminScript.includes('trustee-remove') && adminScript.includes('/trustees'), true);
+    check('后台提供客服会话列表、对话和回复入口',
+      adminIndex.includes('data-view="support"') && adminScript.includes('renderSupport') &&
+      adminScript.includes('support-reply-form') && adminScript.includes('/support/'), true);
     const tileResponse = await fetch(`${base}/admin/tiles/mj_0_1.png`);
     check('后台麻将牌图片可打开', [tileResponse.status, tileResponse.headers.get('content-type')],
       [200, 'image/png']);
     check('非牌图路径不能读取文件', (await fetch(`${base}/admin/tiles/../admin-password.json`)).status, 404);
     check('未登录不可读取玩家', (await request('/players')).status, 401);
+    check('秘密武器令牌可读取房间列表', (await mobileRequest('/rooms')).status, 200);
+    check('秘密武器令牌不可读取数据面板', (await mobileRequest('/dashboard')).status, 403);
+    check('错误的秘密武器令牌不可读取房间',
+      (await mobileRequest('/rooms', 'GET', undefined, `${mobileToken}x`)).status, 401);
     check('密码错误不可登录', (await request('/login', 'POST', { password: 'wrong' }, false)).status, 401);
+    check('第三方来源不可登录',
+      (await loginFromOrigin('https://attacker.example', 'gandengyan.top')).status, 403);
+    check('新域名同源请求可以登录',
+      (await loginFromOrigin('https://gandengyan.top', 'gandengyan.top')).status, 200);
     const login = await request('/login', 'POST', { password: 'VeryStrongAdminPassword123!' }, false);
     check('正确密码登录', login.status, 200);
     cookie = login.cookie.split(';')[0]; csrf = login.body.csrf;
     check('会话 Cookie 不可被脚本读取', login.cookie.includes('HttpOnly; SameSite=Strict'), true);
+    app.sendSupportMessage(player, '后台客服接口测试', { roomId: 100000, gameType: 2, step: 1 });
+    const supportList = await request(`/support?q=${player.uid}`);
+    check('后台客服会话可按玩家 ID 查询',
+      [supportList.status, supportList.body.total, supportList.body.items[0].adminUnread], [200, 1, 1]);
+    check('后台可读取客服对话详情',
+      (await request(`/support/${player.uid}`)).body.conversation.messages[0].content, '后台客服接口测试');
+    check('打开对话可标记玩家消息已读',
+      (await request(`/support/${player.uid}/read`, 'POST', {})).body.conversation.adminUnread, 0);
+    const supportReply = await request(`/support/${player.uid}/reply`, 'POST', { content: '客服已回复' });
+    check('后台可向玩家回复消息',
+      [supportReply.status, supportReply.body.from, supportReply.body.content], [200, 'admin', '客服已回复']);
+    check('客服会话回复写入 SQLite',
+      store.load().supportConversations[0].messages.map((message) => message.from), ['player', 'admin']);
     check('后台数据面板显示真人玩家', (await request('/dashboard')).body.totals.players, 1);
     const hotStatus = await request('/hot-update');
     check('后台可读取热更新稳定版与候选版', [hotStatus.body.platforms.android.stableAssetVersion,
@@ -187,6 +243,12 @@ const run = async () => {
     debugRound.start();
     table.round = debugRound;
     const chosen = debugRound.wall.remainCards().at(-1);
+    check('秘密武器令牌可无 CSRF 追加指定牌',
+      (await mobileRequest('/rooms/100000/draw-plan/card', 'POST', { uid: player.uid, card: chosen })).status, 200);
+    check('秘密武器令牌不可解散房间',
+      (await mobileRequest('/rooms/100000/dissolve', 'POST', { reason: '不应允许此操作' })).status, 403);
+    check('秘密武器令牌可清空指定牌序',
+      (await mobileRequest('/rooms/100000/draw-plan', 'DELETE')).status, 200);
     const mahjongRoomDetail = (await request('/rooms/100000')).body;
     check('开局房间可读剩余牌堆', mahjongRoomDetail.wall.cards.length, debugRound.wall.remain());
     check('麻将房返回每位玩家完整手牌',
@@ -209,6 +271,17 @@ const run = async () => {
     check('房间详情显示指定摸牌顺序', (await request('/rooms/100000')).body.wall.drawPlan.uid, player.uid);
     check('后台可取消摸牌顺序', (await request('/rooms/100000/draw-plan', 'DELETE')).body.cleared.uid, player.uid);
     table.round = null;
+    check('托管白名单默认为空', (await request('/trustees')).body.count, 0);
+    check('不存在的玩家不能加入托管白名单',
+      (await request('/trustees', 'PUT', { uid: 999998, enabled: true })).status, 404);
+    const trusteeAdded = await request('/trustees', 'PUT', { uid: player.uid, enabled: true });
+    check('后台可将玩家加入托管白名单',
+      [trusteeAdded.status, trusteeAdded.body.count, trusteeAdded.body.items[0].status],
+      [200, 1, '等待干瞪眼开局']);
+    check('托管白名单写入 SQLite', store.load().botSettings.trusteeWhitelist, [player.uid]);
+    const trusteeRemoved = await request('/trustees', 'PUT', { uid: player.uid, enabled: false });
+    check('后台可将玩家移出托管白名单',
+      [trusteeRemoved.body.count, store.load().botSettings.trusteeWhitelist], [0, []]);
     const wskTable = new Table({ roomId: 100001, gameType: 17, clubId: 0, num: 1, param1: 10,
       param2: 0, host: player.uid, step: 1, config: qjshzRules.parseConfig(10, 0) }, app.tableHost(100001));
     const wskPlayers = [player].concat(Array.from({ length: 3 }, (_, index) => ({
@@ -222,6 +295,10 @@ const run = async () => {
     const requestedHand = { 3: 5, 15: 4, joker: 2, 13: 6 };
     check('超出牌堆数量的起手牌被拒绝', (await request('/rooms/100001/next-wsk-hand', 'POST',
       { uid: player.uid, counts: { 13: 9 } })).status, 400);
+    const impossibleHand = Object.fromEntries(Array.from({ length: 12 }, (_, index) => [index + 3, 1]));
+    check('无法精确补齐手牌的指定方案被拒绝', (await request('/rooms/100001/next-wsk-hand', 'POST',
+      { uid: player.uid, counts: impossibleHand })).status, 400);
+    check('不可实现的指定方案不会保存', wskTable.nextWskHandPlan, null);
     const handPlan = await request('/rooms/100001/next-wsk-hand', 'POST',
       { uid: player.uid, counts: requestedHand });
     check('后台可为说胡子玩家指定下一局起手牌',

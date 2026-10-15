@@ -24,11 +24,17 @@ const DISMISS_SEC = 60;
 const UNSTARTED_ROOM_TTL_MS = 60 * 60 * 1000;
 const STARTED_ROOM_TTL_MS = 12 * 60 * 60 * 1000;
 const ROOM_EXPIRE_TIMER = 'room-expire';
+const BOT_MIN_DELAY_MS = 800;
+const BOT_MAX_DELAY_MS = 1500;
+// Cocos 开局还要播放翻皮子、发牌和理牌动画。首个自动操作从动画缓冲
+// 结束后再计算正常的 0.8–1.5 秒表现时间，避免庄家在牌尚未排好时杠/甩癞子。
+const BOT_OPENING_PRESENTATION_MS = 3500;
 /** 旁观位上限。客户端 LookOnLayer 按 person.view 列人，没有再限一次。 */
 const MAX_WATCH = 20;
 const MAX_CHAT_BYTES = 4096;
 const CHAT_WINDOW_MS = 5000;
 const CHAT_MAX_IN_WINDOW = 10;
+const GANDENGYAN_GAME_TYPE = 2;
 
 class Table {
   constructor(meta, host) {
@@ -93,6 +99,45 @@ class Table {
     return this.members.filter((m) => m.view);
   }
 
+  managedTrusteeEligible(member) {
+    return !!(member && !member.bot && !member.view
+      && !member.managedTrusteeOptOut
+      && Number(this.gameType) === GANDENGYAN_GAME_TYPE
+      && this.round && !this.round.over
+      && this.host.trusteeWhitelisted
+      && this.host.trusteeWhitelisted(member.player.uid));
+  }
+
+  /** 后台白名单托管只在干瞪眼小局进行时生效，并保留玩家原先的手动托管状态。 */
+  syncManagedTrustees({ arm = true } = {}) {
+    let active = 0;
+    for (const member of this.members) {
+      const enabled = this.managedTrusteeEligible(member);
+      const before = !!member.trustee;
+      if (enabled) {
+        if (!member.managedTrustee) member.trusteeBeforeManaged = before;
+        member.managedTrustee = true;
+        member.trustee = true;
+        active += 1;
+      } else if (member.managedTrustee) {
+        member.managedTrustee = false;
+        member.trustee = !!member.trusteeBeforeManaged;
+        member.trusteeBeforeManaged = false;
+      }
+      if (before !== !!member.trustee) {
+        this.broadcast('trustee', { uid: member.player.uid, status: !!member.trustee });
+      }
+    }
+    if (arm) this.armTurns();
+    return active;
+  }
+
+  /** 后台再次明确启用/停用白名单时，清除玩家此前在牌桌上的主动退出。 */
+  resetManagedTrusteeOptOut(uid) {
+    const member = this.members.find((item) => Number(item.player.uid) === Number(uid));
+    if (member) member.managedTrusteeOptOut = false;
+  }
+
   setNextWskHandPlan(uid, rawCounts) {
     if (Number(this.gameType) !== 17) return { error: '只有说胡子房间可设置下一局起手牌' };
     if (this.step >= maxStep(this)) return { error: '房间已没有下一局' };
@@ -113,9 +158,15 @@ class Table {
       counts[rank] = count;
       total += count;
     }
-    const handSize = qjshzRules.buildDeck(!!this.config.去掉34).length / this.config.人数;
+    const fullDeck = qjshzRules.buildDeck(!!this.config.去掉34);
+    const handSize = fullDeck.length / this.config.人数;
     if (!total) return { error: '请至少指定一张牌' };
     if (total > handSize) return { error: `指定牌不能超过${handSize}张` };
+    const otherCards = fullDeck.filter((card) => !Object.hasOwn(counts,
+      card >= 170 ? 'joker' : String(qjshzRules.cardValue(card)))).length;
+    if (otherCards < handSize - total) {
+      return { error: '指定牌面过多，剩余牌无法在保持指定数量的情况下补齐手牌' };
+    }
     this.nextWskHandPlan = { uid: Number(uid), counts, total };
     this.host.log(`  [房${this.roomId}] 后台设置下一局起手牌 uid=${uid} ${JSON.stringify(counts)}`);
     return { ...this.nextWskHandPlan, counts: { ...counts } };
@@ -224,8 +275,19 @@ class Table {
       over: (result) => {
         const seats = table.seats();
         const tape = table.round && table.round.tape;
-        table.round = null;
         const winners = result.winners || (result.winner >= 0 ? [result.winner] : []);
+        if (table.host.recordBotResult) {
+          table.host.recordBotResult(seats.map((member, seat) => ({ member, seat }))
+            .filter(({ member }) => member.bot)
+            .map(({ member, seat }) => ({
+              strategy: member.botStrategy === 'jev' ? 'jev' : 'local',
+              won: winners.includes(seat),
+              draw: winners.length === 0,
+              score: (result.scores && result.scores[seat]) || 0,
+            })));
+        }
+        table.round = null;
+        table.syncManagedTrustees({ arm: false });
         if (winners.length) {
           const dealer = result.nextDealer != null ? result.nextDealer : winners[0];
           table.dealerUid = seats[dealer].player.uid;
@@ -343,6 +405,19 @@ class Table {
     this.host.cancel(`turn-${member.player.uid}`);
     member.turnDeadline = 0;
     member.turnDueAt = 0;
+    member.automationTurn = null;
+  }
+
+  automationStrategy(member) {
+    return member.managedTrustee && this.host.trusteeStrategy
+      ? this.host.trusteeStrategy(member.site)
+      : (member.botStrategy || member.player.botStrategy || 'local');
+  }
+
+  automationDelayMs() {
+    const random = this.host.random ? this.host.random() : Math.random();
+    const ratio = Math.max(0, Math.min(1, Number.isFinite(random) ? random : 0));
+    return BOT_MIN_DELAY_MS + Math.round(ratio * (BOT_MAX_DELAY_MS - BOT_MIN_DELAY_MS));
   }
 
   armTurns(onlyUid) {
@@ -361,13 +436,47 @@ class Table {
         this.cancelTurn(m);
         continue;
       }
-      const sec = m.bot ? 0.8 : (m.trustee ? 1 : (this.config.托管 || 0));
-      if (sec <= 0) {
+      const automated = !!(m.bot || m.managedTrustee);
+      const delayMs = automated ? this.automationDelayMs()
+        : (m.trustee ? 1000 : (this.config.托管 || 0) * 1000);
+      if (delayMs <= 0) {
         this.cancelTurn(m);
         continue;
       }
-      m.turnDueAt = this.host.now() + sec * 1000;
+      const now = this.host.now();
+      const handSignature = typeof round.looseTiles === 'function'
+        ? round.looseTiles(seat).slice().sort((a, b) => a - b).join(',') : '';
+      const existing = m.automationTurn;
+      if (automated && existing && existing.round === round && existing.pending === round.pending
+        && existing.turn === round.turn && existing.seat === seat
+        && existing.handSignature === handSignature && m.turnDueAt) {
+        this.host.schedule(key, m.turnDueAt);
+        continue;
+      }
+      this.cancelTurn(m);
+      const openingPresentationUntil = automated && Number(this.gameType) === GANDENGYAN_GAME_TYPE
+        ? this.lastRoundStartedAt + BOT_OPENING_PRESENTATION_MS : 0;
+      m.turnDueAt = Math.max(now, openingPresentationUntil) + delayMs;
       m.turnDeadline = Math.floor(m.turnDueAt / 1000);
+      if (automated) {
+        const ticket = { round, pending: round.pending, turn: round.turn, seat, handSignature,
+          prepared: null, ready: false, decision: null };
+        m.automationTurn = ticket;
+        if (this.automationStrategy(m) === 'jev' && this.host.jevBot
+          && typeof round.prepareAutoPlayJev === 'function') {
+          ticket.prepared = round.prepareAutoPlayJev(seat, this.host.jevBot);
+          if (ticket.prepared) {
+            Promise.resolve(ticket.prepared.promise).then((decision) => {
+              if (m.automationTurn !== ticket) return;
+              ticket.ready = true;
+              ticket.decision = decision;
+            }).catch((error) => {
+              if (m.automationTurn === ticket) ticket.failed = true;
+              this.host.log(`  [房${this.roomId}] Jev 决策失败，将使用本地策略：${error.message}`);
+            });
+          }
+        }
+      }
       this.host.schedule(key, m.turnDueAt);
     }
   }
@@ -431,11 +540,17 @@ class Table {
         this.host.log(`  [房${this.roomId}] 下一局起手牌已失效：玩家 ${this.nextWskHandPlan.uid} 已不在座位`);
         this.nextWskHandPlan = null;
       } else {
-        deckOverride = qjshzRules.buildDeckForSeat(this.config, this.nextWskHandPlan.counts, targetSeat, seats.length);
-        appliedHandPlan = this.nextWskHandPlan;
+        try {
+          deckOverride = qjshzRules.buildDeckForSeat(this.config, this.nextWskHandPlan.counts, targetSeat, seats.length);
+          appliedHandPlan = this.nextWskHandPlan;
+        } catch (error) {
+          this.host.log(`  [房${this.roomId}] 下一局起手牌已取消：${error.message}`);
+          this.nextWskHandPlan = null;
+        }
       }
     }
     this.round.start(deckOverride);
+    this.syncManagedTrustees({ arm: false });
     if (appliedHandPlan) {
       this.host.log(`  [房${this.roomId}] 已发放后台指定起手牌 uid=${appliedHandPlan.uid} ${JSON.stringify(appliedHandPlan.counts)}`);
       this.nextWskHandPlan = null;
@@ -517,7 +632,7 @@ class Table {
   }
 
   addBots(players) {
-    for (const { player, site } of players) {
+    for (const { player, site, botStrategy } of players) {
       player.roomId = this.roomId;
       this.members.push(emptyMember(player, {
         site,
@@ -525,6 +640,7 @@ class Table {
         trustee: true,
         online: true,
         bot: true,
+        botStrategy: botStrategy || player.botStrategy,
       }));
       this.host.onUidRoom(player.uid, this.roomId);
       this.broadcast('game_ready', { uid: player.uid, site });
@@ -797,7 +913,7 @@ class Table {
       const seat = this.round.seatOf(uid);
       // 取消托管或回合已变化后，旧回调不能再代打；重新计时后也要等到新期限。
       if (m.view || seat < 0 || !this.round.waitingSeats().includes(seat)
-        || (!m.bot && !m.trustee && !(this.config.托管 > 0))) {
+        || (!m.bot && !m.managedTrustee && !m.trustee && !(this.config.托管 > 0))) {
         this.cancelTurn(m);
         return;
       }
@@ -808,13 +924,25 @@ class Table {
         this.host.schedule(name, m.turnDueAt);
         return;
       }
+      const automationTurn = m.automationTurn;
       this.cancelTurn(m);
       if (!m.trustee) {
         m.trustee = true;
         this.broadcast('trustee', { uid, status: true });
         this.host.log(`  [房${this.roomId}] ${uid} 超时，自动托管`);
       }
-      this.round.autoPlay(seat);
+      const activeRound = this.round;
+      const strategy = this.automationStrategy(m);
+      let appliedJev = false;
+      if ((m.bot || m.managedTrustee) && strategy === 'jev' && automationTurn
+        && automationTurn.round === activeRound && automationTurn.ready
+        && automationTurn.prepared && typeof activeRound.applyPreparedAutoPlayJev === 'function') {
+        appliedJev = activeRound.applyPreparedAutoPlayJev(
+          automationTurn.prepared, automationTurn.decision
+        );
+      }
+      // 随机期限内 Jev 没有返回，或返回结果已过期，就在期限点立即用本地策略。
+      if (!appliedJev) activeRound.autoPlay(seat);
       this.armTurns();
       this.host.persist();
     }
@@ -849,7 +977,15 @@ class Table {
     if (msghead === 'trustee') {
       const mine = this.members.find((m) => m.player.uid === uid);
       if (mine) {
-        mine.trustee = !mine.trustee;
+        if (mine.managedTrustee) {
+          // 玩家可立即退出后台托管；退出标记跨小局保留，避免下一局又被白名单自动开启。
+          mine.managedTrustee = false;
+          mine.managedTrusteeOptOut = true;
+          mine.trusteeBeforeManaged = false;
+          mine.trustee = false;
+        } else {
+          mine.trustee = !mine.trustee;
+        }
         this.broadcast('trustee', { uid, status: mine.trustee });
         this.host.log(`  [房${this.roomId}] ${uid} ${mine.trustee ? '托管' : '取消托管'}`);
         this.armTurns(uid);
@@ -938,10 +1074,14 @@ class Table {
         ready: !!m.ready,
         score: m.score || 0,
         trustee: !!m.trustee,
+        managedTrustee: !!m.managedTrustee,
+        managedTrusteeOptOut: !!m.managedTrusteeOptOut,
+        trusteeBeforeManaged: !!m.trusteeBeforeManaged,
         turnDeadline: m.turnDeadline || 0,
         stat: m.stat,
         view: !!m.view,
         bot: !!m.bot,
+        botStrategy: m.botStrategy === 'jev' ? 'jev' : 'local',
       })),
       round: this.round && !this.round.over ? this.round.dump() : null,
     };
@@ -981,6 +1121,7 @@ class Table {
         roomId: raw.roomId,
         invitedBy: m.invitedBy || '',
         bot: !!m.bot,
+        botStrategy: m.botStrategy === 'jev' ? 'jev' : 'local',
       };
       player.roomId = raw.roomId;
       table.members.push(emptyMember(player, {
@@ -989,9 +1130,13 @@ class Table {
         score: m.score || 0,
         online: !!m.bot,
         trustee: !!m.trustee || !!m.bot,
+        managedTrustee: !!m.managedTrustee,
+        managedTrusteeOptOut: !!m.managedTrusteeOptOut,
+        trusteeBeforeManaged: !!m.trusteeBeforeManaged,
         stat: m.stat,
         view: !!m.view,
         bot: !!m.bot,
+        botStrategy: m.botStrategy === 'jev' ? 'jev' : 'local',
       }));
     }
     if (raw.round) table.restoreRound(raw.round);
@@ -1006,4 +1151,7 @@ module.exports = {
   UNSTARTED_ROOM_TTL_MS,
   STARTED_ROOM_TTL_MS,
   ROOM_EXPIRE_TIMER,
+  BOT_MIN_DELAY_MS,
+  BOT_MAX_DELAY_MS,
+  BOT_OPENING_PRESENTATION_MS,
 };

@@ -41,6 +41,7 @@ class Round {
     this.hotSeat = -1;
     this.passPeng = [];
     this.passHu = [];
+    this.inferredVisible = Array.from({ length: this.n }, () => new Map());
     this.drawPlan = null;
   }
 
@@ -82,15 +83,28 @@ class Round {
     return this.laizi;
   }
 
-  canHu(seat, extra) {
-    const tiles = this.looseTiles(seat, extra);
+  /**
+   * 按当前房间规则判定一组散牌能否胡。机器人枚举假设进张时也走这里，
+   * 避免服务端禁胡、机器人却仍把它当成听牌。
+   */
+  canHuTiles(seat, tiles, { hard = false } = {}) {
     // 潜江癞晃 / 土豪必杠：手里超过一张癞子不能听，多的得先甩。
     // 堆癞子（isChecked(26)）才允许多张癞子当万能。
     if (this.config.玩法 !== '堆癞子') {
       const n = tiles.filter((t) => t === this.laizi).length;
       if (n > 1) return false;
     }
-    return mahjong.canHu(tiles, this.jokerFor(seat), this.melds[seat].length, this.fullMelds);
+    const joker = hard ? -1 : this.jokerFor(seat);
+    const args = [tiles, joker, this.melds[seat].length, this.fullMelds];
+    // 潜江癞晃和干瞪眼都没有七小对，只能按标准面子+将来胡。
+    if (this.config.玩法 === '潜江癞晃' || this.config.玩法 === '土豪必杠') {
+      return mahjong.canHuNormal(...args);
+    }
+    return mahjong.canHu(...args);
+  }
+
+  canHu(seat, extra) {
+    return this.canHuTiles(seat, this.looseTiles(seat, extra));
   }
 
   /**
@@ -99,8 +113,7 @@ class Round {
    */
   canHardHu(seat, extra) {
     const tiles = this.looseTiles(seat, extra);
-    if (this.config.玩法 !== '堆癞子' && tiles.filter((t) => t === this.laizi).length > 1) return false;
-    return mahjong.canHu(tiles, -1, this.melds[seat].length, this.fullMelds);
+    return this.canHuTiles(seat, tiles, { hard: true });
   }
 
   /** 全部的牌，碰杠的按实际张数摊开，只用来看清一色这类整手牌的牌型 */
@@ -324,6 +337,7 @@ class Round {
     this.hotSeat = -1;
     this.passPeng = Array.from({ length: this.n }, () => new Set());
     this.passHu = new Array(this.n).fill(false);
+    this.inferredVisible = Array.from({ length: this.n }, () => new Map());
     this.drawPlan = null;
     // 总结算要的统计：暗杠、明杠、自摸、点炮、接炮、四癞有奖
     this.stat = Array.from({ length: this.n }, () => ({ ag: 0, mg: 0, zm: 0, dg: 0, jg: 0, plyj: 0 }));
@@ -579,18 +593,23 @@ class Round {
     });
   }
 
-  /** 只为“干瞪眼（内部名：土豪必杠）＋只许自摸”的内置机器人启用智能策略。 */
+  automatedSeat(seat) {
+    const member = this.seats[seat];
+    return !!(member && (member.bot || member.managedTrustee));
+  }
+
+  /** 只为“干瞪眼（内部名：土豪必杠）＋只许自摸”的机器人或后台托管启用智能策略。 */
   smartBot(seat, policy) {
     const member = this.seats[seat];
-    const eligible = !!(member && member.bot
+    const eligible = !!(member && this.automatedSeat(seat)
       && this.config.玩法 === '土豪必杠'
       && this.config.只许自摸);
     if (!eligible || policy === 'legacy') return false;
-    return policy === 'smart' || policy === 'smart-eager' || policy == null;
+    return policy === 'smart' || policy === 'smart-eager' || policy === 'jev' || policy == null;
   }
 
   /**
-   * 托管代打。真人托管和其他玩法保持旧逻辑；目标干瞪眼机器人使用牌效策略。
+   * 托管代打。普通真人托管和其他玩法保持旧逻辑；目标干瞪眼机器人及后台白名单使用牌效策略。
    * policy 只供离线 A/B 基准显式指定 smart / legacy。
    */
   autoPlay(seat, policy) {
@@ -613,7 +632,7 @@ class Round {
           const action = mahjongBot.chooseDiscardResponse(this, seat, p, cand, botOptions);
           return this.respond(seat, action.op, action.data || {});
         }
-        if (this.humanStillDeciding(p) && this.seats[seat] && this.seats[seat].bot) {
+        if (this.humanStillDeciding(p) && this.automatedSeat(seat)) {
           return this.respond(seat, 'pass');
         }
         if (cand.ops.hu) return this.respond(seat, 'hu');
@@ -624,7 +643,7 @@ class Round {
     } else if (p && p.kind === 'qianggang') {
       const cand = p.candidates.find((c) => c.seat === seat);
       if (cand && !p.replies.has(seat)) {
-        if (this.humanStillDeciding(p) && this.seats[seat] && this.seats[seat].bot && !smart) {
+        if (this.humanStillDeciding(p) && this.automatedSeat(seat) && !smart) {
           return this.respond(seat, 'pass');
         }
         return this.respond(seat, cand.hu ? 'hu' : 'pass');
@@ -639,16 +658,103 @@ class Round {
     }
     const drawn = this.drawn[seat];
     const loose = this.looseTiles(seat);
-    const dumpJoker = !!(this.seats[seat] && this.seats[seat].bot)
+    const dumpJoker = this.automatedSeat(seat)
       && loose.includes(this.laizi)
-      // 牌墙空时甩癞子会被 discard 拒绝；有普通牌就先打普通牌。
-      && (this.wall.remain() > 0 || loose.every((tile) => tile === this.laizi));
+      // 牌墙空时只放行终局的“手里刚好两张癞子”；否则先打普通牌。
+      && (this.wall.remain() > 0
+        || (loose.length === 2 && loose.every((tile) => tile === this.laizi)));
     const card = dumpJoker
       ? this.laizi
       : (drawn != null && drawn !== this.laizi)
         ? drawn
         : (this.hands[seat].find((c) => c !== this.laizi) || this.hands[seat][0] || drawn);
     if (card != null) this.discard(seat, card);
+  }
+
+  /**
+   * 立即发起 Jev 决策，但不在 Promise 返回时直接落子。Table 会在随机表现时间
+   * 到期后调用 applyPreparedAutoPlayJev；若届时请求未完成，则改用本地策略。
+   */
+  prepareAutoPlayJev(seat, jevBot) {
+    if (this.over || !this.smartBot(seat, 'jev') || !jevBot) return null;
+    const pending = this.pending;
+    const turn = this.turn;
+    const handSignature = this.looseTiles(seat).slice().sort((a, b) => a - b).join(',');
+    const prepared = { seat, pending, turn, handSignature, kind: '', promise: null };
+
+    if (pending && pending.kind === 'self' && pending.seat === seat) {
+      prepared.kind = 'response';
+      if (pending.hu) prepared.promise = Promise.resolve({ op: 'hu', data: {} });
+      else if ((pending.gang || []).includes(this.pizi)) {
+        prepared.promise = Promise.resolve({ op: 'gang', data: { card: this.pizi } });
+      }
+      else {
+      const fallback = mahjongBot.chooseSelfAction(this, seat, pending);
+        prepared.promise = jevBot.chooseSelfAction(this, seat, pending, fallback);
+      }
+      return prepared;
+    }
+
+    if (pending && pending.kind === 'discard') {
+      const candidate = pending.candidates.find((item) => item.seat === seat);
+      if (!candidate || pending.replies.has(seat)) return null;
+      prepared.kind = 'response';
+      if (candidate.ops.hu) prepared.promise = Promise.resolve({ op: 'hu', data: {} });
+      else if (candidate.ops.gang) {
+        prepared.promise = Promise.resolve({ op: 'gang', data: { card: pending.card } });
+      }
+      else {
+        const fallback = mahjongBot.chooseDiscardResponse(this, seat, pending, candidate);
+        prepared.promise = jevBot.chooseDiscardResponse(this, seat, pending, candidate, fallback);
+      }
+      return prepared;
+    }
+
+    if (pending && pending.kind === 'qianggang') {
+      const candidate = pending.candidates.find((item) => item.seat === seat);
+      if (candidate && !pending.replies.has(seat)) {
+        prepared.kind = 'response';
+        prepared.promise = Promise.resolve({ op: candidate.hu ? 'hu' : 'pass', data: {} });
+        return prepared;
+      }
+      return null;
+    }
+
+    if (this.turn !== seat || (pending && !(pending.kind === 'self' && pending.seat === seat))) return null;
+    const rankedOptions = mahjongBot.rankDiscardOptions(this, seat, { limit: 4 });
+    const fallbackCard = rankedOptions[0] && rankedOptions[0].card;
+    if (fallbackCard == null) return null;
+    prepared.kind = 'discard';
+    prepared.promise = jevBot.chooseDiscard(this, seat, fallbackCard, rankedOptions);
+    return prepared;
+  }
+
+  applyPreparedAutoPlayJev(prepared, decision) {
+    if (!prepared || prepared.seat == null || this.over) return false;
+    const seat = prepared.seat;
+    const stillCurrent = this.automatedSeat(seat)
+      && this.pending === prepared.pending
+      && this.turn === prepared.turn
+      && this.looseTiles(seat).slice().sort((a, b) => a - b).join(',') === prepared.handSignature;
+    if (!stillCurrent) return false;
+    if (prepared.kind === 'response') {
+      if (prepared.pending && prepared.pending.replies && prepared.pending.replies.has(seat)) return false;
+      this.respond(seat, decision.op, decision.data || {});
+      return true;
+    }
+    if (prepared.kind === 'discard' && this.looseTiles(seat).includes(decision)) {
+      this.discard(seat, decision);
+      return true;
+    }
+    return false;
+  }
+
+  /** 保留直接调用入口，供测试和其他服务端调用者使用。 */
+  async autoPlayJev(seat, jevBot) {
+    const prepared = this.prepareAutoPlayJev(seat, jevBot);
+    if (!prepared) return this.autoPlay(seat);
+    const decision = await prepared.promise;
+    return this.applyPreparedAutoPlayJev(prepared, decision);
   }
 
   /**
@@ -659,10 +765,14 @@ class Round {
     const tiles = this.looseTiles(seat);
     const hu = allowHu && this.canHu(seat);
     const lz = this.jokerFor(seat);
-    const gang = [
-      ...mahjong.anGangCards(tiles, lz).filter((c) => c !== this.pizi && c !== this.laizi),
-      ...mahjong.buGangCards(tiles, this.melds[seat], lz).filter((c) => c !== this.laizi),
-    ];
+    // 普通暗杠和补杠必须有牌可以补；朝天笑不补牌，牌墙摸完后仍可以杠。
+    const gang = [];
+    if (this.wall.remain() > 0) {
+      gang.push(
+        ...mahjong.anGangCards(tiles, lz).filter((c) => c !== this.pizi && c !== this.laizi),
+        ...mahjong.buGangCards(tiles, this.melds[seat], lz).filter((c) => c !== this.laizi),
+      );
+    }
     // 皮子三张就能杠，别跟普通暗杠抢同一张
     if (mahjong.canPiziGang(tiles, this.pizi)) gang.push(this.pizi);
     // 报清一色：开了这个玩法、还没报过，而且手上确实只有一门
@@ -699,8 +809,9 @@ class Round {
     // 拦的是牌墙空了还甩：`canPut` 只在 `paiDunRemain()<=0` 时进来，
     // 手里还有别的牌就不让打，免得最后一张把癞子扔了。
     if (card === this.laizi && this.wall.remain() <= 0) {
-      const allLaizi = this.looseTiles(seat).every((t) => t === this.laizi);
-      if (!allLaizi) return '牌墙空了，癞子不能打';
+      const loose = this.looseTiles(seat);
+      const lastTwoLaizi = loose.length === 2 && loose.every((t) => t === this.laizi);
+      if (!lastTwoLaizi) return '牌墙空了，癞子不能打';
     }
 
     // 打的可能是刚摸的那张，也可能是手里原有的（那就把摸的那张并进手牌）。
@@ -750,7 +861,8 @@ class Round {
     const candidates = [];
     for (let s = 0; s < this.n; s++) {
       if (s === from) continue;
-      const gang = mahjong.canMingGang(this.hands[s], card, this.jokerFor(s), this.pizi);
+      const gang = (this.wall.remain() > 0 || card === this.pizi)
+        && mahjong.canMingGang(this.hands[s], card, this.jokerFor(s), this.pizi);
       const ops = {
         hu: this.discardHu(s, card, from),
         // 土豪必杠癞子当普通牌，可以碰杠；另外两种癞子不参与碰杠。
@@ -767,6 +879,23 @@ class Round {
     if (candidates.length === 0) {
       this.clearHot();
       return this.draw(this.next(from));
+    }
+
+    // 只许自摸时，出牌后下家没有立即摸牌，整桌都能无歧义地
+    // 解读为“有人能碰/杠”。因此所有机器人都应记住这个公开信号，
+    // 但被询问碰/杠的机器人已能从自己手牌得到更准确的数量，不再重复推断。
+    // 允许点炮的玩法中还可能是别家在考虑胡，不能借服务端暗手误推。
+    const timingInferenceEnabled = this.config.玩法 === '土豪必杠' && this.config.只许自摸;
+    if (timingInferenceEnabled) {
+      const decidingSeats = new Set(candidates
+        .filter((candidate) => candidate.ops.peng || candidate.ops.gang)
+        .map((candidate) => candidate.seat));
+      for (let observer = 0; observer < this.n; observer++) {
+        const member = this.seats[observer];
+        if (member && this.automatedSeat(observer) && !decidingSeats.has(observer)) {
+          mahjongBot.noteDiscardWaitInference(this, observer, card);
+        }
+      }
     }
 
     this.pending = { kind: 'discard', from, card, candidates, replies: new Map() };
@@ -800,6 +929,7 @@ class Round {
         return this.win(seat, this.drawn[seat], null);
       }
       if (op === 'gang') {
+        if (this.wall.remain() <= 0 && data.card !== this.pizi) return '牌墙空了，不能杠';
         if (!p.gang.includes(data.card)) return `${data.card} 杠不了`;
         return this.selfGang(seat, data.card);
       }
@@ -822,7 +952,7 @@ class Round {
         for (const c of p.candidates) {
           if (p.replies.has(c.seat)) continue;
           const m = this.seats[c.seat];
-          if (m && m.bot && !this.smartBot(c.seat)) p.replies.set(c.seat, 'pass');
+          if (m && this.automatedSeat(c.seat) && !this.smartBot(c.seat)) p.replies.set(c.seat, 'pass');
         }
       }
       if (!this.allHuAnswered(p)) return null;
@@ -833,6 +963,9 @@ class Round {
     if (!cand) return '不是在等你';
     if (op === 'hu' && !cand.ops.hu) return '你这牌胡不了';
     if (op === 'peng' && !cand.ops.peng) return '碰不了';
+    if (op === 'gang' && this.wall.remain() <= 0 && p.card !== this.pizi) {
+      return '牌墙空了，不能杠';
+    }
     if (op === 'gang' && !cand.ops.gang) return '杠不了';
     p.replies.set(seat, { op, data });
     this.passBotsOnDiscard(p);
@@ -845,7 +978,7 @@ class Round {
   humanStillDeciding(p) {
     return !!(p && p.candidates && p.candidates.some((c) => {
       const m = this.seats[c.seat];
-      return m && !m.bot && !m.view && !p.replies.has(c.seat);
+      return m && !this.automatedSeat(c.seat) && !m.view && !p.replies.has(c.seat);
     }));
   }
 
@@ -858,7 +991,9 @@ class Round {
     for (const c of p.candidates) {
       if (p.replies.has(c.seat)) continue;
       const m = this.seats[c.seat];
-      if (m && m.bot && !this.smartBot(c.seat)) p.replies.set(c.seat, { op: 'pass', data: {} });
+      if (m && this.automatedSeat(c.seat) && !this.smartBot(c.seat)) {
+        p.replies.set(c.seat, { op: 'pass', data: {} });
+      }
     }
   }
 
@@ -1004,6 +1139,7 @@ class Round {
 
   takeGang(seat, card, from) {
     const isPizi = card === this.pizi;
+    if (this.wall.remain() <= 0 && !isPizi) return '牌墙空了，不能杠';
     const take = isPizi ? 2 : 3;
     if (!this.remove(seat, card, take)) return '手里凑不够杠';
     this.clearPassed(seat);
@@ -1060,11 +1196,12 @@ class Round {
 
   /** 把杠落到面子上并通知客户端，先不补牌 */
   applySelfGang(seat, card, isBu) {
+    const isPizi = !isBu && card === this.pizi;
+    if (this.wall.remain() <= 0 && !isPizi) return '牌墙空了，不能杠';
     this.hands[seat] = this.looseTiles(seat);
     this.drawn[seat] = null;
 
     if (!isBu && card === this.laizi) return '癞子不能暗杠';
-    const isPizi = !isBu && card === this.pizi;
     const take = isBu ? 1 : isPizi ? 3 : 4;
     if (!this.remove(seat, card, take)) return '凑不够杠';
 
@@ -1314,6 +1451,7 @@ class Round {
       hotSeat: this.hotSeat,
       passPeng: (this.passPeng || []).map((s) => [...(s || [])]),
       passHu: this.passHu,
+      inferredVisible: (this.inferredVisible || []).map((memory) => [...(memory || new Map()).entries()]),
       stat: this.stat,
       tape: this.tape ? this.tape.dump() : null,
     };
@@ -1352,6 +1490,8 @@ class Round {
     r.hotSeat = data.hotSeat == null ? -1 : data.hotSeat;
     r.passPeng = (data.passPeng || []).map((arr) => new Set(arr));
     r.passHu = data.passHu || new Array(r.n).fill(false);
+    r.inferredVisible = (data.inferredVisible || Array.from({ length: r.n }, () => []))
+      .map((entries) => new Map(entries));
     r.stat = data.stat;
     r.tape = data.tape ? new Tape(data.tape) : null;
     return r;
