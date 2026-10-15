@@ -1,6 +1,9 @@
 {
   "name": "gandengyan-online",
   "private": true,
+  "workspaces": [
+    "cocos-client"
+  ],
   "type": "commonjs",
   "engines": {
     "node": ">=22"
@@ -11,9 +14,14 @@
     "upstream:check": "node tools/check-upstream-version.js",
     "apk:install": "node tools/build-install-apk.js",
     "cocos:apk": "node tools/build-cocos-source-apk.js",
+    "cocos:debug-apk": "npm run android:build --workspace=qianjiang-gandengyan-cocos-client",
+    "cocos:assets:sync": "npm run assets:sync-release --workspace=qianjiang-gandengyan-cocos-client",
+    "cocos:web:build": "npm run web:build --workspace=qianjiang-gandengyan-cocos-client",
+    "cocos:web:serve": "npm run web:serve --workspace=qianjiang-gandengyan-cocos-client",
+    "cocos:web:start": "npm run web:start --workspace=qianjiang-gandengyan-cocos-client",
     "ipa:build": "node tools/build-ios-ipa.js",
     "hot-update:publish": "node tools/publish-hot-update.js",
-    "test": "node tools/test-client-release.js && node tools/test-bot-settings.js && node tools/test-draw-plan.js && node tools/test-number-allocation.js && node tools/test-cards.js && node tools/test-clubs.js && node tools/test-club-pregame-exit.js && node tools/test-club-access.js && node tools/test-finished-room.js && node tools/test-store.js && node tools/test-agent-applications.js && node tools/test-hot-update.js && node tools/test-legal.js && node tools/test-client-room-options.js && node tools/test-http.js && node tools/test-admin.js && node tools/test-ip-geo.js && node tools/test-messages.js && node tools/test-wechat.js && node tools/test-account-merge.js && node tools/test-guest-login.js && node tools/test-identity.js && node tools/test-playback.js && node tools/test-records.js && node tools/test-watch.js && node tools/test-net.js && node tools/test-trustee.js && node tools/test-round.js && node tools/test-qjshz.js && node tools/rulestest.js"
+    "test": "node tools/test-client-release.js && node tools/test-client-wsk-last-put.js && node tools/test-client-image-loader.js && node tools/test-jev-bot.js && node tools/test-bot-settings.js && node tools/test-draw-plan.js && node tools/test-number-allocation.js && node tools/test-cards.js && node tools/test-clubs.js && node tools/test-club-pregame-exit.js && node tools/test-club-access.js && node tools/test-xi-room-access.js && node tools/test-finished-room.js && node tools/test-store.js && node tools/test-agent-applications.js && node tools/test-hot-update.js && node tools/test-legal.js && node tools/test-client-room-options.js && node tools/test-http.js && node tools/test-admin.js && node tools/test-ip-geo.js && node tools/test-messages.js && node tools/test-support-chat.js && node tools/test-wechat.js && node tools/test-account-merge.js && node tools/test-guest-login.js && node tools/test-identity.js && node tools/test-playback.js && node tools/test-records.js && node tools/test-watch.js && node tools/test-net.js && node tools/test-trustee.js && node tools/test-round.js && node tools/test-qjshz.js && node tools/rulestest.js"
   },
   "devDependencies": {
     "rollup": "^4.0.0"

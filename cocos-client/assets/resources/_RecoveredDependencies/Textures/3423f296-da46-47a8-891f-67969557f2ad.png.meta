@@ -1,0 +1,31 @@
+{
+  "ver": "2.2.0",
+  "uuid": "3423f296-da46-47a8-891f-67969557f2ad",
+  "type": "texture",
+  "wrapMode": "clamp",
+  "filterMode": "bilinear",
+  "premultiplyAlpha": false,
+  "subMetas": {
+    "firend_card_show_bg": {
+      "ver": "1.0.3",
+      "uuid": "996cef6c-8802-4615-a64d-7ba3612fffde",
+      "rawTextureUuid": "3423f296-da46-47a8-891f-67969557f2ad",
+      "trimType": "custom",
+      "trimThreshold": 1,
+      "rotated": false,
+      "offsetX": 0,
+      "offsetY": 0,
+      "trimX": 0,
+      "trimY": 0,
+      "width": 59,
+      "height": 72,
+      "rawWidth": 59,
+      "rawHeight": 72,
+      "borderTop": 0,
+      "borderBottom": 0,
+      "borderLeft": 0,
+      "borderRight": 0,
+      "subMetas": {}
+    }
+  }
+}

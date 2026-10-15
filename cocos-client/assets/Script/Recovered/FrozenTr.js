@@ -1,0 +1,79 @@
+// Recovered from the production CommonJS bundle.
+var e = require, t = module, o = exports;
+"use strict";
+cc._RF.push(t, "7d8ed60UUtKeK5/kImQv5j8", "FrozenTr");
+var n = this && this.__extends || function() {
+var e = function(t, o) {
+return (e = Object.setPrototypeOf || {
+__proto__: []
+} instanceof Array && function(e, t) {
+e.__proto__ = t;
+} || function(e, t) {
+for (var o in t) t.hasOwnProperty(o) && (e[o] = t[o]);
+})(t, o);
+};
+return function(t, o) {
+e(t, o);
+function n() {
+this.constructor = t;
+}
+t.prototype = null === o ? Object.create(o) : (n.prototype = o.prototype, new n());
+};
+}(), r = this && this.__decorate || function(e, t, o, n) {
+var r, i = arguments.length, a = i < 3 ? t : null === n ? n = Object.getOwnPropertyDescriptor(t, o) : n;
+if ("object" == typeof Reflect && "function" == typeof Reflect.decorate) a = Reflect.decorate(e, t, o, n); else for (var s = e.length - 1; s >= 0; s--) (r = e[s]) && (a = (i < 3 ? r(a) : i > 3 ? r(t, o, a) : r(t, o)) || a);
+return i > 3 && a && Object.defineProperty(t, o, a), a;
+};
+Object.defineProperty(o, "__esModule", {
+value: !0
+});
+var i = require("./Image"), a = require("./ClubMsg"), s = require("./gContext"), l = require("./SoundUtils"), c = require("./ClubListData"), u = require("./EventKeys"), d = require("./StringUtils"), p = require("./UserData"), f = cc._decorator, h = f.ccclass, m = f.property, y = function(e) {
+n(t, e);
+function t() {
+var t = null !== e && e.apply(this, arguments) || this;
+t._uid = 0;
+t.userId = 0;
+t.headIm = null;
+t.nameLabel = null;
+t.idLabel = null;
+t.identLabel = null;
+t.freezeLabel = null;
+t.belongsLabel = null;
+t.btnNode = null;
+return t;
+}
+t.prototype.setData = function(e, t, o) {
+this._uid = e;
+this.userId = t.userid;
+this.nameLabel.string = d.default.clip(t.nickname);
+this.idLabel.string = t.uid + "";
+this.identLabel.string = t.degressStr();
+this.freezeLabel.string = t.freezeStr();
+this.belongsLabel.string = "部长";
+this.headIm.url = t.avatarUrl;
+o.permissionMaster() && t.uid !== p.default.uid ? this.btnNode.active = !0 : this.btnNode.active = !t.permissionAdmin();
+};
+t.prototype.start = function() {};
+t.prototype.onClickRemoveAbnormal = function() {
+var e = this;
+l.default.clickBtn();
+s.default.msgBox.show("确定解冻该玩家吗？", function() {
+a.default.clubMemberFreeze(c.default.focus, e.userId, 0, function(e, t) {
+if (t) s.default.uiHelper.showTip("获取数据失败～"); else if (0 === e.res.error) {
+s.default.uiHelper.showTip("解除成功");
+s.default.eventUtils.emit(u.default.data_club_member_manager_update);
+} else s.default.uiHelper.showTip(e.res.what);
+});
+});
+};
+r([ m(i.default) ], t.prototype, "headIm", void 0);
+r([ m(cc.Label) ], t.prototype, "nameLabel", void 0);
+r([ m(cc.Label) ], t.prototype, "idLabel", void 0);
+r([ m(cc.Label) ], t.prototype, "identLabel", void 0);
+r([ m(cc.Label) ], t.prototype, "freezeLabel", void 0);
+r([ m(cc.Label) ], t.prototype, "belongsLabel", void 0);
+r([ m(cc.Node) ], t.prototype, "btnNode", void 0);
+return t = r([ h ], t);
+}(cc.Component);
+o.default = y;
+cc._RF.pop();

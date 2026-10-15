@@ -1,0 +1,14 @@
+{
+  "name": "qianjiang-gandengyan-cocos-client",
+  "private": true,
+  "scripts": {
+    "assets:sync-release": "node tools/sync-release-assets.js",
+    "android:build": "node tools/build-android.js",
+    "web:build": "node tools/build-web.js",
+    "web:serve": "node tools/serve-web.js",
+    "web:start": "npm run web:build && npm run web:serve"
+  },
+  "dependencies": {
+    "long": "4.0.0"
+  }
+}

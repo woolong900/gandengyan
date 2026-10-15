@@ -7,3 +7,12 @@ tools/.cache/
 dist/
 originals/**/*.ipa
 .DS_Store
+ios-admin/SecretWeapon/GeneratedSecrets.swift
+ios-admin/.mobile-token
+ios-admin/build/
+ios-admin/DerivedData*/
+ios-admin/SwiftModuleCache/
+cocos-client/library/
+cocos-client/local/
+cocos-client/temp/
+cocos-client/build/

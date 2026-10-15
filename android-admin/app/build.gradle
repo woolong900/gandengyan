@@ -1,0 +1,44 @@
+plugins {
+    id "com.android.application"
+}
+
+def tokenFile = rootProject.file("../ios-admin/.mobile-token")
+if (!tokenFile.exists()) {
+    throw new GradleException("Missing scoped admin token: ${tokenFile}")
+}
+def mobileToken = tokenFile.getText("UTF-8").trim()
+def quotedToken = "\"" + mobileToken.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
+android {
+    namespace "top.gandengyan.secretweapon"
+    compileSdk 34
+    buildToolsVersion "34.0.0"
+
+    defaultConfig {
+        applicationId "top.gandengyan.secretweapon"
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+        buildConfigField "String", "ADMIN_TOKEN", quotedToken
+        buildConfigField "String", "BASE_URL", '"https://gandengyan.top"'
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    buildTypes {
+        debug {
+            minifyEnabled false
+        }
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

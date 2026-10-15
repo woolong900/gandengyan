@@ -1,0 +1,74 @@
+{
+  "__type__": "cc.AnimationClip",
+  "_name": "fanpai",
+  "_duration": 0.25,
+  "sample": 20,
+  "curveData": {
+    "comps": {
+      "cc.Sprite": {
+        "spriteFrame": [
+          {
+            "frame": 0,
+            "value": {
+              "__uuid__": "bd12867d-d942-4a82-ba6e-ba150b935650"
+            }
+          },
+          {
+            "frame": 0.05,
+            "value": {
+              "__uuid__": "1c915be7-76ed-4745-8a56-d278d119bad2"
+            }
+          },
+          {
+            "frame": 0.1,
+            "value": {
+              "__uuid__": "c84c0d46-ca16-4aa9-a2ab-1152fe701779"
+            }
+          },
+          {
+            "frame": 0.15,
+            "value": {
+              "__uuid__": "b10b2549-2c17-4758-af8d-2d1f90fa4746"
+            }
+          },
+          {
+            "frame": 0.2,
+            "value": {
+              "__uuid__": "97aed4e6-973b-44b9-b40d-cc44718f28ec"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "events": [
+    {
+      "frame": 0,
+      "func": "triggerAnimationEvent",
+      "params": [
+        0
+      ]
+    },
+    {
+      "frame": 0.1,
+      "func": "triggerAnimationEvent",
+      "params": [
+        2
+      ]
+    },
+    {
+      "frame": 0.15,
+      "func": "triggerAnimationEvent",
+      "params": [
+        3
+      ]
+    },
+    {
+      "frame": 0.2,
+      "func": "triggerAnimationEvent",
+      "params": [
+        4
+      ]
+    }
+  ]
+}

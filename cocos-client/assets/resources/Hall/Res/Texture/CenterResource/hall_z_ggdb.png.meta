@@ -1,0 +1,31 @@
+{
+  "ver": "2.2.0",
+  "uuid": "c9d5a3c8-e88c-42de-bb75-b032b7be847f",
+  "subMetas": {
+    "hall_z_ggdb": {
+      "ver": "1.0.3",
+      "uuid": "f89f726c-2faf-4da7-80cd-8d1219469cd0",
+      "rawTextureUuid": "c9d5a3c8-e88c-42de-bb75-b032b7be847f",
+      "trimType": "custom",
+      "trimThreshold": 1,
+      "rotated": false,
+      "offsetX": 0,
+      "offsetY": 0,
+      "trimX": 0,
+      "trimY": 0,
+      "width": 309,
+      "height": 444,
+      "rawWidth": 309,
+      "rawHeight": 444,
+      "borderTop": 0,
+      "borderBottom": 0,
+      "borderLeft": 0,
+      "borderRight": 0,
+      "subMetas": {}
+    }
+  },
+  "type": "texture",
+  "wrapMode": "clamp",
+  "filterMode": "bilinear",
+  "premultiplyAlpha": false
+}

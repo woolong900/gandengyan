@@ -1,0 +1,31 @@
+{
+  "ver": "2.2.0",
+  "uuid": "3133a78d-1819-4111-97bc-43b228228aaf",
+  "subMetas": {
+    "logo_xianliao": {
+      "ver": "1.0.3",
+      "uuid": "5fa5f43a-2638-4b7f-9d91-9eca233d31c8",
+      "rawTextureUuid": "3133a78d-1819-4111-97bc-43b228228aaf",
+      "trimType": "custom",
+      "trimThreshold": 1,
+      "rotated": false,
+      "offsetX": 0,
+      "offsetY": 0,
+      "trimX": 0,
+      "trimY": 0,
+      "width": 97,
+      "height": 97,
+      "rawWidth": 97,
+      "rawHeight": 97,
+      "borderTop": 0,
+      "borderBottom": 0,
+      "borderLeft": 0,
+      "borderRight": 0,
+      "subMetas": {}
+    }
+  },
+  "type": "texture",
+  "wrapMode": "clamp",
+  "filterMode": "bilinear",
+  "premultiplyAlpha": false
+}

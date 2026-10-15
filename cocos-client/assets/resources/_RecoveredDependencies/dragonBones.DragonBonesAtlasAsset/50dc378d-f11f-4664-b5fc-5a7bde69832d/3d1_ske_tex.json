@@ -1,0 +1,29 @@
+{
+  "width": 256,
+  "SubTexture": [
+    {
+      "width": 81,
+      "y": 1,
+      "height": 76,
+      "name": "3",
+      "x": 85
+    },
+    {
+      "width": 82,
+      "y": 1,
+      "height": 86,
+      "name": "d",
+      "x": 1
+    },
+    {
+      "width": 80,
+      "y": 79,
+      "height": 31,
+      "name": "1",
+      "x": 85
+    }
+  ],
+  "height": 128,
+  "name": "3d1_ske",
+  "imagePath": "3d1_ske_tex.png"
+}

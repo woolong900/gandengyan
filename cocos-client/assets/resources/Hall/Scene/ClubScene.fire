@@ -1,0 +1,131 @@
+[
+  {
+    "__type__": "cc.SceneAsset",
+    "_name": "ClubScene",
+    "scene": {
+      "__id__": 1
+    },
+    "asyncLoadAssets": null
+  },
+  {
+    "__type__": "cc.Scene",
+    "_name": "New Node",
+    "_children": [
+      {
+        "__id__": 2
+      }
+    ],
+    "_active": false,
+    "_anchorPoint": {
+      "__type__": "cc.Vec2"
+    },
+    "autoReleaseAssets": false
+  },
+  {
+    "__type__": "cc.Node",
+    "_name": "Canvas",
+    "_parent": {
+      "__id__": 1
+    },
+    "_children": [
+      {
+        "__id__": 3
+      },
+      {
+        "__id__": 4
+      }
+    ],
+    "_level": 1,
+    "_components": [
+      {
+        "__type__": "cc.Canvas",
+        "node": {
+          "__id__": 2
+        },
+        "_designResolution": {
+          "__type__": "cc.Size",
+          "width": 1280,
+          "height": 720
+        }
+      },
+      {
+        "__type__": "8e6eaF3PVlG352fb02b39g4",
+        "node": {
+          "__id__": 2
+        }
+      },
+      {
+        "__type__": "13ebeBgljBHXLpdrUJAHAwp",
+        "node": {
+          "__id__": 2
+        }
+      },
+      {
+        "__type__": "cc.Widget",
+        "node": {
+          "__id__": 2
+        },
+        "_alignFlags": 45,
+        "_left": 0,
+        "_right": 0,
+        "_top": 0,
+        "_bottom": 0,
+        "_originalWidth": 1280,
+        "_originalHeight": 720
+      }
+    ],
+    "_contentSize": {
+      "__type__": "cc.Size",
+      "width": 1280,
+      "height": 720
+    },
+    "_position": {
+      "__type__": "cc.Vec3",
+      "x": 640,
+      "y": 360
+    },
+    "_id": "1er6xGRyNLab7iwS0M9R/5"
+  },
+  {
+    "__type__": "cc.Node",
+    "_name": "Main Camera",
+    "_parent": {
+      "__id__": 2
+    },
+    "_level": 1,
+    "_components": [
+      {
+        "__type__": "cc.Camera",
+        "node": {
+          "__id__": 3
+        },
+        "_cullingMask": -11,
+        "_clearFlags": 7,
+        "_depth": -1
+      }
+    ],
+    "_position": {
+      "__type__": "cc.Vec3",
+      "z": 523.9453692895854
+    }
+  },
+  {
+    "__type__": "cc.Node",
+    "_parent": {
+      "__id__": 2
+    },
+    "_id": "e2lczyHlpAdowHtH8Z4l7i",
+    "_prefab": {
+      "__type__": "cc.PrefabInfo",
+      "root": {
+        "__id__": 4
+      },
+      "asset": {
+        "__uuid__": "1ad06b74-4cae-4aeb-a880-9211079b6757"
+      },
+      "fileId": "b5W3CJHkpIhrAcV5/7lz9L",
+      "sync": true
+    },
+    "_name": "ClubLayer"
+  }
+]

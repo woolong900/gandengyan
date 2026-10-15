@@ -1,0 +1,25 @@
+{
+  "cocosCreatorVersion": "2.1.3",
+  "sourceApk": "/Users/panlei/干瞪眼联机/dist/qianjiang-gandengyan-20260913-170046.apk",
+  "launchScene": "db://assets/resources/Hall/Scene/LoginScene.fire",
+  "scenes": 9,
+  "serializedImportFiles": 5526,
+  "assetRecords": 3884,
+  "recoveredAssets": 2602,
+  "missingAssets": 0,
+  "recoveredDependencies": 397,
+  "recoveredDependencyTypes": {
+    "cc.Texture2D": 272,
+    "dragonBones.DragonBonesAsset": 32,
+    "cc.Prefab": 34,
+    "dragonBones.DragonBonesAtlasAsset": 32,
+    "cc.EffectAsset": 7,
+    "sp.SkeletonData": 8,
+    "cc.Material": 7,
+    "cc.AnimationClip": 5
+  },
+  "recoveredSpriteFrames": 2527,
+  "missingSpriteTextures": 0,
+  "scriptModules": 669,
+  "unresolvedRequires": 0
+}

@@ -1,0 +1,31 @@
+{
+  "ver": "2.2.0",
+  "uuid": "3904d814-71ef-3c68-154c-bca32043438a",
+  "type": "texture",
+  "wrapMode": "clamp",
+  "filterMode": "bilinear",
+  "premultiplyAlpha": false,
+  "subMetas": {
+    "btn_invite_club_friend": {
+      "ver": "1.0.3",
+      "uuid": "ffe18a27-a364-4222-a6de-70537e914dd8",
+      "rawTextureUuid": "3904d814-71ef-3c68-154c-bca32043438a",
+      "trimType": "custom",
+      "trimThreshold": 1,
+      "rotated": false,
+      "offsetX": 0,
+      "offsetY": -1.5,
+      "trimX": 0,
+      "trimY": 3,
+      "width": 259,
+      "height": 86,
+      "rawWidth": 259,
+      "rawHeight": 89,
+      "borderTop": 0,
+      "borderBottom": 0,
+      "borderLeft": 0,
+      "borderRight": 0,
+      "subMetas": {}
+    }
+  }
+}

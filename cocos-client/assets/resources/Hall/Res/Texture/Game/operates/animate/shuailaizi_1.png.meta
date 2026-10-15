@@ -1,0 +1,31 @@
+{
+  "ver": "2.2.0",
+  "uuid": "2cb802e2-5147-42b3-a0b8-0892b6fa2695",
+  "subMetas": {
+    "shuailaizi_1": {
+      "ver": "1.0.3",
+      "uuid": "bfecfc44-6a5d-442d-85dc-052f2f239817",
+      "rawTextureUuid": "2cb802e2-5147-42b3-a0b8-0892b6fa2695",
+      "trimType": "custom",
+      "trimThreshold": 1,
+      "rotated": false,
+      "offsetX": -11.5,
+      "offsetY": 2.5,
+      "trimX": 38,
+      "trimY": 6,
+      "width": 381,
+      "height": 158,
+      "rawWidth": 480,
+      "rawHeight": 175,
+      "borderTop": 0,
+      "borderBottom": 0,
+      "borderLeft": 0,
+      "borderRight": 0,
+      "subMetas": {}
+    }
+  },
+  "type": "texture",
+  "wrapMode": "clamp",
+  "filterMode": "bilinear",
+  "premultiplyAlpha": false
+}

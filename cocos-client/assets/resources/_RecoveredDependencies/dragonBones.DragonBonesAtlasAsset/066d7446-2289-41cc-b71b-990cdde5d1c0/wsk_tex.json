@@ -1,0 +1,125 @@
+{
+  "SubTexture": [
+    {
+      "frameX": -79,
+      "frameHeight": 279,
+      "y": 765,
+      "frameY": -61,
+      "frameWidth": 328,
+      "width": 170,
+      "height": 148,
+      "name": "510kzhadan_03",
+      "x": 171
+    },
+    {
+      "frameX": -89,
+      "frameHeight": 279,
+      "y": 915,
+      "frameY": -37,
+      "frameWidth": 328,
+      "width": 147,
+      "height": 103,
+      "name": "510kzhadan_01",
+      "x": 171
+    },
+    {
+      "frameX": -17,
+      "frameHeight": 279,
+      "y": 520,
+      "frameY": -12,
+      "frameWidth": 328,
+      "width": 295,
+      "height": 243,
+      "name": "510kzhadan_07",
+      "x": 1
+    },
+    {
+      "frameX": -1,
+      "frameHeight": 279,
+      "y": 1,
+      "frameY": -1,
+      "frameWidth": 328,
+      "width": 327,
+      "height": 278,
+      "name": "510kzhadan_09",
+      "x": 660
+    },
+    {
+      "frameX": -4,
+      "frameHeight": 279,
+      "y": 281,
+      "frameY": -3,
+      "frameWidth": 328,
+      "width": 320,
+      "height": 269,
+      "name": "510kzhadan_10",
+      "x": 331
+    },
+    {
+      "frameX": -63,
+      "frameHeight": 279,
+      "y": 765,
+      "frameY": -50,
+      "frameWidth": 328,
+      "width": 168,
+      "height": 169,
+      "name": "510kzhadan_05",
+      "x": 1
+    },
+    {
+      "width": 328,
+      "y": 1,
+      "height": 279,
+      "name": "tm",
+      "x": 1
+    },
+    {
+      "frameX": -92,
+      "frameHeight": 279,
+      "y": 915,
+      "frameY": -69,
+      "frameWidth": 328,
+      "width": 138,
+      "height": 100,
+      "name": "510kzhadan_02",
+      "x": 320
+    },
+    {
+      "frameX": -1,
+      "frameHeight": 279,
+      "y": 1,
+      "frameY": -1,
+      "frameWidth": 328,
+      "width": 327,
+      "height": 278,
+      "name": "510kzhadan_08",
+      "x": 331
+    },
+    {
+      "frameX": -1,
+      "frameHeight": 279,
+      "y": 282,
+      "frameY": -2,
+      "frameWidth": 328,
+      "width": 327,
+      "height": 236,
+      "name": "510kzhadan_06",
+      "x": 1
+    },
+    {
+      "frameX": -79,
+      "frameHeight": 279,
+      "y": 552,
+      "frameY": -57,
+      "frameWidth": 328,
+      "width": 136,
+      "height": 152,
+      "name": "510kzhadan_04",
+      "x": 298
+    }
+  ],
+  "width": 1024,
+  "height": 1024,
+  "name": "wsk",
+  "imagePath": "wsk_tex.png"
+}

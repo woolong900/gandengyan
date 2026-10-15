@@ -12,7 +12,7 @@ Environment=HOST=127.0.0.1
 Environment=PORT=8899
 Environment=QJQP_DB=/var/lib/qjqp/state.sqlite
 Environment=QJQP_STATE=/var/lib/qjqp/state.json
-Environment=QJQP_PUBLIC_BASE_URL=https://gmhiu.com
+Environment=QJQP_PUBLIC_BASE_URL=https://gandengyan.top
 Environment=QJQP_LOAD_DEV_VARS=0
 Environment=QJQP_FILLBOTS=1
 ExecStart=/usr/bin/node /opt/qjqp/server/index.js

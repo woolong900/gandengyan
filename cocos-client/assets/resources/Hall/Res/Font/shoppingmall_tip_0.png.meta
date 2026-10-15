@@ -1,0 +1,31 @@
+{
+  "ver": "2.2.0",
+  "uuid": "0ba0c11f-ccb8-4e19-9766-cd74a01e55a0",
+  "subMetas": {
+    "shoppingmall_tip_0": {
+      "ver": "1.0.3",
+      "uuid": "1b0d3baa-1814-4bdb-8b7e-67bafe164897",
+      "rawTextureUuid": "0ba0c11f-ccb8-4e19-9766-cd74a01e55a0",
+      "trimType": "custom",
+      "trimThreshold": 1,
+      "rotated": false,
+      "offsetX": -7,
+      "offsetY": 90.5,
+      "trimX": 0,
+      "trimY": 0,
+      "width": 242,
+      "height": 75,
+      "rawWidth": 256,
+      "rawHeight": 256,
+      "borderTop": 0,
+      "borderBottom": 0,
+      "borderLeft": 0,
+      "borderRight": 0,
+      "subMetas": {}
+    }
+  },
+  "type": "texture",
+  "wrapMode": "clamp",
+  "filterMode": "bilinear",
+  "premultiplyAlpha": false
+}

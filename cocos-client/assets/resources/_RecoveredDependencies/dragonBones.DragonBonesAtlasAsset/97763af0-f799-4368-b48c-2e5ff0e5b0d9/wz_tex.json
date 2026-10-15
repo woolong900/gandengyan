@@ -1,0 +1,125 @@
+{
+  "SubTexture": [
+    {
+      "frameX": -1,
+      "frameHeight": 279,
+      "y": 243,
+      "frameY": -2,
+      "frameWidth": 328,
+      "width": 327,
+      "height": 238,
+      "name": "KingBomb_06",
+      "x": 331
+    },
+    {
+      "frameX": -43,
+      "frameHeight": 279,
+      "y": 704,
+      "frameY": -69,
+      "frameWidth": 328,
+      "width": 217,
+      "height": 172,
+      "name": "KingBomb_02",
+      "x": 1
+    },
+    {
+      "frameX": -1,
+      "frameHeight": 279,
+      "y": 1,
+      "frameY": -1,
+      "frameWidth": 328,
+      "width": 327,
+      "height": 240,
+      "name": "KingBomb_10",
+      "x": 331
+    },
+    {
+      "frameX": -18,
+      "frameHeight": 279,
+      "y": 243,
+      "frameY": -13,
+      "frameWidth": 328,
+      "width": 293,
+      "height": 227,
+      "name": "KingBomb_07",
+      "x": 660
+    },
+    {
+      "frameX": -1,
+      "frameHeight": 279,
+      "y": 1,
+      "frameY": -1,
+      "frameWidth": 328,
+      "width": 327,
+      "height": 240,
+      "name": "KingBomb_09",
+      "x": 660
+    },
+    {
+      "frameX": -43,
+      "frameHeight": 279,
+      "y": 483,
+      "frameY": -51,
+      "frameWidth": 328,
+      "width": 217,
+      "height": 190,
+      "name": "KingBomb_05",
+      "x": 329
+    },
+    {
+      "frameX": -43,
+      "frameHeight": 279,
+      "y": 522,
+      "frameY": -61,
+      "frameWidth": 328,
+      "width": 217,
+      "height": 180,
+      "name": "KingBomb_03",
+      "x": 1
+    },
+    {
+      "frameX": -43,
+      "frameHeight": 279,
+      "y": 675,
+      "frameY": -57,
+      "frameWidth": 328,
+      "width": 217,
+      "height": 184,
+      "name": "KingBomb_04",
+      "x": 329
+    },
+    {
+      "frameX": -44,
+      "frameHeight": 279,
+      "y": 472,
+      "frameY": -37,
+      "frameWidth": 328,
+      "width": 215,
+      "height": 203,
+      "name": "KingBomb_01",
+      "x": 660
+    },
+    {
+      "width": 328,
+      "y": 1,
+      "height": 279,
+      "name": "tm",
+      "x": 1
+    },
+    {
+      "frameX": -2,
+      "frameHeight": 279,
+      "y": 282,
+      "frameY": -2,
+      "frameWidth": 328,
+      "width": 326,
+      "height": 238,
+      "name": "KingBomb_08",
+      "x": 1
+    }
+  ],
+  "width": 1024,
+  "height": 1024,
+  "name": "wz",
+  "imagePath": "wz_tex.png"
+}

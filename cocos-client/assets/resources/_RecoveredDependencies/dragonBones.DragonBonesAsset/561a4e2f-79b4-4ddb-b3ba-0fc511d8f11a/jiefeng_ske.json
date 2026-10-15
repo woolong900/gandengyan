@@ -1,0 +1,232 @@
+{
+  "armature": [
+    {
+      "ik": [],
+      "aabb": {
+        "width": 0,
+        "y": 0,
+        "height": 0,
+        "x": 0
+      },
+      "defaultActions": [
+        {
+          "gotoAndPlay": "newAnimation"
+        }
+      ],
+      "skin": [
+        {
+          "name": "",
+          "slot": [
+            {
+              "display": [
+                {
+                  "path": "star",
+                  "type": "image",
+                  "name": "star",
+                  "transform": {}
+                }
+              ],
+              "name": "star"
+            },
+            {
+              "display": [
+                {
+                  "path": "jf",
+                  "type": "image",
+                  "name": "jf",
+                  "transform": {}
+                }
+              ],
+              "name": "jf"
+            }
+          ]
+        }
+      ],
+      "type": "MovieClip",
+      "frameRate": 24,
+      "bone": [
+        {
+          "name": "root",
+          "transform": {}
+        },
+        {
+          "transform": {},
+          "name": "jf",
+          "parent": "root"
+        },
+        {
+          "transform": {},
+          "name": "star",
+          "parent": "root"
+        }
+      ],
+      "slot": [
+        {
+          "displayIndex": -1,
+          "name": "jf",
+          "parent": "jf",
+          "color": {}
+        },
+        {
+          "z": 1,
+          "displayIndex": -1,
+          "name": "star",
+          "parent": "star",
+          "color": {}
+        }
+      ],
+      "animation": [
+        {
+          "bone": [
+            {
+              "frame": [
+                {
+                  "duration": 14,
+                  "transform": {}
+                }
+              ],
+              "name": "root"
+            },
+            {
+              "frame": [
+                {
+                  "tweenEasing": 0,
+                  "duration": 2,
+                  "transform": {
+                    "skY": -0.1961,
+                    "scX": 0.01,
+                    "scY": 0.01,
+                    "skX": -0.1961
+                  }
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 2,
+                  "transform": {
+                    "skY": -0.1961,
+                    "scX": 1.5,
+                    "scY": 1.5,
+                    "skX": -0.1961
+                  }
+                },
+                {
+                  "duration": 10,
+                  "transform": {
+                    "skY": -0.1961,
+                    "skX": -0.1961
+                  }
+                },
+                {
+                  "duration": 0,
+                  "transform": {
+                    "skY": -0.1961,
+                    "skX": -0.1961
+                  }
+                }
+              ],
+              "name": "jf"
+            },
+            {
+              "frame": [
+                {
+                  "duration": 5,
+                  "transform": {}
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 5,
+                  "transform": {
+                    "y": -72.9092,
+                    "scX": 0.01,
+                    "scY": 0.01,
+                    "x": 25.3703
+                  }
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 3,
+                  "transform": {
+                    "skY": -8.9832,
+                    "y": -82.8514,
+                    "scX": 0.5,
+                    "scY": 0.5,
+                    "skX": -8.9832,
+                    "x": 41.9959
+                  }
+                },
+                {
+                  "duration": 1,
+                  "transform": {
+                    "skY": -8.5049,
+                    "y": -72.9092,
+                    "scX": 0.01,
+                    "scY": 0.01,
+                    "skX": -8.5049,
+                    "x": 29.8443
+                  }
+                }
+              ],
+              "name": "star"
+            }
+          ],
+          "ik": [],
+          "ffd": [],
+          "duration": 14,
+          "playTimes": 0,
+          "frame": [],
+          "slot": [
+            {
+              "frame": [
+                {
+                  "tweenEasing": 0,
+                  "duration": 2
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 2
+                },
+                {
+                  "tweenEasing": null,
+                  "duration": 10
+                },
+                {
+                  "tweenEasing": null,
+                  "duration": 0
+                }
+              ],
+              "name": "jf"
+            },
+            {
+              "frame": [
+                {
+                  "tweenEasing": null,
+                  "displayIndex": -1,
+                  "duration": 5
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 5
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 3
+                },
+                {
+                  "tweenEasing": null,
+                  "duration": 1
+                }
+              ],
+              "name": "star"
+            }
+          ],
+          "name": "newAnimation"
+        }
+      ],
+      "name": "MovieClip"
+    }
+  ],
+  "frameRate": 24,
+  "name": "jiefeng",
+  "version": "5.0",
+  "isGlobal": 0
+}
