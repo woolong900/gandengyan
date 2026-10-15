@@ -108,6 +108,16 @@ return n.weight - r.weight;
 e.prototype.gameName = function() {
 return r.default[this.index].name;
 };
+e.prototype.playName = function() {
+for (var e = this.sortTypes(), t = 0; t < e.length; t++) {
+var o = e[t];
+if ("玩法" === this.typeName(o)) {
+var n = this.listDesc(this.sortIds(o), "、");
+if (n) return n;
+}
+}
+return this.gameName();
+};
 e.prototype.category = function() {
 return r.default[this.index].category;
 };
@@ -162,9 +172,10 @@ return n.desc(e, !0, o);
 };
 e.prototype.getValue = function(e) {
 var t = r.default[this.index];
-if (1 === this.cellStyle(e)) {
+if (1 === this.cellStyle(e) || 2 === this.cellStyle(e)) {
 var o;
-void 0 !== (o = (this._storageData.other || {})[e]) && null !== o || (o = t.options[e].reject[0]);
+void 0 !== (o = (this._storageData.other || {})[e]) && null !== o || (o = 2 === this.cellStyle(e) ? 0 : t.options[e].reject[0]);
+2 === this.cellStyle(e) && (o = Number.isInteger(Number(o)) ? Math.max(0, Math.min(999, Number(o))) : 0);
 return o;
 }
 return o = t.options[e].value;
@@ -214,6 +225,11 @@ a.default.eventUtils.emit(s.default.ui_create_room_item_clicked, e);
 };
 e.prototype.onClickAdd = function(e) {
 var t = r.default[this.index];
+if (2 === this.cellStyle(e)) {
+var current = this.getValue(e);
+this._saveStyle1(e, Math.min(950, current + (current < 10 ? 5 : current < 100 ? 10 : 50)));
+return;
+}
 if (1 === this.cellStyle(e)) {
 for (var o = this.getValue(e), n = t.options[e].reject || [], i = 0; i < n.length; i++) if (n[i] === o) {
 void 0 === (a = n[i + 1]) || null === a || this._saveStyle1(e, a);
@@ -229,6 +245,11 @@ this._saveStyle1(e, n[0]);
 };
 e.prototype.onClickSub = function(e) {
 var t = r.default[this.index];
+if (2 === this.cellStyle(e)) {
+var current = this.getValue(e);
+this._saveStyle1(e, Math.max(0, current - (current <= 10 ? 5 : current <= 100 ? 10 : 50)));
+return;
+}
 if (1 === this.cellStyle(e)) {
 for (var o = this.getValue(e), n = t.options[e].reject || [], i = n.length - 1; i >= 0; i--) if (n[i] === o) {
 void 0 === (a = n[i - 1]) || null === a || this._saveStyle1(e, a);

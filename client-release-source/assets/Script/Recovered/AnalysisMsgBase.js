@@ -180,6 +180,14 @@ r.default.players.getByUid(t).updateAutoGame(o);
 e.prototype._roomInfo = function(e) {
 cc.log(">>>>>>>>>>>>>>>>_roomInfo obj:", e);
 var t = e.type, o = e.maxstep, c = e.person || [], d = n.default.gameLogic(t).roomParam2Config(o, e.param2, e.param1);
+if (17 === t && e.xi_money && e.xi_money.enabled) {
+d.ids.indexOf(23) < 0 && d.ids.push(23);
+d.other = d.other || {};
+d.other[24] = Number(e.xi_money.bomb6) || 0;
+d.other[25] = Number(e.xi_money.bomb7) || 0;
+d.other[26] = Number(e.xi_money.bomb8) || 0;
+d.other[27] = Number(e.xi_money.kings) || 0;
+}
 this._curGameCount = e.step || 0;
 r.default.roomId = e.roomid;
 r.default.owner = e.host;

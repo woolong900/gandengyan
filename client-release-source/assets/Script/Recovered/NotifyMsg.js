@@ -29,6 +29,10 @@ try {
 c.default && c.default.gameInfo && (c.default.gameInfo.clickCard = !1);
 var t = JSON.parse(e.json), o = t.msghead, n = t.msgdata, r = null;
 n && n.length > 0 && (r = JSON.parse(n));
+if ("support_history" === o || "support_message" === o || "support_read" === o) {
+require("./gContext").default.eventUtils.emit("support_chat_update", r || {});
+return;
+}
 if ("roominfo" === o) {
 var i = u.default[r.type].category;
 d.default.getInstance(i).parseRoom(r);

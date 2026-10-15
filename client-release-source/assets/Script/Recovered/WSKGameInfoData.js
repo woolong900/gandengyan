@@ -23,6 +23,7 @@ this.siteInfos.upate(t);
 }
 }
 e.prototype.update = function(e) {
+this.siteInfos.clearLastPut();
 for (var t = e.siteInfos || [], o = 0, r = t.length; o < r; o++) {
 var i = t[o], l = i.pos, c = this.siteInfos.get(l);
 c.clean(!1);
@@ -98,6 +99,7 @@ a.default.eventUtils.emit(s.default.data_table_score_add);
 this.allPutCards = this.allPutCards.concat(t);
 }
 r.putCard(t, o, n);
+this.siteInfos.setLastPut(e);
 };
 e.prototype.pickUpScore = function(e, t) {
 var o = this.siteInfos.get(e), n = o.pickScore;

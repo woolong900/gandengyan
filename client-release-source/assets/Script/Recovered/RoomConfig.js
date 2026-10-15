@@ -16,7 +16,7 @@ gameCountMul: 8,
 options: {
 1: {
 value: 0,
-desc: "潜江癞晃",
+desc: "潜江晃晃",
 reject: [ 1, 2, 26 ]
 },
 2: {
@@ -3722,6 +3722,14 @@ desc: "真五十K大过四炸"
 value: 1,
 desc: "8张炸大过四大天王"
 },
+23: {
+value: 1,
+desc: "开启喜钱"
+},
+24: { value: 0, desc: "6张炸弹", style: 2 },
+25: { value: 0, desc: "7张炸弹", style: 2 },
+26: { value: 0, desc: "8张炸弹", style: 2 },
+27: { value: 0, desc: "四大天王", style: 2 },
 17: {
 value: 1,
 desc: "观看队友手牌"
@@ -3814,6 +3822,20 @@ weight: 6,
 lineCount: 3,
 defCheck: [ 11 ],
 detailIds: [ 11, 12, 13 ]
+},
+8: {
+desc: "喜钱",
+weight: 7,
+lineCount: 3,
+defCheck: [],
+detailIds: [ 23 ]
+},
+9: {
+desc: "",
+weight: 8,
+lineCount: 2,
+defCheck: [],
+detailIds: [ 24, 25, 26, 27 ]
 },
 110: {
 desc: "其它",

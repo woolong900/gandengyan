@@ -46,6 +46,40 @@ a.default.eventUtils.on(s.default.ui_create_room_item_clicked, function() {
 e._updatePos();
 }, this, l.eOffType.OnDestroy);
 };
+t.prototype._makeXiAmountCell = function(t, o) {
+var config = u.default.get(this._gameId), row = new cc.Node("XiAmount");
+row.setContentSize(o - 12, 38);
+row.anchorX = 0;
+// The unchecked IP/geolocation caption uses the same bitmap font and brown
+// colour as CheckCell.CloseDesc. Reuse that node instead of a system font.
+var captionSource = cc.instantiate(this.cellPre), caption = captionSource.getChildByName("CloseNode").getChildByName("CloseDesc");
+caption.removeFromParent(!1);
+captionSource.destroy();
+caption.parent = row;
+caption.anchorX = 0;
+caption.setContentSize(126, 38);
+caption.setPosition(0, 0);
+var captionLabel = caption.getComponent(cc.Label);
+captionLabel.string = config.desc(t);
+captionLabel.fontSize = 30;
+captionLabel.horizontalAlign = cc.Label.HorizontalAlign.LEFT;
+captionLabel.verticalAlign = cc.Label.VerticalAlign.CENTER;
+var control = cc.instantiate(this.cellStyle1Pre);
+control.parent = row;
+control.setPosition(128, 0);
+control.getComponent(c.default).setData(this._gameId, 9, t);
+var sync = function() {
+var enabled = config.isChecked(23);
+control.opacity = enabled ? 255 : 130;
+for (var buttons = [ "add_sub_add", "add_sub_sub" ], index = 0; index < buttons.length; index++) {
+var button = control.getChildByName(buttons[index]).getComponent(cc.Button);
+button && (button.interactable = enabled);
+}
+};
+a.default.eventUtils.on(s.default.ui_create_room_item_clicked, sync, this, l.eOffType.OnDestroy);
+sync();
+return row;
+};
 t.prototype.setData = function(e, t, o) {
 var n = this;
 this._gameId = e;
@@ -81,6 +115,11 @@ n.layer.addChild(g);
 g.x = h;
 g.y = -m;
 g.getComponent(c.default).setData(e, t, f);
+} else if (2 === y) {
+g = n._makeXiAmountCell(f, l);
+n.layer.addChild(g);
+g.x = h;
+g.y = -m;
 }
 n._pos.push(cc.v2(h, -m));
 }

@@ -55,7 +55,9 @@ var o = this.getPosition(e, t);
 this.getCard(e).initPosition(o.x, o.y);
 };
 t.prototype._computeSpace = function(e) {
-return 73 * e + 127 <= this._totalW ? 73 : 31 * e + 127 <= this._totalW ? (this._totalW - 127) / e : 31;
+if (e <= 0) return 0;
+var t = .93 * (this._totalW - 127);
+return 68 * e <= t ? 68 : 31 * e <= t ? t / e : 31;
 };
 r([ c(cc.Node) ], t.prototype, "rootNode", void 0);
 r([ c(a.default) ], t.prototype, "cards", void 0);

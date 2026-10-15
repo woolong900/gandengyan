@@ -44,7 +44,7 @@ t.btnCopyRecord = null;
 return t;
 }
 t.prototype.start = function() {
-var e = a.default.config.gameCount(), t = a.default.config.gameName(), o = s.default.gameLogic().scoreRuleDesc(a.default.config), n = "房号：<color=#bb6b0d>" + a.default.roomId + "   /   </c>", r = "玩法：<color=#bb6b0d>" + t + "   /   </c>", i = "局数：<color=#bb6b0d>" + a.default.curStep() + "/" + e + "</c>", u = "算分：<color=#bb6b0d>" + o + "   /   </c>", d = "";
+var e = a.default.config.gameCount(), t = a.default.config.playName(), o = s.default.gameLogic().scoreRuleDesc(a.default.config), n = "房号：<color=#bb6b0d>" + a.default.roomId + "   /   </c>", r = "玩法：<color=#bb6b0d>" + t + "   /   </c>", i = "局数：<color=#bb6b0d>" + a.default.curStep() + "/" + e + "</c>", u = "算分：<color=#bb6b0d>" + o + "   /   </c>", d = "";
 if (this.gameCategort === m.eGameCategort.DBD && a.default.config.isChecked(6)) {
 a.default.gameInfoDBD.betNum;
 d = "       底分池剩余积分：<color=#bb6b0d>0</c>";

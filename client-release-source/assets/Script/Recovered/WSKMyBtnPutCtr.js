@@ -77,9 +77,13 @@ this.putBtn.interactable = this._chooseCardsInfo.length > 0;
 };
 t.prototype.onClick = function() {
 c.default.clickBtn();
+if (this._chooseCardsInfo.length < 1) {
+var e = a.default.myAbsolutePos(), t = a.default.gameInfoWSK.siteInfos.getLastPut(e);
+return u.default.uiHelper.showTip(t && 0 === u.default.gameLogic().tip(a.default.gameInfoWSK.siteInfos.get(e).handCards, t.putVirtualCards, t.putType).tips.length ? "没有牌大过对方" : "请选择要出的牌");
+}
 if (this._chooseCardsInfo.length > 1) cc.error("有癞子逻辑可能选中出啥牌，需要实现选择界面"); else {
 if (a.default.config.index === i.eGameIds.QJWSKBD && this._chooseCardsInfo[0].type === l.eWSKOneHandType.Single) {
-var e = a.default.config.peopleCount();
+e = a.default.config.peopleCount();
 if (a.default.gameInfoWSK.siteInfos.isNextWaring(a.default.myAbsolutePos(), e)) {
 var t = this._chooseCards[0], o = u.default.gameLogic().cardValue(t), n = a.default.myAbsolutePos(), r = a.default.gameInfoWSK.siteInfos.get(n), s = u.default.gameLogic().sortDesc(r.handCards);
 if (o !== u.default.gameLogic().cardValue(s[0])) return u.default.uiHelper.showTip("下家已报单，必须出最大单张~");

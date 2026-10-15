@@ -22,7 +22,7 @@ socket_server_addr: (i = {}, i[c.eGameMode.debug] = "wss://gmhiu.com/ws",
 i[c.eGameMode.release] = "wss://gmhiu.com/ws", i),
 game_base_url: (a = {}, a[c.eGameMode.debug] = "https://gmhiu.com",
 a[c.eGameMode.release] = "https://gmhiu.com", a),
-download_url: (s = {}, s[c.eGameMode.debug] = "https://gmhiu.com", s[c.eGameMode.release] = "https://gmhiu.com",
+download_url: (s = {}, s[c.eGameMode.debug] = "https://gandengyan.top", s[c.eGameMode.release] = "https://gandengyan.top",
 s),
 agent_base_url: (l = {}, l[c.eGameMode.debug] = "https://gmhiu.com",
 l[c.eGameMode.release] = "https://gmhiu.com", l)

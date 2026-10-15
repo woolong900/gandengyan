@@ -35,6 +35,7 @@ t.prototype.parse = function(t, o) {
 "game_operator" === t && this._turn(o);
 "game_successor" === t && this._next(o);
 "game_score" === t && this._getScore(o);
+"game_xi" === t && this._showXiMoney(o);
 "game_friend" === t && this._showFirend(o);
 "game_handcard" === t && this._callBanker(o);
 "game_friendcard" === t && this._showFirendCard(o);
@@ -46,6 +47,12 @@ e.prototype.parse.call(this, t, o);
 };
 t.prototype.parseGame = function(e) {
 this.parse("game_info", e);
+};
+t.prototype._showXiMoney = function(e) {
+if (c.default.config.index !== l.eGameIds.QJSHZ) return;
+var t = { bomb6: "6张炸弹", bomb7: "7张炸弹", bomb8: "8张炸弹", kings: "四大天王" }[e.kind] || "炸弹";
+var o = (Number(e.each) || 0) / (c.default.scoreRatio || 100);
+p.default.uiHelper.showTip(t + "喜钱：其余每人付" + o + "分");
 };
 t.prototype._gameBegin = function(e) {
 for (var t = e.exchange_position || [], o = [], n = 0, r = t.length; n < r; n += 2) {
@@ -133,6 +140,10 @@ S.type === r.eWSKRoundType.Pass && w.pass();
 var O = S.cards.length, P = S.cards.slice(0, O / 2), I = S.cards.slice(O / 2);
 S.type === r.eWSKRoundType.Put && c.default.gameInfoWSK.putCard(S.pos, P, I, !1);
 }
+if ((e.last_put_uid || 0) > 0) {
+var k = c.default.players.getByUid(e.last_put_uid);
+k && c.default.gameInfoWSK.siteInfos.setLastPut(k.pos);
+} else c.default.gameInfoWSK.siteInfos.clearLastPut();
 };
 t.prototype._parsePlayer = function(e) {
 var t = e.uid, o = c.default.players.getByUid(t);
@@ -296,6 +307,7 @@ return e;
 t.prototype._cleanRound = function(e) {
 var t = c.default.gameInfoWSK.siteInfos.get(e);
 t && t.cleanRound();
+c.default.gameInfoWSK.siteInfos.clearLastPut(e);
 };
 t.prototype._updatePickUpScore = function(e) {
 var t = c.default.gameInfoWSK.siteInfos.get(e);

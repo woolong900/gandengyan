@@ -67,7 +67,14 @@ var n = [], r = {}, a = Math.floor(t / 1) % 10, s = Math.floor(t / 10) % 10, l =
 1 === a && n.push(6);
 2 === a && n.push(7);
 3 === a && n.push(8);
-r[9] = o / 10;
+r[9] = o % 100 / 10;
+if (1 === Math.floor(o / 100) % 10) {
+n.push(23);
+r[24] = Math.floor(o / 1e3) % 1e3;
+r[25] = Math.floor(o / 1e6) % 1e3;
+r[26] = Math.floor(o / 1e9) % 1e3;
+r[27] = Math.floor(o / 1e12) % 1e3;
+}
 0 === h && (r[10] = 10);
 1 === h && (r[10] = 20);
 2 === h && (r[10] = 50);
@@ -103,6 +110,10 @@ var o = this.configCell2Str(e, [ 5, 6, 7, 8 ], [ "0", "1", "2", "3" ]), n = this
 50 === u && (y = 2);
 100 === u && (y = 3);
 200 === u && (y = 4);
+if (e.isChecked(23)) {
+var z = [ 24, 25, 26, 27 ].map(function(t) { return Number(e.getValue(t)) || 0; });
+m += 100 + z[0] * 1e3 + z[1] * 1e6 + z[2] * 1e9 + z[3] * 1e12;
+}
 var x = this.configCell2Str(e, [ 22 ], [ "1" ]), g = parseInt(x + h + f + p + d + y + c + l + s + a + i + r + n + o), _ = 1, v = e.gameCount();
 3 === v && (_ = 1);
 6 === v && (_ = 2);
@@ -132,17 +143,21 @@ t.prototype.allCards = function(t) {
 return t.isChecked(15) ? [ 180, 180, 170, 170, 11, 11, 12, 12, 13, 13, 14, 14, 21, 21, 22, 22, 23, 23, 24, 24, 51, 51, 52, 52, 53, 53, 54, 54, 61, 61, 62, 62, 63, 63, 64, 64, 71, 71, 72, 72, 73, 73, 74, 74, 81, 81, 82, 82, 83, 83, 84, 84, 91, 91, 92, 92, 93, 93, 94, 94, 101, 101, 102, 102, 103, 103, 104, 104, 111, 111, 112, 112, 113, 113, 114, 114, 121, 121, 122, 122, 123, 123, 124, 124, 131, 131, 132, 132, 133, 133, 134, 134 ] : e.prototype.allCards.call(this, t);
 };
 t.prototype.scoreRuleDesc = function(e) {
-return e.descDetails(10) + "," + e.descDetails(9);
+return e.descDetails(10) + "," + e.descDetails(9) + (e.isChecked(23) ? "," + this.xiRuleText(e) : "");
+};
+t.prototype.xiRuleText = function(e) {
+return "喜钱：6炸" + e.getValue(24) + "/7炸" + e.getValue(25) + "/8炸" + e.getValue(26) + "/四王" + e.getValue(27) + "分/人";
 };
 t.prototype.allRuleDesc = function(e, t, o) {
 var n = e.gameName() + t, r = [ 11, 12, 13, 200 ], i = [].concat([ 5, 6, 7, 8 ]).concat([ 9, 10 ]).concat(r);
-return n + e.listDescDetails(i, t);
+return n + e.listDescDetails(i, t) + (e.isChecked(23) ? t + this.xiRuleText(e) : "");
 };
 t.prototype.roomDetails = function(e) {
 var t = "";
 t += this.roomTypeDesc(e, "支付：", [ 5, 6, 7, 8 ]);
 t += "\n底分：" + e.desc(9);
 t += "\n底子：" + e.desc(10);
+t += e.isChecked(23) ? "\n" + this.xiRuleText(e) : "";
 t += "\n功能：" + e.desc(200);
 return t += this.roomTypeDesc(e, "\n离线踢人：", [ 28, 29, 30, 31 ]);
 };

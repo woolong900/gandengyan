@@ -187,12 +187,27 @@ const main = async () => {
       'res/import/e0/e07c10f8-e75a-5ae8-d2f6-40c4b109d372.json',
       'res/import/e9/e9e4084a-b40b-f780-a5dd-ed4476da7ba7.json',
       'res/import/ee/ee9dd0eb-c83f-4802-bfca-98e27e9cc2d5.json',
+      'res/raw-assets/15/1580e8a3b.png',
+      'res/raw-assets/19/191f83490.png',
+      'res/raw-assets/1a/1a62d6dfc.png',
+      'res/raw-assets/1e/1e79e9934.png',
       'res/raw-assets/1f/1fcde46cd.png',
       'res/raw-assets/20/206b229f-fa1c-409e-b47e-b2d2c0938d57.png',
       'res/raw-assets/db/dbd4ba35-fdeb-4a79-a26f-1f3ba1fdfca9.jpg',
       'res/raw-assets/e0/e07c10f8-e75a-5ae8-d2f6-40c4b109d372.png',
       'src/project.jsc', 'src/settings.jsc',
     ]]);
+  for (const texture of ['1580e8a3b', '191f83490', '1a62d6dfc', '1e79e9934']) {
+    const published = fs.readFileSync(path.join(release,
+      `android/236/res/raw-assets/${texture.slice(0, 2)}/${texture}.png`));
+    const decrypted = Buffer.alloc(published.length - 10);
+    for (let index = 10; index < published.length; index += 1) {
+      decrypted[index - 10] = published[index] ^ published[9];
+    }
+    check(`发布器复用潜江千分原始牌面图集 ${texture}`,
+      decrypted.equals(fs.readFileSync(path.join(__dirname,
+        `../client-release-source/assets/resources/_RecoveredDependencies/Textures/${texture}.png`))), true);
+  }
   const quickFrame = JSON.parse(fs.readFileSync(path.join(release,
     'android/236/res/import/ee/ee9dd0eb-c83f-4802-bfca-98e27e9cc2d5.json'), 'utf8'));
   check('发布器同步快捷按钮纹理与 SpriteFrame 尺寸',
@@ -289,6 +304,9 @@ const main = async () => {
     wskSingleEndModule.includes('getChildByName("BtnExitBottom")') &&
     !wskSingleEndModule.includes('getChildByName("BtnContinueBottom")') &&
     !wskSingleEndModule.includes('getChildByName("BtnShare")'), true);
+  check('说胡子结算抓分行只显示抓分、不拼接喜钱',
+    wskSingleEndModule.includes('m.string = "抓分：" + f;') &&
+    !wskSingleEndModule.includes('喜钱：'), true);
   check('潜江晃晃全局结算不显示流局次数',
     publishedProject.includes('config.index !== u.eGameIds.QJHH && s(v, "hz_count", c.eTotalEndDetailType.HZ_COUNT, d);'),
     true);

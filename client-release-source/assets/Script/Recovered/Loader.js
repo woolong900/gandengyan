@@ -14,11 +14,13 @@ o ? cc.error("Load Img Fail:", e) : t(n);
 });
 };
 e.setImg = function(e, t) {
+if (!t || !t.isValid) return;
+var o = t instanceof cc.Sprite ? t : t.getComponent(cc.Sprite);
+if (!o) return void cc.error("set image node must have cc.Sprite component.");
+var n = (o.__qjqpImgRequestId || 0) + 1;
+o.__qjqpImgRequestId = n;
 this.loadImg(e, function(e) {
-if (t && t.isValid) if (t instanceof cc.Sprite) t.spriteFrame = e; else {
-var o = t.getComponent(cc.Sprite);
-o ? o.spriteFrame = e : cc.error("set image node must have cc.Sprite component.");
-}
+o && o.isValid && o.__qjqpImgRequestId === n && (o.spriteFrame = e);
 });
 };
 e.loadPre = function(e, t) {

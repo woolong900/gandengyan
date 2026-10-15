@@ -118,7 +118,20 @@ const assertCurrentFixes = (source) => {
     ['2D 摸牌间距', 'if (c && e._handDrawnCard && d === f - 1)'],
     ['3D 碰后听牌提示', 'var o = e.handCards.length, n = c.default.b3N2(o), C = n && e._handDrawnCard;'],
     ['3D 摸牌间距', 'if (C && l === o - 1)'],
+    ['牌面异步加载防串图', 'o.__qjqpImgRequestId === n'],
+    ['说胡子最新出牌定位', 'this.siteInfos.setLastPut(e);'],
+    ['说胡子无牌可压提示', u2b('"没有牌大过对方"')],
+    ['说胡子千分整牌资源', 'return "Games/Poker/card_" + t + o;'],
+    ['说胡子千分手牌间距', 'var t = .93 * (this._totalW - 127);'],
+    ['说胡子喜钱输入框', 't.prototype._makeXiAmountCell = function(t, o) {'],
+    ['说胡子喜钱规则', 't.prototype.xiRuleText = function(e) {'],
+    ['说胡子喜钱结算提示', '"game_xi" === t && this._showXiMoney(o);'],
+    ['战绩玩法动态名称', 'e.prototype.playName = function() {'],
+    ['战绩分享使用玩法名', 'd = "' + u2b('玩法：') + '" + o + "  " + n;'],
+    ['潜江晃晃玩法名', u2b('desc: "潜江晃晃"')],
     ['应用下载分享地址', 'var t = this.downloadBaseUrl() + "/download";'],
+    ['客服会话历史', 'msghead: "support_history"'],
+    ['客服消息实时分发', 'eventUtils.emit("support_chat_update"'],
   ];
   for (const [label, snippet] of required) {
     if (!source.includes(snippet)) throw new Error(`客户端单一源码缺少“${label}”修复`);

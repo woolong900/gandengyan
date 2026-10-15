@@ -123,6 +123,13 @@ const TABLE_BACKGROUND_3D_SOURCE = path.join(__dirname, '..', 'assets', 'brandin
 const SPLASH_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'startup', 'splash-screen.png');
 const QJSHZ_TABLE_SOURCE = path.join(__dirname, '..', 'client-release-source', 'assets', 'resources', '_RecoveredDependencies', 'Textures', '609a7ea7-dcd3-4770-9830-847e4aecacbf.jpg');
 const QJSHZ_ACTION_SOURCE = path.join(__dirname, '..', 'client-release-source', 'assets', 'resources', '_RecoveredDependencies', 'Textures', '19c83aa89.png');
+const QJSHZ_ACTION_FRAMES = new Map([
+  ['09/0917b935-dda6-4328-a3ca-787150d44ada.json', ['btn_put_0', [0, 300, 342, 130]]],
+  ['27/27387181-5f14-4895-af4e-933b352393c0.json', ['btn_tip_1', [354, 300, 342, 130]]],
+  ['46/4691cf77-d69a-452d-a53e-e87163484bd3.json', ['btn_pass', [0, 430, 342, 130]]],
+  ['97/97124936-198a-4e07-a165-f73bc2450074.json', ['btn_put_1', [354, 430, 342, 130]]],
+  ['ba/bae9014a-f7c1-4216-b55d-669bd229c290.json', ['btn_tip_0', [0, 560, 342, 130]]],
+]);
 const QJSHZ_QUICK_SOURCE = path.join(__dirname, '..', 'client-release-source', 'assets', 'resources', '_RecoveredDependencies', 'Textures', '0968299a-e998-4a49-9435-69aa1a61b8ff.png');
 const QJSHZ_BUSY_EXIT_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'settlement', 'btn-exit-busy-orange-v4.png');
 const QJSHZ_BUSY_EXIT_TEXTURE_UUID = 'e07c10f8-e75a-5ae8-d2f6-40c4b109d372';
@@ -254,18 +261,6 @@ RULES.push([
 RULES.push([
   u2b('i.default.isFangZhu() && (e = "是否解散房间？");'),
   u2b('i.default.isFangZhu() && !(i.default.belongClub > 0 && i.default.curStep() === 0 && i.default.isGameFree()) && (e = "是否解散房间？");'),
-  true,
-]);
-// 战绩截图的“玩法”显示的是本项目保留的玩法名，而不是原厂游戏名。
-RULES.push([
-  u2b('d = "玩法：" + o + "  " + n;'),
-  u2b('d = "玩法：干瞪眼  " + n;'),
-  true,
-]);
-// 单局结算可以直接截屏分享；其中“玩法”也应显示所选的干瞪眼玩法。
-RULES.push([
-  'var e = i.default.gameInfo.singleEndInfo, t = i.default.config.gameCount(), o = i.default.config.gameName(), n =',
-  u2b('var e = i.default.gameInfo.singleEndInfo, t = i.default.config.gameCount(), o = i.default.config.index === m.eGameIds.QJHH ? "干瞪眼" : i.default.config.gameName(), n ='),
   true,
 ]);
 // 原厂重启代码没有把热更新目录真正插入搜索路径，更新完成后会反复下载。
@@ -587,7 +582,7 @@ RULES.push([
   'gameList: [ c.eGameIds.QJHH ]',
   'gameList: [ c.eGameIds.QJHH, c.eGameIds.QJSHZ ]',
 ]);
-// 大厅游戏名保持“潜江晃晃”；开放“潜江癞晃”和原“土豪必杠”两种玩法，
+// 大厅游戏名保持“干瞪眼”；开放“潜江晃晃”和原“土豪必杠”两种玩法，
 // 对玩家将后者显示为“干瞪眼”。“堆癞子”仍然隐藏。
 RULES.push([
   u2b('desc: "土豪必杠",\nreject: [ 1, 2, 26 ]'),
@@ -979,6 +974,18 @@ const replaceQjshzArtwork = (decoded) => {
     QJSHZ_ACTION_SOURCE,
     path.join(decoded, 'assets', 'res', 'raw-assets', '19', '19c83aa89.png'),
   );
+  for (const [relative, [expectedName, rect]] of QJSHZ_ACTION_FRAMES) {
+    const frameFile = path.join(decoded, 'assets', 'res', 'import', relative);
+    const frame = JSON.parse(fs.readFileSync(frameFile, 'utf8'));
+    const content = frame && frame.content;
+    if (!content || content.name !== expectedName || content.texture !== '19c83aa89') {
+      throw new Error(`说胡子高清操作按钮 SpriteFrame 数据异常：${expectedName}`);
+    }
+    content.rect = rect;
+    content.originalSize = [342, 130];
+    content.offset = [0, 0];
+    fs.writeFileSync(frameFile, JSON.stringify(frame));
+  }
   writeEncryptedAsset(
     QJSHZ_QUICK_SOURCE,
     path.join(decoded, 'assets', 'res', 'raw-assets', '09', '0968299a-e998-4a49-9435-69aa1a61b8ff.png'),
@@ -1505,12 +1512,12 @@ if (js.includes(u2b('元来'))) {
 if (!js.includes(http)) {
   throw new Error(`jsc 里没有写进局域网地址 ${http}`);
 }
-const qianjiangLaihuang = u2b('desc: "潜江癞晃",\nreject: [ 1, 2, 26 ]');
-if (!js.includes(qianjiangLaihuang) || js.includes(`${qianjiangLaihuang},\nisHide: !0`)) {
-  throw new Error('潜江癞晃选项未正确开放');
+const qianjiangHuanghuang = u2b('desc: "潜江晃晃",\nreject: [ 1, 2, 26 ]');
+if (!js.includes(qianjiangHuanghuang) || js.includes(`${qianjiangHuanghuang},\nisHide: !0`)) {
+  throw new Error('潜江晃晃选项未正确开放');
 }
 if (!js.includes(u2b('desc: "玩法",\nweight: 1,\nlineCount: 3,\ndefCheck: [ 2 ],\ndetailIds: [ 2, 1 ]'))) {
-  throw new Error('潜江晃晃玩法列表没有同时包含潜江癞晃和干瞪眼');
+  throw new Error('干瞪眼玩法列表没有同时包含潜江晃晃和干瞪眼');
 }
 if (js.includes('(1 === e[q] || 26 === e[q]) && (e[q] = 2)')) {
   throw new Error('客户端仍会把已保存的潜江癞晃强制迁移成干瞪眼');

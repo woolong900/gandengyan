@@ -50,6 +50,33 @@ const qjshzSources = {
   quick: path.join(ROOT, 'client-release-source', 'assets', 'resources', '_RecoveredDependencies', 'Textures', '0968299a-e998-4a49-9435-69aa1a61b8ff.png'),
   busyExit: path.join(ROOT, 'assets', 'branding', 'settlement', 'btn-exit-busy-orange-v4.png'),
 };
+const qjshzActionFrames = new Map([
+  ['res/import/09/0917b935-dda6-4328-a3ca-787150d44ada.json', ['btn_put_0', [0, 300, 342, 130]]],
+  ['res/import/27/27387181-5f14-4895-af4e-933b352393c0.json', ['btn_tip_1', [354, 300, 342, 130]]],
+  ['res/import/46/4691cf77-d69a-452d-a53e-e87163484bd3.json', ['btn_pass', [0, 430, 342, 130]]],
+  ['res/import/97/97124936-198a-4e07-a165-f73bc2450074.json', ['btn_put_1', [354, 430, 342, 130]]],
+  ['res/import/ba/bae9014a-f7c1-4216-b55d-669bd229c290.json', ['btn_tip_0', [0, 560, 342, 130]]],
+]);
+// 潜江千分 1.9.0 的原始牌面已按现有坐标写入四张动态图集。发布前校验
+// 解密后的像素文件，防止以后换底包时悄悄退回干瞪眼原来的小字牌面。
+const qjshzPokerAtlases = new Map([
+  ['res/raw-assets/15/1580e8a3b.png', {
+    source: path.join(ROOT, 'client-release-source', 'assets', 'resources', '_RecoveredDependencies', 'Textures', '1580e8a3b.png'),
+    checksum: 'b1689dbfae7c77e5be88864e9a38aeb5',
+  }],
+  ['res/raw-assets/1e/1e79e9934.png', {
+    source: path.join(ROOT, 'client-release-source', 'assets', 'resources', '_RecoveredDependencies', 'Textures', '1e79e9934.png'),
+    checksum: 'd2115cefd1c9bf9e00697dc644dc4483',
+  }],
+  ['res/raw-assets/1a/1a62d6dfc.png', {
+    source: path.join(ROOT, 'client-release-source', 'assets', 'resources', '_RecoveredDependencies', 'Textures', '1a62d6dfc.png'),
+    checksum: '57ed7bf7a58163568c7bb835c2356242',
+  }],
+  ['res/raw-assets/19/191f83490.png', {
+    source: path.join(ROOT, 'client-release-source', 'assets', 'resources', '_RecoveredDependencies', 'Textures', '191f83490.png'),
+    checksum: '274f537e393fc093d2a39b0e9efe8e5d',
+  }],
+]);
 const shareSources = {
   downloadQr: path.join(ROOT, 'assets', 'branding', 'share', 'download-qr.png'),
   momentsPoster: path.join(ROOT, 'assets', 'branding', 'share', 'moments-poster.jpg'),
@@ -146,6 +173,18 @@ const patchQjshzQuickFrame = (bytes) => {
   // 表现为按钮下沿重影。帧尺寸必须与真实 PNG 严格一致。
   content.rect = [0, 0, 128, 39];
   content.originalSize = [128, 39];
+  content.offset = [0, 0];
+  return Buffer.from(JSON.stringify(frame));
+};
+
+const patchQjshzActionFrame = (bytes, expectedName, rect) => {
+  const frame = JSON.parse(bytes.toString('utf8'));
+  const content = frame && frame.content;
+  if (!content || content.name !== expectedName || content.texture !== '19c83aa89') {
+    throw new Error(`说胡子高清操作按钮 SpriteFrame 数据异常：${expectedName}`);
+  }
+  content.rect = rect;
+  content.originalSize = [342, 130];
   content.offset = [0, 0];
   return Buffer.from(JSON.stringify(frame));
 };
@@ -299,6 +338,10 @@ const patchQjshzAsset = (name, data) => {
   if (name === 'res/import/ee/ee9dd0eb-c83f-4802-bfca-98e27e9cc2d5.json') {
     return patchQjshzQuickFrame(data);
   }
+  if (qjshzActionFrames.has(name)) {
+    const [expectedName, rect] = qjshzActionFrames.get(name);
+    return patchQjshzActionFrame(data, expectedName, rect);
+  }
   if (name === 'res/import/63/637f38e8-9c8c-424f-ba6c-8b738e0467c7.json') {
     return patchSingleEndPrefab(data);
   }
@@ -378,6 +421,10 @@ const publishPlatform = (platform, archive) => {
     encryptCocosImage(shareSources.downloadQr), true);
   writeAsset('res/raw-assets/db/dbd4ba35-fdeb-4a79-a26f-1f3ba1fdfca9.jpg',
     fs.readFileSync(shareSources.momentsPoster), true);
+  // 与操作按钮相同，牌面图集由正式源码强制覆盖，不依赖输入安装包。
+  for (const [name, atlas] of qjshzPokerAtlases) {
+    writeAsset(name, encryptCocosImage(atlas.source), true);
+  }
   const textureUuid = qjshzBusyExit.textureUuid;
   const spriteUuid = qjshzBusyExit.spriteUuid;
   writeAsset(`res/raw-assets/${textureUuid.slice(0, 2)}/${textureUuid}.png`,
@@ -416,6 +463,11 @@ const publishPlatform = (platform, archive) => {
 try {
   for (const source of Object.values(qjshzSources)) {
     if (!fs.existsSync(source)) throw new Error(`缺少说胡子热更新素材：${source}`);
+  }
+  for (const [name, atlas] of qjshzPokerAtlases) {
+    if (!fs.existsSync(atlas.source)) throw new Error(`缺少潜江千分牌面图集：${name}`);
+    const actual = md5(fs.readFileSync(atlas.source));
+    if (actual !== atlas.checksum) throw new Error(`潜江千分牌面图集校验失败：${name}`);
   }
   for (const source of Object.values(shareSources)) {
     if (!fs.existsSync(source)) throw new Error(`缺少分享热更新素材：${source}`);

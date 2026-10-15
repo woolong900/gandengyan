@@ -11,7 +11,7 @@ from PIL import Image
 
 
 ROOT = Path(__file__).resolve().parents[1]
-URL = "https://gmhiu.com/download"
+URL = "https://gandengyan.top/download"
 OUTPUT = ROOT / "assets/branding/share/download-qr.png"
 RECOVERED_OUTPUT = ROOT / "client-release-source/assets/resources/Hall/Res/Texture/Game/record_share/qrcode_hg.png"
 ICON = ROOT / "assets/branding/icon.png"

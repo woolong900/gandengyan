@@ -8,6 +8,7 @@ value: !0
 var n = require("./WSKEnum"), r = function() {
 function e() {
 this._data = null;
+this._lastPutPos = -1;
 this._data = Object.create(null);
 }
 e.prototype.add = function(e) {
@@ -25,7 +26,14 @@ e.prototype._checkPut = function(e) {
 var t = this.get(e);
 if (t && t.roundType === n.eWSKRoundType.Put) return !0;
 };
+e.prototype.setLastPut = function(e) {
+this._lastPutPos = e;
+};
+e.prototype.clearLastPut = function(e) {
+void 0 !== e && this._lastPutPos !== e || (this._lastPutPos = -1);
+};
 e.prototype.getLastPut = function(e) {
+if (this._lastPutPos >= 0 && this._lastPutPos !== e && this._checkPut(this._lastPutPos)) return this.get(this._lastPutPos);
 var t = (e - 1 + 4) % 4, o = (e - 2 + 4) % 4, n = (e - 3 + 4) % 4;
 return this._checkPut(t) ? this.get(t) : this._checkPut(o) ? this.get(o) : this._checkPut(n) ? this.get(n) : null;
 };

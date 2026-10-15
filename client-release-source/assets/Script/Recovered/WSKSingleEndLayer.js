@@ -104,7 +104,6 @@ i && (i.active = !0);
 if (a.default.isWatcher()) r && (r.active = !1);
 for (var c = a.default.config.peopleCount(), u = 0; u < c; u++) {
 var d = g.default.getInstance().deskPos2ViewPos(u), p = e.score(u), f = e.pickUpScore(u);
-e.bombScore(u);
 if (p > 0) {
 s[d].getChildByName("win").getComponent(cc.Label).string = "+" + p;
 s[d].getChildByName("lose").getComponent(cc.Label).string = "";
@@ -112,7 +111,9 @@ s[d].getChildByName("lose").getComponent(cc.Label).string = "";
 s[d].getChildByName("win").getComponent(cc.Label).string = "";
 s[d].getChildByName("lose").getComponent(cc.Label).string = "" + p;
 }
-s[d].getChildByName("pick").getComponent(cc.Label).string = "抓分：" + f;
+var m = s[d].getChildByName("pick").getComponent(cc.Label);
+m.overflow = cc.Label.Overflow.SHRINK;
+m.string = "抓分：" + f;
 }
 };
 t.prototype.start = function() {

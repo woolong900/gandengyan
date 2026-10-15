@@ -49,6 +49,67 @@ assert(!source.includes('c = h.default.b3N2(i.length) && e._handDrawnCard, d = 0
 assert(!source.includes('var o = e.handCards.length, n = c.default.b3N2(o) && e._handDrawnCard;'));
 assert(source.includes('S.ready = void 0 !== C.ready ? !!C.ready : S.ready || !1;'),
   '客户端重连没有从房间快照还原准备状态');
+assert(source.includes('o.__qjqpImgRequestId === n'),
+  '客户端缺少牌面异步加载防串图保护');
+assert(source.includes('this._lastPutPos = -1;')
+  && source.includes('this.siteInfos.setLastPut(e);')
+  && source.includes('e.last_put_uid')
+  && source.includes(Buffer.from('"没有牌大过对方"', 'utf8').toString('binary')),
+  '说胡子客户端没有按真实最新出牌判断提示、出牌与无牌可压状态');
+{
+  const start = source.indexOf('t.prototype._udpateQJSHZ = function()');
+  const end = source.indexOf('t.prototype.start = function()', start);
+  const settlement = source.slice(start, end);
+  assert(start >= 0 && end > start
+    && settlement.includes(Buffer.from('m.string = "抓分：" + f;', 'utf8').toString('binary'))
+    && !settlement.includes(Buffer.from('喜钱：', 'utf8').toString('binary')),
+  '说胡子单局结算的抓分行不应再拼接喜钱');
+}
+assert(source.includes('return "Games/Poker/card_" + t + o;')
+  && source.includes('var t = .93 * (this._totalW - 127);')
+  && source.includes('68 * e <= t ? 68')
+  && source.includes('31 * e <= t ? t / e : 31')
+  && !source.includes('this.node.getChildByName("wsk_large_corner")')
+  && !source.includes('new cc.Node("wsk_score_text")')
+  && !source.includes('this._qianfenRank'),
+  '说胡子手牌没有直接复用潜江千分整牌资源，或仍在运行时叠字');
+assert(source.includes('e.prototype.playName = function() {')
+  && source.includes('if ("' + Buffer.from('玩法', 'utf8').toString('binary') + '" === this.typeName(o))')
+  && source.includes('return this.gameName();'),
+  '客户端没有优先从建房选项取玩法名称');
+assert(source.includes('d = "' + Buffer.from('玩法：', 'utf8').toString('binary') + '" + o + "  " + n;')
+  && !source.includes('d = "' + Buffer.from('玩法：干瞪眼', 'utf8').toString('binary') + '  " + n;'),
+  '战绩分享图仍把玩法写死为干瞪眼');
+assert(source.includes(Buffer.from('desc: "潜江晃晃"', 'utf8').toString('binary'))
+  && !source.includes(Buffer.from('desc: "潜江癞晃"', 'utf8').toString('binary')),
+  '干瞪眼建房页的子玩法名称不是潜江晃晃');
+assert(source.includes('msghead: "support_history"') && source.includes('msghead: "support_send"'),
+  '客户端缺少客服会话读取或发送功能');
+assert(source.includes('eventUtils.emit("support_chat_update"'),
+  '客户端缺少客服消息实时分发');
+assert(source.includes('this._panel(e, "MessageInput", 840, 64, 0, -178'),
+  '客服输入框没有与聊天记录框保持等宽');
+assert(source.includes('this._button(t, "sendSupport", 106, 38, 351, -8'),
+  '客服发送按钮没有放入输入框右下角');
+assert(source.includes('var o = new cc.Node("EditArea");')
+  && source.includes('o.setContentSize(690, 56);')
+  && source.includes('n.anchorX = 0;\nn.setPosition(-325, 5);')
+  && source.includes('i.anchorX = 0;\ni.setPosition(-325, 5);')
+  && source.includes('s.textLabel.horizontalAlign = cc.Label.HorizontalAlign.LEFT;')
+  && source.includes('s.placeholderLabel.horizontalAlign = cc.Label.HorizontalAlign.LEFT;'),
+  '客服输入文字或占位文字没有强制从左侧开始显示');
+assert(source.includes('var s = o.addComponent(cc.EditBox);')
+  && !source.includes('t.addComponent(cc.EditBox)'),
+  '客服发送按钮仍位于输入框点击区域内');
+assert(!source.includes('"牌局异常", "我遇到了牌局异常')
+  && !source.includes('"账号问题", "我需要咨询账号问题')
+  && !source.includes('"房卡问题", "我需要咨询房卡相关问题')
+  && !source.includes('"意见建议", "我有一条意见或建议'),
+  '客服窗口仍包含问题分类快捷按钮');
+assert(!source.includes('this._button(r, "onClickClose"'),
+  '客服窗口仍包含重复的自绘关闭按钮');
+assert(!source.includes('getChildByName("BtnClose")'),
+  '客服窗口仍在额外启用场景关闭按钮');
 new Function(source);
 
 const loginSceneSource = fs.readFileSync(path.join(ROOT,
@@ -88,5 +149,4 @@ const hotUpdateScript = fs.readFileSync(path.join(__dirname, 'publish-hot-update
 assert(hotUpdateScript.includes('206b229f-fa1c-409e-b47e-b2d2c0938d57.png')
   && hotUpdateScript.includes('dbd4ba35-fdeb-4a79-a26f-1f3ba1fdfca9.jpg'),
 '热更新没有固化战绩二维码和朋友圈海报');
-
 console.log('客户端整包/热更单一源码校验通过');
