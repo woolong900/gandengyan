@@ -153,7 +153,6 @@ const applyIosBrandingAssets = (app) => {
     ['hall/hall-background.png', ['2d', '2dad1db8-b44a-4077-a9fa-52cbfe497b4d.png']],
     ['hall/hall-character.png', ['1b', '1b6b9d70-3f53-4064-801d-f7fb08c52ba3.png']],
     ['club/club-background.png', ['7f', '7fd7e41f-bc15-43c0-9ccf-9f255336b48f.png']],
-    ['club/club-home-background.jpg', ['d7', 'd784bb4c-e6d9-4a94-932a-4b9bc139c351.jpg']],
     ['club/club-character-empty.png', ['89', '896e3506-6fa6-4a3c-864b-f632f44c2f96.png']],
     ['login/login-background.jpg', ['73', '73c931dd-4abb-4c4c-ab86-37f883c44430.jpg']],
     ['table/table-background-2d.jpg', ['65', '6528fb79-db94-4c58-88e8-ff1b0a184491.jpg']],
@@ -608,10 +607,6 @@ l.default.uiHelper.showTip(t);
     replaceCocosAsset(
       path.join(ROOT, 'assets', 'branding', 'table', 'table-background-3d-ios.png'),
       path.join(app, 'res', 'raw-assets', '0e', '0ed69516-3023-4cb0-947a-abd9aab04b9f.jpg'),
-    );
-    replaceCocosAsset(
-      path.join(ROOT, 'assets', 'branding', 'club', 'club-home-background.jpg'),
-      path.join(app, 'res', 'raw-assets', 'd7', 'd784bb4c-e6d9-4a94-932a-4b9bc139c351.jpg'),
     );
     console.log('      已写入 iOS 专用 3D 桌面并保留中央灯盘');
   }

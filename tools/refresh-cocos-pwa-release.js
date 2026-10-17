@@ -16,7 +16,6 @@ const CONFIG = path.join(OUTPUT, 'assets', 'resources', 'config.json');
 const sceneUuid = 'dc294676-c185-4f9d-89a5-4085ac3a9175';
 const cardAtlas = '1a62d6dfc';
 const buttonAtlas = '19c83aa89';
-const clubHomeBackground = 'd784bb4c-e6d9-4a94-932a-4b9bc139c351.jpg';
 
 if (!fs.existsSync(path.join(BASE, 'index.html'))) throw new Error('缺少已验证的 Cocos 2.4 Web 基础包');
 if (!fs.existsSync(path.join(NATIVE, 'res', 'import', 'dc', `${sceneUuid}.json`))) {
@@ -58,9 +57,6 @@ for (const name of [
 const shareQr = path.join(WEB_TEXTURES, '20', '206b229f-fa1c-409e-b47e-b2d2c0938d57.png');
 if (!fs.existsSync(shareQr)) throw new Error('Web 包缺少战绩分享二维码');
 fs.copyFileSync(path.join(ROOT, 'assets', 'branding', 'share', 'download-qr.png'), shareQr);
-const clubHomeTarget = path.join(WEB_TEXTURES, 'd7', clubHomeBackground);
-if (!fs.existsSync(clubHomeTarget)) throw new Error('Web 包缺少俱乐部首页背景');
-fs.copyFileSync(path.join(ROOT, 'assets', 'branding', 'club', 'club-home-background.jpg'), clubHomeTarget);
 
 // The old Web build packed the WSK scene and button SpriteFrames together.
 // Use the active R301 serialized assets so the new, taller button sheet gets
