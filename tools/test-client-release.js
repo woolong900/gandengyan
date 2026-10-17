@@ -87,6 +87,10 @@ assert(source.includes('msghead: "support_history"') && source.includes('msghead
   '客户端缺少客服会话读取或发送功能');
 assert(source.includes('eventUtils.emit("support_chat_update"'),
   '客户端缺少客服消息实时分发');
+assert(source.includes('this.node.width = cc.winSize.width;\nthis.node.height = cc.winSize.height;')
+  && source.includes('Math.max(cc.winSize.width / o.width, cc.winSize.height / o.height)')
+  && source.includes('o.scaleX = n;\no.scaleY = n;'),
+  '俱乐部根节点或背景没有以等比例 cover 方式适配全屏');
 assert(source.includes('this._panel(e, "MessageInput", 840, 64, 0, -178'),
   '客服输入框没有与聊天记录框保持等宽');
 assert(source.includes('this._button(t, "sendSupport", 106, 38, 351, -8'),

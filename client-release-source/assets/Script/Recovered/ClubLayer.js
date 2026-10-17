@@ -45,7 +45,16 @@ return t;
 t.prototype.onLoad = function() {
 var e = p.default.offsetX();
 this.contentRoot.width = cc.winSize.width - 2 * e;
-this.node.width = cc.winSize.width - 2 * e;
+// 安全区只约束可交互内容；根节点和遮罩必须覆盖整个可视区域。
+// 背景保持原始比例并以 cover 方式放大，避免宽屏留边或拉伸变形。
+this.node.width = cc.winSize.width;
+this.node.height = cc.winSize.height;
+var o = this.node.getChildByName("Bg");
+if (o && o.width > 0 && o.height > 0) {
+var n = Math.max(cc.winSize.width / o.width, cc.winSize.height / o.height);
+o.scaleX = n;
+o.scaleY = n;
+}
 var t = -cc.winSize.width / 2 + e;
 this.clubListRoot.x = t;
 this.clubListbeginPos = cc.v2(t, 0);

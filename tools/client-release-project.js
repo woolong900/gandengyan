@@ -132,6 +132,8 @@ const assertCurrentFixes = (source) => {
     ['应用下载分享地址', 'var t = this.downloadBaseUrl() + "/download";'],
     ['客服会话历史', 'msghead: "support_history"'],
     ['客服消息实时分发', 'eventUtils.emit("support_chat_update"'],
+    ['俱乐部根节点全屏', 'this.node.width = cc.winSize.width;\nthis.node.height = cc.winSize.height;'],
+    ['俱乐部背景等比例铺满', 'Math.max(cc.winSize.width / o.width, cc.winSize.height / o.height)'],
   ];
   for (const [label, snippet] of required) {
     if (!source.includes(snippet)) throw new Error(`客户端单一源码缺少“${label}”修复`);
