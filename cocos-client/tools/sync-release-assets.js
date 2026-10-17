@@ -18,6 +18,7 @@ const replacements = [
   ['hall/hall-background.png', 'assets/resources/Hall/Res/Texture/Center/game_bg.png'],
   ['hall/hall-character.png', 'assets/resources/Hall/Res/Texture/Center/girl.png'],
   ['club/club-background.png', 'assets/resources/Hall/Res/Texture/Club/club_bg.png'],
+  ['club/club-home-background.jpg', 'assets/resources/Hall/Res/Texture/Club/New/club_bg.jpg'],
   ['club/club-character-empty.png', 'assets/resources/Hall/Res/Texture/Club/ren.png'],
   ['table/table-background-2d.jpg', 'assets/resources/Hall/Res/Texture/Game/2d/table/tabel.jpg'],
   ['table/table-background-3d.jpg', 'assets/resources/Hall/Res/Texture/Game/3d/table/tabel.jpg'],

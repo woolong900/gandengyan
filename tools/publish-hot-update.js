@@ -81,6 +81,9 @@ const shareSources = {
   downloadQr: path.join(ROOT, 'assets', 'branding', 'share', 'download-qr.png'),
   momentsPoster: path.join(ROOT, 'assets', 'branding', 'share', 'moments-poster.jpg'),
 };
+const clubHomeBackground = path.join(
+  ROOT, 'assets', 'branding', 'club', 'club-home-background.jpg',
+);
 const qjshzBusyExit = {
   textureUuid: 'e07c10f8-e75a-5ae8-d2f6-40c4b109d372',
   texturePackedUuid: 'e0fBD451pa6NL2QMSxCdNy',
@@ -421,6 +424,10 @@ const publishPlatform = (platform, archive) => {
     encryptCocosImage(shareSources.downloadQr), true);
   writeAsset('res/raw-assets/db/dbd4ba35-fdeb-4a79-a26f-1f3ba1fdfca9.jpg',
     fs.readFileSync(shareSources.momentsPoster), true);
+  // 俱乐部首页使用独立的明文 JPG 资源。每次热更都从当前
+  // 品牌源覆盖，避免从旧安装包生成新版本时恢复旧背景。
+  writeAsset('res/raw-assets/d7/d784bb4c-e6d9-4a94-932a-4b9bc139c351.jpg',
+    fs.readFileSync(clubHomeBackground), true);
   // 与操作按钮相同，牌面图集由正式源码强制覆盖，不依赖输入安装包。
   for (const [name, atlas] of qjshzPokerAtlases) {
     writeAsset(name, encryptCocosImage(atlas.source), true);
@@ -471,6 +478,9 @@ try {
   }
   for (const source of Object.values(shareSources)) {
     if (!fs.existsSync(source)) throw new Error(`缺少分享热更新素材：${source}`);
+  }
+  if (!fs.existsSync(clubHomeBackground)) {
+    throw new Error(`缺少俱乐部首页背景：${clubHomeBackground}`);
   }
   const published = {};
   if (ANDROID) published.android = publishPlatform('android', ANDROID);
