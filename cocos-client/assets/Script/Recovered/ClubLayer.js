@@ -45,39 +45,30 @@ return t;
 t.prototype.onLoad = function() {
 var e = p.default.offsetX();
 this.contentRoot.width = cc.winSize.width - 2 * e;
-// 安全区只约束可交互内容；根节点和遮罩必须覆盖整个可视区域。
-// 背景保持原始比例并以 cover 方式放大，避免宽屏留边或拉伸变形。
-this.node.width = cc.winSize.width;
+// 左侧仍按原安全区裁切，右侧单独延伸到屏幕边缘。
+// 调整遮罩锚点而不移动子节点，避免改变左侧俱乐部列表的原有布局。
+var t = cc.winSize.width - e;
+this.node.width = t;
 this.node.height = cc.winSize.height;
+this.node.anchorX = (cc.winSize.width / 2 - e) / t;
 var o = this.node.getChildByName("Bg");
 if (o && o.width > 0 && o.height > 0) {
 var n = Math.max(cc.winSize.width / o.width, cc.winSize.height / o.height);
 o.scaleX = n;
 o.scaleY = n;
 }
-var t = -cc.winSize.width / 2 + e;
-this.clubListRoot.x = t;
-var i = this.clubListRoot.getChildByName("ClubListLayer");
-i && (i.active = !1);
-this.clubListbeginPos = cc.v2(t, 0);
+var r = -cc.winSize.width / 2 + e;
+this.clubListRoot.x = r;
+this.clubListbeginPos = cc.v2(r, 0);
 this.contentBeginPos = cc.v2(0, 0);
 };
 t.prototype.start = function() {
 var e = this;
 i.default.eventUtils.on(a.default.ui_club_list_hide, function() {
-e.contentRoot.stopAllActions();
-e.clubListRoot.stopAllActions();
 e.contentRoot.runAction(cc.moveTo(.3, e.contentBeginPos));
-e.clubListRoot.runAction(cc.sequence(cc.moveTo(.3, e.clubListbeginPos), cc.callFunc(function() {
-var t = e.clubListRoot.getChildByName("ClubListLayer");
-t && (t.active = !1);
-})));
+e.clubListRoot.runAction(cc.moveTo(.3, e.clubListbeginPos));
 }, this, s.eOffType.OnDestroy);
 i.default.eventUtils.on(a.default.ui_club_list_show, function() {
-e.contentRoot.stopAllActions();
-e.clubListRoot.stopAllActions();
-var t = e.clubListRoot.getChildByName("ClubListLayer");
-t && (t.active = !0);
 e.contentRoot.runAction(cc.moveTo(.3, e.contentBeginPos.add(cc.v2(300, 0))));
 e.clubListRoot.runAction(cc.moveTo(.3, e.clubListbeginPos.add(cc.v2(300, 0))));
 }, this, s.eOffType.OnDestroy);
