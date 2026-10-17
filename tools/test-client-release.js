@@ -91,6 +91,11 @@ assert(source.includes('this.node.width = cc.winSize.width;\nthis.node.height = 
   && source.includes('Math.max(cc.winSize.width / o.width, cc.winSize.height / o.height)')
   && source.includes('o.scaleX = n;\no.scaleY = n;'),
   '俱乐部根节点或背景没有以等比例 cover 方式适配全屏');
+assert(source.includes('getChildByName("ClubListLayer");\ni && (i.active = !1);')
+  && source.includes('cc.sequence(cc.moveTo(.3, e.clubListbeginPos), cc.callFunc(function()')
+  && source.includes('getChildByName("ClubListLayer");\nt && (t.active = !0);')
+  && source.includes('e.clubListRoot.stopAllActions();'),
+  '俱乐部全屏模式没有在折叠后隐藏侧栏，或快速切换保护缺失');
 assert(source.includes('this._panel(e, "MessageInput", 840, 64, 0, -178'),
   '客服输入框没有与聊天记录框保持等宽');
 assert(source.includes('this._button(t, "sendSupport", 106, 38, 351, -8'),

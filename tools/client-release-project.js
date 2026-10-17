@@ -134,6 +134,8 @@ const assertCurrentFixes = (source) => {
     ['客服消息实时分发', 'eventUtils.emit("support_chat_update"'],
     ['俱乐部根节点全屏', 'this.node.width = cc.winSize.width;\nthis.node.height = cc.winSize.height;'],
     ['俱乐部背景等比例铺满', 'Math.max(cc.winSize.width / o.width, cc.winSize.height / o.height)'],
+    ['俱乐部折叠面板完整隐藏', 'getChildByName("ClubListLayer");\ni && (i.active = !1);'],
+    ['俱乐部展开前恢复面板', 'getChildByName("ClubListLayer");\nt && (t.active = !0);'],
   ];
   for (const [label, snippet] of required) {
     if (!source.includes(snippet)) throw new Error(`客户端单一源码缺少“${label}”修复`);

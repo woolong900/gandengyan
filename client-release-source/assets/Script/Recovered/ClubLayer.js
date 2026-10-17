@@ -57,16 +57,27 @@ o.scaleY = n;
 }
 var t = -cc.winSize.width / 2 + e;
 this.clubListRoot.x = t;
+var i = this.clubListRoot.getChildByName("ClubListLayer");
+i && (i.active = !1);
 this.clubListbeginPos = cc.v2(t, 0);
 this.contentBeginPos = cc.v2(0, 0);
 };
 t.prototype.start = function() {
 var e = this;
 i.default.eventUtils.on(a.default.ui_club_list_hide, function() {
+e.contentRoot.stopAllActions();
+e.clubListRoot.stopAllActions();
 e.contentRoot.runAction(cc.moveTo(.3, e.contentBeginPos));
-e.clubListRoot.runAction(cc.moveTo(.3, e.clubListbeginPos));
+e.clubListRoot.runAction(cc.sequence(cc.moveTo(.3, e.clubListbeginPos), cc.callFunc(function() {
+var t = e.clubListRoot.getChildByName("ClubListLayer");
+t && (t.active = !1);
+})));
 }, this, s.eOffType.OnDestroy);
 i.default.eventUtils.on(a.default.ui_club_list_show, function() {
+e.contentRoot.stopAllActions();
+e.clubListRoot.stopAllActions();
+var t = e.clubListRoot.getChildByName("ClubListLayer");
+t && (t.active = !0);
 e.contentRoot.runAction(cc.moveTo(.3, e.contentBeginPos.add(cc.v2(300, 0))));
 e.clubListRoot.runAction(cc.moveTo(.3, e.clubListbeginPos.add(cc.v2(300, 0))));
 }, this, s.eOffType.OnDestroy);
