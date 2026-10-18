@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-/** 从当前稳定版生成只替换商城背景的定向灰度版本。 */
+/** 从上一版生成商城视觉修正的定向灰度版本。 */
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { toJs, toJsc } = require('./jsc');
 const { releaseGitInfo } = require('./release-git');
+const { SHOPPING_MALL_PREFAB_ASSET, patchShoppingMallPrefab } = require('./client-shopping-mall');
 
 const root = path.join(__dirname, '..');
 const args = process.argv.slice(2);
@@ -23,8 +24,8 @@ const assetPath = 'res/raw-assets/0b/0b113fff-15df-4c89-8321-fb74e12e940f.png';
 const md5 = (data) => crypto.createHash('md5').update(data).digest('hex');
 
 if (![from, version, stableVersion].every(Number.isSafeInteger)
-    || from < 1 || version <= from || stableVersion !== from) {
-  throw new Error('版本参数无效：稳定版须等于来源版，候选版须递增');
+    || from < 1 || version <= from || stableVersion < 1 || stableVersion > from) {
+  throw new Error('版本参数无效：稳定版须不高于来源版，候选版须递增');
 }
 if (!includeUids.length || includeUids.some((uid) => !/^\d{1,20}$/.test(uid))) {
   throw new Error('--include-uids 须指定合法玩家 ID');
@@ -46,7 +47,7 @@ if (Object.keys(config.platforms).sort().join(',') !== 'android,ios') {
   throw new Error('源版本缺少 Android 或 iOS 配置');
 }
 const git = releaseGitInfo(root);
-if (git.dirty) throw new Error('请先提交商城背景改动，再生成正式灰度版');
+if (git.dirty) throw new Error('请先提交商城界面改动，再生成正式灰度版');
 const stage = fs.mkdtempSync(path.join(path.dirname(output), `.hot-update-${version}-shop-`));
 try {
   for (const platform of ['android', 'ios']) {
@@ -63,10 +64,14 @@ try {
     fs.writeFileSync(scriptFile, encoded);
 
     fs.writeFileSync(path.join(targetRoot, assetPath), encrypted);
+    const prefabFile = path.join(targetRoot, SHOPPING_MALL_PREFAB_ASSET);
+    const prefabBytes = patchShoppingMallPrefab(fs.readFileSync(prefabFile));
+    fs.writeFileSync(prefabFile, prefabBytes);
     const manifestFile = path.join(targetRoot, 'project.manifest');
     const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
-    if (!manifest.assets[assetPath] || !manifest.assets['src/project.jsc']) {
-      throw new Error(`${platform} 源清单缺少商城背景或脚本`);
+    if (!manifest.assets[assetPath] || !manifest.assets[SHOPPING_MALL_PREFAB_ASSET]
+        || !manifest.assets['src/project.jsc']) {
+      throw new Error(`${platform} 源清单缺少商城背景、界面或脚本`);
     }
     const expected = `/${from}/`;
     if (!manifest.packageUrl.includes(expected)) throw new Error(`${platform} 源清单版本地址异常`);
@@ -75,6 +80,7 @@ try {
     manifest.remoteVersionUrl = `${manifest.packageUrl}version.manifest`;
     manifest.version = String(version);
     manifest.assets[assetPath] = { size: encrypted.length, md5: md5(encrypted) };
+    manifest.assets[SHOPPING_MALL_PREFAB_ASSET] = { size: prefabBytes.length, md5: md5(prefabBytes) };
     manifest.assets['src/project.jsc'] = { size: encoded.length, md5: md5(encoded) };
     fs.writeFileSync(manifestFile, JSON.stringify(manifest));
     fs.writeFileSync(path.join(targetRoot, 'version.manifest'), JSON.stringify({
@@ -99,7 +105,7 @@ try {
   fs.writeFileSync(path.join(stage, 'hot-update.json'), `${JSON.stringify(config, null, 2)}\n`);
   fs.writeFileSync(path.join(stage, 'release.json'), `${JSON.stringify({
     version, from, stableVersion, includeUids,
-    change: '现代风商城背景', git,
+    change: arg('change', '商城界面视觉修正'), git,
   }, null, 2)}\n`);
   fs.renameSync(stage, output);
   console.log(`已生成商城背景 R${version} 灰度版：${output}`);

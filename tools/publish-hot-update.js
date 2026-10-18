@@ -10,6 +10,7 @@ const { execFileSync } = require('child_process');
 const { toJs } = require('./jsc');
 const { buildReleaseProjectJsc } = require('./client-release-project');
 const { LOGIN_SCENE_ASSET, patchLoginScene } = require('./client-login-scene');
+const { SHOPPING_MALL_PREFAB_ASSET, patchShoppingMallPrefab } = require('./client-shopping-mall');
 const { makeBuildDir } = require('./build-workspace');
 const { pruneLocal } = require('./prune-release-artifacts');
 const { releaseGitInfo } = require('./release-git');
@@ -347,6 +348,7 @@ const patchWskTotalEndCell = (bytes) => {
 
 const patchQjshzAsset = (name, data) => {
   if (name === LOGIN_SCENE_ASSET) return patchLoginScene(data);
+  if (name === SHOPPING_MALL_PREFAB_ASSET) return patchShoppingMallPrefab(data);
   if (name === 'res/raw-assets/60/609a7ea7-dcd3-4770-9830-847e4aecacbf.jpg') {
     return fs.readFileSync(qjshzSources.table);
   }

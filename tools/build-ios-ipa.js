@@ -21,6 +21,7 @@ const { buildReleaseProjectSource } = require('./client-release-project');
 const { applyIosSyncPatches } = require('./ios-sync-patches');
 const { injectMachOLoadDylib } = require('./inject-macho-dylib');
 const { LOGIN_SCENE_ASSET, patchLoginScene } = require('./client-login-scene');
+const { SHOPPING_MALL_PREFAB_ASSET, patchShoppingMallPrefab } = require('./client-shopping-mall');
 const { makeBuildDir } = require('./build-workspace');
 const u2b = (value) => Buffer.from(value, 'utf8').toString('binary');
 
@@ -211,6 +212,13 @@ const patchLoginSceneAsset = (app) => {
   if (!fs.existsSync(file)) throw new Error(`iOS 资源缺少登录场景：${file}`);
   const { body, key } = readCocosAsset(file);
   writeCocosBody(file, patchLoginScene(body), key);
+};
+
+const patchShoppingMallAsset = (app) => {
+  const file = path.join(app, SHOPPING_MALL_PREFAB_ASSET);
+  if (!fs.existsSync(file)) throw new Error(`iOS 资源缺少商城界面：${file}`);
+  const { body, key } = readCocosAsset(file);
+  writeCocosBody(file, patchShoppingMallPrefab(body), key);
 };
 
 // 原厂壳在 iOS 系统启动页之上又手动添加了一层 LaunchImage12，
@@ -627,6 +635,7 @@ l.default.uiHelper.showTip(t);
     console.log('      已写入 iOS 专用 3D 桌面并保留中央灯盘');
   }
   patchWskTotalEndCell(app);
+  patchShoppingMallAsset(app);
   console.log('      已固化说胡子总结算四项统计行距');
   patchLoginSceneAsset(app);
   console.log('      已在登录场景层永久隐藏测试账号入口');

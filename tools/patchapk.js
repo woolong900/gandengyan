@@ -34,6 +34,7 @@ const { toJs, toJsc } = require('./jsc');
 const { buildReleaseProjectSource } = require('./client-release-project');
 const { makeBuildDir } = require('./build-workspace');
 const { LOGIN_SCENE_ASSET, patchLoginScene } = require('./client-login-scene');
+const { SHOPPING_MALL_PREFAB_ASSET, patchShoppingMallPrefab } = require('./client-shopping-mall');
 
 const argv = process.argv.slice(2);
 const arg = (name, def) => {
@@ -1219,6 +1220,9 @@ const configureLocalHotUpdate = (decoded) => {
 };
 
 const applyBranding = (decoded) => {
+  const shoppingMallPrefab = path.join(decoded, 'assets', SHOPPING_MALL_PREFAB_ASSET);
+  if (!fs.existsSync(shoppingMallPrefab)) throw new Error(`缺少商城界面：${shoppingMallPrefab}`);
+  fs.writeFileSync(shoppingMallPrefab, patchShoppingMallPrefab(fs.readFileSync(shoppingMallPrefab)));
   const manifestFile = path.join(decoded, 'AndroidManifest.xml');
   let manifest = fs.readFileSync(manifestFile, 'utf8').replaceAll(ORIGINAL_PACKAGE, APP_PACKAGE);
   manifest = manifest.replace(
