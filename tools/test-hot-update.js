@@ -190,6 +190,7 @@ const main = async () => {
       'res/import/e9/e9e4084a-b40b-f780-a5dd-ed4476da7ba7.json',
       'res/import/ee/ee9dd0eb-c83f-4802-bfca-98e27e9cc2d5.json',
       'res/raw-assets/0e/0ed69516-3023-4cb0-947a-abd9aab04b9f.jpg',
+      'res/raw-assets/0b/0b113fff-15df-4c89-8321-fb74e12e940f.png',
       'res/raw-assets/15/1580e8a3b.png',
       'res/raw-assets/19/191f83490.png',
       'res/raw-assets/1a/1a62d6dfc.png',
@@ -296,6 +297,14 @@ const main = async () => {
   check('热更新覆盖俱乐部首页背景', fs.readFileSync(path.join(release,
     'android/236/res/raw-assets/d7/d784bb4c-e6d9-4a94-932a-4b9bc139c351.jpg')).equals(
     fs.readFileSync(path.join(__dirname, '../assets/branding/club/club-home-background.jpg'))), true);
+  const publishedShop = fs.readFileSync(path.join(release,
+    'android/236/res/raw-assets/0b/0b113fff-15df-4c89-8321-fb74e12e940f.png'));
+  const shopBody = Buffer.alloc(publishedShop.length - 10);
+  for (let index = 10; index < publishedShop.length; index += 1) {
+    shopBody[index - 10] = publishedShop[index] ^ publishedShop[9];
+  }
+  check('热更新覆盖新版商城背景', shopBody.equals(fs.readFileSync(path.join(__dirname,
+    '../assets/branding/shop/shop-background-r338.png'))), true);
   const publishedProject = toJs(fs.readFileSync(path.join(release, 'android/236/src/project.jsc'))).toString('utf8');
   check('发布器同步脚本资源版本', publishedProject.includes('assertVer: 236'), true);
   check('发布器只携带目标网络地址',

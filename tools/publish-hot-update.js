@@ -90,6 +90,9 @@ const shareSources = {
 const clubHomeBackground = path.join(
   ROOT, 'assets', 'branding', 'club', 'club-home-background.jpg',
 );
+const shoppingMallBackground = path.join(
+  ROOT, 'assets', 'branding', 'shop', 'shop-background-r338.png',
+);
 const tableBackground3d = {
   android: path.join(ROOT, 'assets', 'branding', 'table', 'table-background-3d.jpg'),
   ios: path.join(ROOT, 'assets', 'branding', 'table', 'table-background-3d-ios.png'),
@@ -444,6 +447,10 @@ const publishPlatform = (platform, archive) => {
   // 品牌源覆盖，避免从旧安装包生成新版本时恢复旧背景。
   writeAsset('res/raw-assets/d7/d784bb4c-e6d9-4a94-932a-4b9bc139c351.jpg',
     fs.readFileSync(clubHomeBackground), true);
+  // 商城背景始终从正式品牌源覆盖，避免基于旧安装包生成候选版时
+  // 把旧城市湖景重新带回。该资源沿用原包的 Cocos XOR 封装。
+  writeAsset('res/raw-assets/0b/0b113fff-15df-4c89-8321-fb74e12e940f.png',
+    encryptCocosImage(shoppingMallBackground), true);
   // 3D 干瞪眼桌面不能从旧安装包回填；Android 与 iOS 共用同一资源槽位，
   // iOS 源图额外保留中央东南西北灯盘。
   writeAsset('res/raw-assets/0e/0ed69516-3023-4cb0-947a-abd9aab04b9f.jpg',
@@ -520,6 +527,9 @@ try {
   }
   if (!fs.existsSync(clubHomeBackground)) {
     throw new Error(`缺少俱乐部首页背景：${clubHomeBackground}`);
+  }
+  if (!fs.existsSync(shoppingMallBackground)) {
+    throw new Error(`缺少商城背景：${shoppingMallBackground}`);
   }
   for (const [platform, source] of Object.entries(tableBackground3d)) {
     if (!fs.existsSync(source)) throw new Error(`缺少 ${platform} 3D 桌面背景：${source}`);

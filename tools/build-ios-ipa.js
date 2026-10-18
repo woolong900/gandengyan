@@ -155,6 +155,7 @@ const applyIosBrandingAssets = (app) => {
     ['hall/hall-character.png', ['1b', '1b6b9d70-3f53-4064-801d-f7fb08c52ba3.png']],
     ['club/club-background.png', ['7f', '7fd7e41f-bc15-43c0-9ccf-9f255336b48f.png']],
     ['club/club-home-background.jpg', ['d7', 'd784bb4c-e6d9-4a94-932a-4b9bc139c351.jpg']],
+    ['shop/shop-background-r338.png', ['0b', '0b113fff-15df-4c89-8321-fb74e12e940f.png']],
     ['club/club-character-empty.png', ['89', '896e3506-6fa6-4a3c-864b-f632f44c2f96.png']],
     ['login/login-background.jpg', ['73', '73c931dd-4abb-4c4c-ab86-37f883c44430.jpg']],
     ['table/table-background-2d.jpg', ['65', '6528fb79-db94-4c58-88e8-ff1b0a184491.jpg']],
@@ -614,6 +615,10 @@ l.default.uiHelper.showTip(t);
     replaceCocosAsset(
       path.join(ROOT, 'assets', 'branding', 'club', 'club-home-background.jpg'),
       path.join(app, 'res', 'raw-assets', 'd7', 'd784bb4c-e6d9-4a94-932a-4b9bc139c351.jpg'),
+    );
+    replaceCocosAsset(
+      path.join(ROOT, 'assets', 'branding', 'shop', 'shop-background-r338.png'),
+      path.join(app, 'res', 'raw-assets', '0b', '0b113fff-15df-4c89-8321-fb74e12e940f.png'),
     );
     replaceCocosAsset(
       path.join(ROOT, 'assets', 'branding', 'table', 'table-text-3d.png'),

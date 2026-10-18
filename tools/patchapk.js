@@ -119,6 +119,7 @@ const HALL_BACKGROUND_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 
 const HALL_CHARACTER_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'hall', 'hall-character.png');
 const CLUB_BACKGROUND_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'club', 'club-background.png');
 const CLUB_HOME_BACKGROUND_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'club', 'club-home-background.jpg');
+const SHOPPING_MALL_BACKGROUND_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'shop', 'shop-background-r338.png');
 const CLUB_CHARACTER_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'club', 'club-character-empty.png');
 const TABLE_BACKGROUND_2D_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'table', 'table-background-2d.jpg');
 const TABLE_BACKGROUND_3D_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'table', 'table-background-3d.jpg');
@@ -1326,6 +1327,7 @@ const applyBranding = (decoded) => {
   if (!fs.existsSync(HALL_CHARACTER_SOURCE)) throw new Error(`缺少大厅人物图：${HALL_CHARACTER_SOURCE}`);
   if (!fs.existsSync(CLUB_BACKGROUND_SOURCE)) throw new Error(`缺少俱乐部背景图：${CLUB_BACKGROUND_SOURCE}`);
   if (!fs.existsSync(CLUB_HOME_BACKGROUND_SOURCE)) throw new Error(`缺少俱乐部首页背景图：${CLUB_HOME_BACKGROUND_SOURCE}`);
+  if (!fs.existsSync(SHOPPING_MALL_BACKGROUND_SOURCE)) throw new Error(`缺少商城背景图：${SHOPPING_MALL_BACKGROUND_SOURCE}`);
   if (!fs.existsSync(CLUB_CHARACTER_SOURCE)) throw new Error(`缺少俱乐部人物占位图：${CLUB_CHARACTER_SOURCE}`);
   if (!fs.existsSync(TABLE_BACKGROUND_2D_SOURCE)) throw new Error(`缺少 2D 牌桌背景图：${TABLE_BACKGROUND_2D_SOURCE}`);
   if (!fs.existsSync(TABLE_BACKGROUND_3D_SOURCE)) throw new Error(`缺少 3D 牌桌背景图：${TABLE_BACKGROUND_3D_SOURCE}`);
@@ -1356,6 +1358,10 @@ const applyBranding = (decoded) => {
   fs.copyFileSync(
     CLUB_HOME_BACKGROUND_SOURCE,
     path.join(decoded, 'assets', 'res', 'raw-assets', 'd7', 'd784bb4c-e6d9-4a94-932a-4b9bc139c351.jpg'),
+  );
+  writeEncryptedAsset(
+    SHOPPING_MALL_BACKGROUND_SOURCE,
+    path.join(decoded, 'assets', 'res', 'raw-assets', '0b', '0b113fff-15df-4c89-8321-fb74e12e940f.png'),
   );
   writeEncryptedAsset(
     CLUB_CHARACTER_SOURCE,
@@ -1416,6 +1422,7 @@ const applyBranding = (decoded) => {
   console.log('      已替换登录标题、登录背景和启动画面');
   console.log('      已替换大厅背景和卡通人物');
   console.log('      已替换俱乐部首页、创建页背景和人物');
+  console.log('      已替换商城背景');
   console.log('      已替换 2D / 3D 牌桌背景花纹');
   console.log('      已替换微信分享缩略图、朋友圈海报、战绩背景和下载二维码');
   console.log('      已移除用户可见的旧品牌名称、公告和客服信息');
