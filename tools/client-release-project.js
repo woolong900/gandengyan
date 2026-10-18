@@ -4,10 +4,10 @@
  * package from losing fixes that were previously only present after hot update.
  */
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { toJsc } = require('./jsc');
+const { makeBuildDir } = require('./build-workspace');
 
 const u2b = (value) => Buffer.from(value, 'utf8').toString('binary');
 
@@ -127,13 +127,23 @@ const assertCurrentFixes = (source) => {
     ['说胡子喜钱规则', 't.prototype.xiRuleText = function(e) {'],
     ['说胡子喜钱结算提示', '"game_xi" === t && this._showXiMoney(o);'],
     ['战绩玩法动态名称', 'e.prototype.playName = function() {'],
-    ['战绩分享使用玩法名', 'd = "' + u2b('玩法：') + '" + o + "  " + n;'],
+    ['房间结束分享只显示玩法名', 'u = "' + u2b('玩法：') + '" + o;'],
+    ['单局结算算分隐藏喜钱明细', 'n = String(n || "").split("' + u2b(',喜钱：') + '")[0];'],
     ['潜江晃晃玩法名', u2b('desc: "潜江晃晃"')],
     ['应用下载分享地址', 'var t = this.downloadBaseUrl() + "/download";'],
     ['客服会话历史', 'msghead: "support_history"'],
     ['客服消息实时分发', 'eventUtils.emit("support_chat_update"'],
+    ['热更新停滞自动恢复', 'Date.now() - this._lastProgressAt >= 3e4'],
+    ['热更新失败断点重试', 'this._am.downloadFailedAssets();'],
+    ['热更新临时文件自愈', 'this._storagePath + "_temp/"'],
+    ['热更新恢复状态持久化', '__QJQP_HOT_UPDATE_RECOVERY__'],
+    ['热更新下载量提示', 'this._eventNumber(t, "getDownloadedBytes")'],
+    ['热更新阶段明确提示', u2b('正在更新游戏资源，请勿退出')],
+    ['热更新界面优先绘制', 't.scheduleOnce(function() {\nt.hotUpdate.hotUpdate(n.version, l);\n}, .05);'],
     ['俱乐部右侧扩展', 'var t = cc.winSize.width - e;\nthis.node.width = t;\nthis.node.height = cc.winSize.height;'],
     ['俱乐部左侧保留安全区', 'this.node.anchorX = (cc.winSize.width / 2 - e) / t;'],
+    ['俱乐部顶部遮罩独立右侧补片', 'var topExtension = new cc.Node("TopPanalRightExtension");\ntopExtension.parent = this.contentRoot;'],
+    ['俱乐部右侧补片按安全区定位', 'topExtension.x = this.contentRoot.width / 2;'],
     ['俱乐部背景等比例铺满', 'Math.max(cc.winSize.width / o.width, cc.winSize.height / o.height)'],
   ];
   for (const [label, snippet] of required) {
@@ -154,7 +164,7 @@ const buildReleaseProjectSource = ({
   }
   const serviceUrl = validateServiceBaseUrl(serviceBaseUrl);
   const ownWork = !workDir;
-  const targetWork = workDir || fs.mkdtempSync(path.join(os.tmpdir(), 'qjqp-client-release-'));
+  const targetWork = workDir || makeBuildDir('qjqp-client-release');
   try {
     fs.mkdirSync(targetWork, { recursive: true });
     const output = path.join(targetWork, 'canonical-project.js');

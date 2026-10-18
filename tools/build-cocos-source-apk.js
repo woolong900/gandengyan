@@ -4,6 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync, spawnSync } = require('child_process');
+const { makeBuildDir } = require('./build-workspace');
 
 const ROOT = path.join(__dirname, '..');
 const envFile = path.join(ROOT, '.dev.vars');
@@ -75,7 +76,8 @@ run(process.execPath, [path.join(__dirname, 'repair-cocos-project.js'), SOURCE])
 ensureGme();
 
 const reusedProject = process.env.QJQP_SOURCE_PROJECT;
-const stage = reusedProject ? path.dirname(reusedProject) : fs.mkdtempSync(path.join(os.tmpdir(), 'qjqp-cocos-source-'));
+const stage = reusedProject ? path.dirname(reusedProject)
+  : makeBuildDir('qjqp-cocos-source', { minimumFreeBytes: 3 * 1073741824 });
 const project = reusedProject || path.join(stage, 'client');
 console.log(`${reusedProject ? '复用' : '源码'}构建目录：${project}`);
 if (!reusedProject) copyTree(SOURCE, project);

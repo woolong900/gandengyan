@@ -1,0 +1,407 @@
+[
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd9/img0",
+    "asset": "res/raw-assets/1a/1aeacca63.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd9/img1",
+    "asset": "res/raw-assets/1a/1a4d9db89.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd9/img2",
+    "asset": "res/raw-assets/11/117ac4a49.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd9/img3",
+    "asset": "res/raw-assets/1e/1e1662e86.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd9/img4",
+    "asset": "res/raw-assets/17/17370ca8b.png",
+    "size": "546x864"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd9/img5",
+    "asset": "res/raw-assets/19/19705a5d0.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd9/img6",
+    "asset": "res/raw-assets/1b/1b7728eed.png",
+    "size": "864x555"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd9/img7",
+    "asset": "res/raw-assets/14/14602e863.png",
+    "size": "864x571"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd9/img8",
+    "asset": "res/raw-assets/13/13c03d3f5.png",
+    "size": "864x584"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd10/img0",
+    "asset": "res/raw-assets/12/12a146b40.png",
+    "size": "546x864"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd10/img1",
+    "asset": "res/raw-assets/1c/1c2af6f78.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd10/img2",
+    "asset": "res/raw-assets/16/160f1d364.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd10/img3",
+    "asset": "res/raw-assets/1f/1f76f26b9.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd10/img4",
+    "asset": "res/raw-assets/13/136033e2f.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd10/img5",
+    "asset": "res/raw-assets/1f/1f88fbe62.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd10/img6",
+    "asset": "res/raw-assets/11/11dd3b2a3.png",
+    "size": "864x555"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd10/img7",
+    "asset": "res/raw-assets/17/1720cc4d3.png",
+    "size": "864x571"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd10/img8",
+    "asset": "res/raw-assets/14/14d8dcf69.png",
+    "size": "864x584"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd11/img0",
+    "asset": "res/raw-assets/12/1213360fb.png",
+    "size": "546x864"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd11/img1",
+    "asset": "res/raw-assets/18/18d029a4b.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd11/img2",
+    "asset": "res/raw-assets/14/14b5e1b61.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd11/img3",
+    "asset": "res/raw-assets/18/18f600086.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd11/img4",
+    "asset": "res/raw-assets/1d/1d22a5ed2.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd11/img5",
+    "asset": "res/raw-assets/1e/1e2ecbe78.png",
+    "size": "865x550"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd11/img6",
+    "asset": "res/raw-assets/17/173417057.png",
+    "size": "867x562"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd11/img7",
+    "asset": "res/raw-assets/1b/1bf3bb6f5.png",
+    "size": "882x579"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd11/img8",
+    "asset": "res/raw-assets/1c/1c8ff94b0.png",
+    "size": "887x584"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd12/img0",
+    "asset": "res/raw-assets/14/148ee433d.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd12/img1",
+    "asset": "res/raw-assets/1d/1d14cd70b.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd12/img2",
+    "asset": "res/raw-assets/1e/1ecab5b60.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd12/img3",
+    "asset": "res/raw-assets/16/165fd2018.png",
+    "size": "546x864"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd12/img4",
+    "asset": "res/raw-assets/15/154d16aa7.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd12/img5",
+    "asset": "res/raw-assets/18/18f0f4ae8.png",
+    "size": "865x550"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd12/img6",
+    "asset": "res/raw-assets/11/1119044cf.png",
+    "size": "867x562"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd12/img7",
+    "asset": "res/raw-assets/16/16f0be3d9.png",
+    "size": "882x579"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd12/img8",
+    "asset": "res/raw-assets/15/151283b58.png",
+    "size": "887x584"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd13/img0",
+    "asset": "res/raw-assets/1d/1dc01fc84.png",
+    "size": "546x864"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd13/img1",
+    "asset": "res/raw-assets/11/1172b799a.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd13/img2",
+    "asset": "res/raw-assets/1b/1bffb5859.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd13/img3",
+    "asset": "res/raw-assets/11/111614bfb.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd13/img4",
+    "asset": "res/raw-assets/14/149837f65.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd13/img5",
+    "asset": "res/raw-assets/17/170d405b4.png",
+    "size": "865x550"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd13/img6",
+    "asset": "res/raw-assets/1a/1a8a78300.png",
+    "size": "867x562"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd13/img7",
+    "asset": "res/raw-assets/1e/1ed23b28c.png",
+    "size": "882x579"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd13/img8",
+    "asset": "res/raw-assets/1d/1d4af3696.png",
+    "size": "887x584"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd14/img0",
+    "asset": "res/raw-assets/17/17324fdfc.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd14/img1",
+    "asset": "res/raw-assets/15/15d06c464.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd14/img2",
+    "asset": "res/raw-assets/17/1747661ed.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd14/img3",
+    "asset": "res/raw-assets/11/1157fe747.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd14/img4",
+    "asset": "res/raw-assets/1e/1ef4a41fa.png",
+    "size": "546x864"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd14/img5",
+    "asset": "res/raw-assets/19/190ba9114.png",
+    "size": "865x550"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd14/img6",
+    "asset": "res/raw-assets/1f/1ff327ca2.png",
+    "size": "867x562"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd14/img7",
+    "asset": "res/raw-assets/11/1145309fb.png",
+    "size": "882x579"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd14/img8",
+    "asset": "res/raw-assets/11/116083e4f.png",
+    "size": "887x584"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd15/img0",
+    "asset": "res/raw-assets/1e/1ed5a6da4.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd15/img1",
+    "asset": "res/raw-assets/1d/1d56bbfe1.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd15/img2",
+    "asset": "res/raw-assets/1e/1e9acb89a.png",
+    "size": "546x864"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd15/img3",
+    "asset": "res/raw-assets/18/1837535cf.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd15/img4",
+    "asset": "res/raw-assets/13/13269c55f.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd15/img5",
+    "asset": "res/raw-assets/13/13a9b4e19.png",
+    "size": "865x550"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd15/img6",
+    "asset": "res/raw-assets/16/1619b0617.png",
+    "size": "867x562"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd15/img7",
+    "asset": "res/raw-assets/13/13cbaf77b.png",
+    "size": "882x579"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd15/img8",
+    "asset": "res/raw-assets/1c/1c29a7272.png",
+    "size": "887x584"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd16/img0",
+    "asset": "res/raw-assets/15/151129a0e.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd16/img1",
+    "asset": "res/raw-assets/1b/1b20f41e4.png",
+    "size": "546x864"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd16/img2",
+    "asset": "res/raw-assets/1f/1f6fb27ff.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd16/img3",
+    "asset": "res/raw-assets/13/138131135.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd16/img4",
+    "asset": "res/raw-assets/16/16a7bc2a7.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd16/img5",
+    "asset": "res/raw-assets/12/1205188db.png",
+    "size": "865x550"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd16/img6",
+    "asset": "res/raw-assets/17/17f132370.png",
+    "size": "867x562"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd16/img7",
+    "asset": "res/raw-assets/1f/1f126e74d.png",
+    "size": "882x579"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd16/img8",
+    "asset": "res/raw-assets/1c/1c0199ef3.png",
+    "size": "887x584"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd17/img0",
+    "asset": "res/raw-assets/1b/1b6623738.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd17/img1",
+    "asset": "res/raw-assets/14/14c9a9038.png",
+    "size": "546x864"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd17/img2",
+    "asset": "res/raw-assets/1a/1a2959e9b.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd17/img3",
+    "asset": "res/raw-assets/16/1666402e4.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd17/img4",
+    "asset": "res/raw-assets/19/19347efe3.png",
+    "size": "864x546"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd17/img5",
+    "asset": "res/raw-assets/15/153554724.png",
+    "size": "865x550"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd17/img6",
+    "asset": "res/raw-assets/1e/1e57dd026.png",
+    "size": "867x562"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd17/img7",
+    "asset": "res/raw-assets/11/114f9524a.png",
+    "size": "882x579"
+  },
+  {
+    "logical": "Hall/Res/Animate/pd_ani/pd17/img8",
+    "asset": "res/raw-assets/19/1991c9909.png",
+    "size": "887x584"
+  }
+]

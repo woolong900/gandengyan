@@ -21,6 +21,7 @@ const { buildReleaseProjectSource } = require('./client-release-project');
 const { applyIosSyncPatches } = require('./ios-sync-patches');
 const { injectMachOLoadDylib } = require('./inject-macho-dylib');
 const { LOGIN_SCENE_ASSET, patchLoginScene } = require('./client-login-scene');
+const { makeBuildDir } = require('./build-workspace');
 const u2b = (value) => Buffer.from(value, 'utf8').toString('binary');
 
 const ROOT = path.join(__dirname, '..');
@@ -158,6 +159,7 @@ const applyIosBrandingAssets = (app) => {
     ['login/login-background.jpg', ['73', '73c931dd-4abb-4c4c-ab86-37f883c44430.jpg']],
     ['table/table-background-2d.jpg', ['65', '6528fb79-db94-4c58-88e8-ff1b0a184491.jpg']],
     ['table/table-background-3d-ios.png', ['16', '16cd3461-5051-44bf-83b2-bb6ad34d0696.png']],
+    ['table/table-text-3d.png', ['a1', 'a120356e-9147-4a68-a7ef-f9c4dbbaff41.png']],
     ['share/settlement-background.png', ['b9', 'b90e4f53-0a61-4024-a8e4-3c9d5dd78f18.png']],
     ['share/download-qr.png', ['20', '206b229f-fa1c-409e-b47e-b2d2c0938d57.png']],
     ['share/moments-poster.jpg', ['db', 'dbd4ba35-fdeb-4a79-a26f-1f3ba1fdfca9.jpg']],
@@ -324,7 +326,7 @@ const stamp = () => {
 const output = path.resolve(arg('out', path.join(ROOT, 'dist', `qianjiang-gandengyan-ios-${SIGN_IDENTITY === '-' ? 'adhoc-' : ''}${stamp()}.ipa`)));
 fs.mkdirSync(path.dirname(output), { recursive: true });
 
-const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'qjqp-ios-build-'));
+const stage = makeBuildDir('qjqp-ios-build', { minimumFreeBytes: 3 * 1073741824 });
 try {
   console.log(`原厂 IPA：${BASE_IPA}`);
   console.log(`Cocos 基线：${COCOS_BASE === 'ios' ? 'iOS IPA 内置旧资源' : COCOS_BASE === 'ios-r234' ? `原厂 iOS R234 热更新资源（取自 ${SOURCE_APK}）` : SOURCE_APK}`);
@@ -612,6 +614,10 @@ l.default.uiHelper.showTip(t);
     replaceCocosAsset(
       path.join(ROOT, 'assets', 'branding', 'club', 'club-home-background.jpg'),
       path.join(app, 'res', 'raw-assets', 'd7', 'd784bb4c-e6d9-4a94-932a-4b9bc139c351.jpg'),
+    );
+    replaceCocosAsset(
+      path.join(ROOT, 'assets', 'branding', 'table', 'table-text-3d.png'),
+      path.join(app, 'res', 'raw-assets', 'a1', 'a120356e-9147-4a68-a7ef-f9c4dbbaff41.png'),
     );
     console.log('      已写入 iOS 专用 3D 桌面并保留中央灯盘');
   }

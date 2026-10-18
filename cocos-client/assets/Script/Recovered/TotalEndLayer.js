@@ -47,6 +47,8 @@ this.loadCell();
 };
 t.prototype.setBaseInfo = function() {
 var e = i.default.getTotalEndData(), t = i.default.config.gameCount(), o = i.default.config.playName(), n = l.default.gameLogic().scoreRuleDesc(i.default.config), r = "房号：<color=#bb6b0d>" + i.default.roomId + "     /     </c>", s = "玩法：<color=#bb6b0d>" + o + "     /     </c>", c = "算分：<color=#bb6b0d>" + n + "     /     </c>", u = "局数：<color=#bb6b0d>" + i.default.gameInfo.curStep + "/" + t + "     /     </c>", d = "<size=20>" + a.default.dateFormat(1e3 * e.time, "yyyy-MM-dd hh:mm ") + "</size>";
+n = String(n || "").split(",喜钱：")[0];
+c = "算分：<color=#bb6b0d>" + n + "     /     </c>";
 this.richText.string = r + s + c + u + d;
 };
 t.prototype.loadCell = function() {

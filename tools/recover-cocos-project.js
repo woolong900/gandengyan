@@ -9,11 +9,11 @@
  */
 const crypto = require('crypto');
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 const vm = require('vm');
 const { execFileSync } = require('child_process');
 const { toJs } = require('./jsc');
+const { makeBuildDir } = require('./build-workspace');
 
 const argv = process.argv.slice(2);
 const arg = (name, fallback) => {
@@ -73,7 +73,7 @@ const meta = (uuid, extra = {}) => `${JSON.stringify({
   ...extra,
 }, null, 2)}\n`;
 
-const decoded = fs.mkdtempSync(path.join(os.tmpdir(), 'qjqp-cocos-recover-'));
+const decoded = makeBuildDir('qjqp-cocos-recover', { minimumFreeBytes: 3 * 1073741824 });
 console.log(`1/5 解包 ${path.basename(APK)}`);
 execFileSync('java', ['-jar', APKTOOL, 'd', '-f', '-o', decoded, APK], {
   stdio: ['ignore', 'ignore', 'pipe'],

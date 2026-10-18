@@ -3,6 +3,8 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const { pruneLocal } = require('./prune-release-artifacts');
+const { releaseGitInfo } = require('./release-git');
 
 const ROOT = path.join(__dirname, '..');
 const RELEASE = Number(process.argv[2] || 301);
@@ -111,7 +113,18 @@ if (copied !== members.length - webOnly.size) throw new Error('资源包数量�
 delete config.packs[packId];
 fs.writeFileSync(CONFIG, JSON.stringify(config));
 
+fs.writeFileSync(path.join(OUTPUT, 'release.json'), `${JSON.stringify({
+  version: RELEASE,
+  git: releaseGitInfo(ROOT),
+  builtAt: new Date().toISOString(),
+}, null, 2)}\n`);
+
 execFileSync(process.execPath, [path.join(ROOT, 'tools', 'package-cocos-pwa.js'), OUTPUT],
   { stdio: 'inherit' });
+if (path.dirname(OUTPUT) === path.join(ROOT, 'dist')
+    && path.basename(OUTPUT) === `pwa-r${RELEASE}`) {
+  const pruned = pruneLocal({ distRoot: path.join(ROOT, 'dist'), apply: true });
+  console.log(`自动清理旧发布产物：${pruned.hot.length + pruned.pwa.length + pruned.work.length} 项`);
+}
 console.log(`PWA_RELEASE=R${RELEASE}`);
 console.log(`PWA_OUTPUT=${OUTPUT}`);

@@ -145,9 +145,11 @@ t.checkFull(3);
 }); else if (o === i.eCheckUpdateCode.AssertUpdate) {
 t.rootNode.active = !0;
 t.loginRoot.active = !1;
-t._descStr = "下载更新中";
+t._descStr = "正在更新游戏资源，请勿退出";
 var l = n.url || "https://gmhiu.com/" + s.default.appName + "/update/";
+t.scheduleOnce(function() {
 t.hotUpdate.hotUpdate(n.version, l);
+}, .05);
 } else t.checkFull(e - 1);
 } else t.loginRoot.getComponent(m.default).tryLogin();
 });
@@ -161,7 +163,7 @@ var r = this, s = function() {
 if (t === i.eFullUpdateAction.downLoad) {
 r.rootNode.active = !0;
 r.loginRoot.active = !1;
-r._descStr = "下载更新中";
+r._descStr = "正在更新游戏资源，请勿退出";
 c.default.uiHelper.remove(h.eWindowID.MsgBoxCommon);
 r.node.getComponent(l.default).download(o, n);
 } else {

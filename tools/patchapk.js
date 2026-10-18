@@ -32,6 +32,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const { toJs, toJsc } = require('./jsc');
 const { buildReleaseProjectSource } = require('./client-release-project');
+const { makeBuildDir } = require('./build-workspace');
 const { LOGIN_SCENE_ASSET, patchLoginScene } = require('./client-login-scene');
 
 const argv = process.argv.slice(2);
@@ -121,6 +122,8 @@ const CLUB_HOME_BACKGROUND_SOURCE = path.join(__dirname, '..', 'assets', 'brandi
 const CLUB_CHARACTER_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'club', 'club-character-empty.png');
 const TABLE_BACKGROUND_2D_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'table', 'table-background-2d.jpg');
 const TABLE_BACKGROUND_3D_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'table', 'table-background-3d.jpg');
+const TABLE_TEXT_3D_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'table', 'table-text-3d.png');
+const PAI_DUN_GREEN_ROOT = path.join(__dirname, '..', 'assets', 'branding', 'table', 'pd-ani-green');
 const SPLASH_SOURCE = path.join(__dirname, '..', 'assets', 'branding', 'startup', 'splash-screen.png');
 const QJSHZ_TABLE_SOURCE = path.join(__dirname, '..', 'client-release-source', 'assets', 'resources', '_RecoveredDependencies', 'Textures', '609a7ea7-dcd3-4770-9830-847e4aecacbf.jpg');
 const QJSHZ_ACTION_SOURCE = path.join(__dirname, '..', 'client-release-source', 'assets', 'resources', '_RecoveredDependencies', 'Textures', '19c83aa89.png');
@@ -780,7 +783,7 @@ const ensureGmeSdk = () => {
 /** 编 Voice.java + gmesdk.jar，解成 smali，供塞进 APK。 */
 const compileGmeVoiceSmali = () => {
   const jar = ensureGmeSdk();
-  const work = fs.mkdtempSync(path.join(os.tmpdir(), 'qjqp-gme-'));
+  const work = makeBuildDir('qjqp-gme', { minimumFreeBytes: 1073741824 });
   const stubs = path.join(work, 'stubs');
   const classes = path.join(work, 'classes');
   const dexDir = path.join(work, 'dex');
@@ -1068,9 +1071,9 @@ const replaceQjshzArtwork = (decoded) => {
   wskTopExit._parent = null;
   wskTopExit._components = [];
   wskTopExit._active = false;
-  wskContinue._position = { __type__: 'cc.Vec3', x: -418, y: -222 };
+  wskContinue._position = { __type__: 'cc.Vec3', x: 418, y: -222 };
   wskShare._name = 'BtnExitBottom';
-  wskShare._position = { __type__: 'cc.Vec3', x: 418, y: -222 };
+  wskShare._position = { __type__: 'cc.Vec3', x: -418, y: -222 };
   wskShare._components.find((component) => component.__type__ === 'cc.Sprite')._spriteFrame = {
     __uuid__: QJSHZ_BUSY_EXIT_SPRITE_PACKED_UUID,
   };
@@ -1326,6 +1329,10 @@ const applyBranding = (decoded) => {
   if (!fs.existsSync(CLUB_CHARACTER_SOURCE)) throw new Error(`缺少俱乐部人物占位图：${CLUB_CHARACTER_SOURCE}`);
   if (!fs.existsSync(TABLE_BACKGROUND_2D_SOURCE)) throw new Error(`缺少 2D 牌桌背景图：${TABLE_BACKGROUND_2D_SOURCE}`);
   if (!fs.existsSync(TABLE_BACKGROUND_3D_SOURCE)) throw new Error(`缺少 3D 牌桌背景图：${TABLE_BACKGROUND_3D_SOURCE}`);
+  if (!fs.existsSync(TABLE_TEXT_3D_SOURCE)) throw new Error(`缺少 3D 牌桌文字图集：${TABLE_TEXT_3D_SOURCE}`);
+  if (!fs.existsSync(path.join(PAI_DUN_GREEN_ROOT, 'manifest.json'))) {
+    throw new Error(`缺少绿色牌墙升起动画：${PAI_DUN_GREEN_ROOT}`);
+  }
   if (!fs.existsSync(SPLASH_SOURCE)) throw new Error(`缺少启动画面：${SPLASH_SOURCE}`);
   const loginLogoTarget = path.join(decoded, 'assets', 'branding', 'login-logo.png');
   fs.mkdirSync(path.dirname(loginLogoTarget), { recursive: true });
@@ -1362,6 +1369,25 @@ const applyBranding = (decoded) => {
     TABLE_BACKGROUND_3D_SOURCE,
     path.join(decoded, 'assets', 'res', 'raw-assets', '0e', '0ed69516-3023-4cb0-947a-abd9aab04b9f.jpg'),
   );
+  writeEncryptedAsset(
+    TABLE_TEXT_3D_SOURCE,
+    path.join(decoded, 'assets', 'res', 'raw-assets', 'a1', 'a120356e-9147-4a68-a7ef-f9c4dbbaff41.png'),
+  );
+  const paiDunGreenManifest = JSON.parse(fs.readFileSync(
+    path.join(PAI_DUN_GREEN_ROOT, 'manifest.json'), 'utf8',
+  ));
+  if (!Array.isArray(paiDunGreenManifest) || paiDunGreenManifest.length !== 81) {
+    throw new Error('绿色牌墙升起动画清单异常');
+  }
+  for (const frame of paiDunGreenManifest) {
+    if (!/^res\/raw-assets\/[0-9a-f]{2}\/[0-9a-f]{9}\.png$/i.test(frame.asset)) {
+      throw new Error(`绿色牌墙升起动画路径异常：${frame.asset}`);
+    }
+    writeEncryptedAsset(
+      path.join(PAI_DUN_GREEN_ROOT, frame.asset),
+      path.join(decoded, 'assets', frame.asset),
+    );
+  }
   writeEncryptedAsset(
     path.join(__dirname, '..', 'assets', 'branding', 'share', 'settlement-background.png'),
     path.join(decoded, 'assets', 'res', 'raw-assets', 'b9', 'b90e4f53-0a61-4024-a8e4-3c9d5dd78f18.png'),
@@ -1440,7 +1466,7 @@ const injectNativeConfig = (apkPath, { voiceAppid, voiceAppkey, wechatAppid }) =
     throw new Error(`没有 android.jar：${ANDROID_JAR}`);
   }
   const compiled = withVoice ? compileGmeVoiceSmali() : null;
-  const decoded = fs.mkdtempSync(path.join(os.tmpdir(), 'qjqp-nativeapk-'));
+  const decoded = makeBuildDir('qjqp-nativeapk', { minimumFreeBytes: 2 * 1073741824 });
   const built = `${apkPath}.native.apk`;
   try {
     runApktool(['d', '-f', apkPath, '-o', decoded]);
@@ -1487,7 +1513,7 @@ const injectNativeConfig = (apkPath, { voiceAppid, voiceAppkey, wechatAppid }) =
   }
 };
 
-const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'qjqp-patch-'));
+const stage = makeBuildDir('qjqp-patch', { minimumFreeBytes: 2 * 1073741824 });
 const rel = 'assets/src/project.jsc';
 const loginSceneRel = `assets/${LOGIN_SCENE_ASSET}`;
 

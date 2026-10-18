@@ -11,14 +11,23 @@ node tools/publish-hot-update.js \
   --package-version 1.0.6 \
   --base-url https://gmhiu.com \
   --android dist/当前.apk \
-  --ios dist/当前.ipa
+  --ios dist/当前.ipa \
+  --require-clean-git
 ```
 
 脚本会从安装包清单中复制资源、重新计算每个文件的 MD5，并把 `project.jsc` 内的资源版本同步为发布版本，避免客户端重启后重复更新。输出目录包含 Android/iOS 版本目录、整包安装文件、iOS 安装清单和 `hot-update.json`。
 
+正式发布前先提交代码；生成产物并验证后执行 `npm run release:mark -- --version 236`。该命令只接受干净工作区，创建 `release-r236` Git 标签，并把提交号写入 `release.json`。发布脚本也会记录构建时的提交号和脏工作区状态。
+
+大型解包不再使用系统 `/tmp`，默认写入 `dist/.work`。可通过 `QJQP_BUILD_ROOT=/容量更大的目录` 指定独立构建盘。正式发布前会检查剩余空间，失败或成功后都会清理本次工作目录。
+
+每次生成正式热更新或 PWA 后，会自动保留最近 10 个热更新、最近 5 个 PWA，并额外保护 R326、R328、R319 等构建基线。可先运行 `npm run release:prune:preview` 查看清理计划，再用 `npm run release:prune` 执行。
+
 新版本默认作为“候选版”生成，灰度比例为 0%，不会自动推给全部玩家。`--stable-version` 应填写当前已经全量生效的资源版本；省略时只会按“候选版本减 1”推断，因此正式发布建议显式填写。只有明确需要立即全量时才使用 `--full-release`。
 
 部署时先上传版本目录与安装包，最后原子替换 `/var/lib/qjqp/hot-update.json`；这样客户端不会看到半上传的版本。服务端无需重启，会自动读取新配置。
+
+生产服务器安装 `deploy/qjqp-release-prune.service` 和 `.timer` 后每天自动清理：只删除当前配置未引用且超出最近 10 版的 Android/iOS 资源、超出最近 5 版且不是当前软链接的 PWA，以及超过 24 小时的构建暂存目录。
 
 ## 灰度验证流程
 

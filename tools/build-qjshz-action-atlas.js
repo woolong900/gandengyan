@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const { makeBuildDir } = require('./build-workspace');
 
 const root = path.join(__dirname, '..');
 const targetDir = path.join(root, 'assets', 'branding', 'qjshz-target');
@@ -10,7 +10,7 @@ const atlas = path.join(root, 'client-release-source', 'assets', 'resources',
   '_RecoveredDependencies', 'Textures', '19c83aa89.png');
 const cocosAtlas = path.join(root, 'cocos-client', 'assets', 'resources',
   '_RecoveredDependencies', 'Textures', '19c83aa89.png');
-const work = fs.mkdtempSync(path.join(os.tmpdir(), 'qjshz-action-atlas-'));
+const work = makeBuildDir('qjqp-qjshz-action-atlas', { minimumFreeBytes: 1073741824 });
 const output = path.join(work, '19c83aa89.png');
 
 const overlays = [

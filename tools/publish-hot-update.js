@@ -5,12 +5,14 @@
  */
 const crypto = require('crypto');
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { toJs } = require('./jsc');
 const { buildReleaseProjectJsc } = require('./client-release-project');
 const { LOGIN_SCENE_ASSET, patchLoginScene } = require('./client-login-scene');
+const { makeBuildDir } = require('./build-workspace');
+const { pruneLocal } = require('./prune-release-artifacts');
+const { releaseGitInfo } = require('./release-git');
 
 const argv = process.argv.slice(2);
 const arg = (name, fallback = '') => {
@@ -28,6 +30,7 @@ const BASE_URL = arg('base-url', process.env.QJQP_PUBLIC_BASE_URL || '').replace
 const SERVICE_BASE_URL = arg('service-base-url', BASE_URL).replace(/\/$/, '');
 const ANDROID = arg('android');
 const IOS = arg('ios');
+const gitInfo = releaseGitInfo(ROOT);
 if (!Number.isSafeInteger(VERSION) || VERSION < 1) throw new Error('--version 必须是正整数');
 if (!Number.isSafeInteger(STABLE_VERSION) || STABLE_VERSION < 1 || STABLE_VERSION > VERSION) {
   throw new Error('--stable-version 必须是小于等于候选版本的正整数');
@@ -37,12 +40,15 @@ if (!SERVICE_BASE_URL || !/^https?:\/\//.test(SERVICE_BASE_URL)) {
   throw new Error('--service-base-url 必须是完整 HTTP(S) 地址');
 }
 if (!ANDROID && !IOS) throw new Error('至少指定 --android APK 或 --ios IPA');
+if (argv.includes('--require-clean-git') && gitInfo.dirty) {
+  throw new Error('正式发布要求干净的 Git 工作区；请先审阅并提交改动');
+}
 
 const output = path.resolve(arg('out', path.join(ROOT, 'dist', `hot-update-${VERSION}`)));
 if (fs.existsSync(output)) throw new Error(`输出目录已存在：${output}`);
 fs.mkdirSync(path.dirname(output), { recursive: true });
 const stage = fs.mkdtempSync(path.join(path.dirname(output), `.hot-update-${VERSION}-`));
-const work = fs.mkdtempSync(path.join(os.tmpdir(), 'qjqp-hot-update-'));
+const work = makeBuildDir('qjqp-hot-update', { minimumFreeBytes: 3 * 1073741824 });
 const manifestAsset = 'res/raw-assets/2c/2c8a7447-5900-4cca-b1ef-51d750d90396.manifest';
 const qjshzSources = {
   table: path.join(ROOT, 'client-release-source', 'assets', 'resources', '_RecoveredDependencies', 'Textures', '609a7ea7-dcd3-4770-9830-847e4aecacbf.jpg'),
@@ -83,6 +89,16 @@ const shareSources = {
 };
 const clubHomeBackground = path.join(
   ROOT, 'assets', 'branding', 'club', 'club-home-background.jpg',
+);
+const tableBackground3d = {
+  android: path.join(ROOT, 'assets', 'branding', 'table', 'table-background-3d.jpg'),
+  ios: path.join(ROOT, 'assets', 'branding', 'table', 'table-background-3d-ios.png'),
+};
+const tableText3d = path.join(
+  ROOT, 'assets', 'branding', 'table', 'table-text-3d.png',
+);
+const paiDunGreenRoot = path.join(
+  ROOT, 'assets', 'branding', 'table', 'pd-ani-green',
 );
 const qjshzBusyExit = {
   textureUuid: 'e07c10f8-e75a-5ae8-d2f6-40c4b109d372',
@@ -257,13 +273,13 @@ const patchWskSingleEndPrefab = (bytes) => {
     if ((bgNode._children || []).some((child) => child.__id__ === 33)
         || existingExit._parent !== null || existingExit._active !== false
         || (existingExit._components || []).length !== 0
-        || existingContinue._position?.x !== -418 || existingContinue._position?.y !== -222
-        || existingBottomExit._position?.x !== 418 || existingBottomExit._position?.y !== -222
         || handlerOf(existingContinue) !== 'onClickNext'
         || handlerOf(existingBottomExit) !== 'onClickExit') {
       throw new Error('说胡子单局结算已修改节点状态异常');
     }
-    return bytes;
+    existingContinue._position = { __type__: 'cc.Vec3', x: 418, y: -222 };
+    existingBottomExit._position = { __type__: 'cc.Vec3', x: -418, y: -222 };
+    return Buffer.from(JSON.stringify(prefab));
   }
   const exitNode = expectNode(33, 'btn_exit');
   const continueNode = expectNode(34, 'BtnGameNext');
@@ -288,11 +304,11 @@ const patchWskSingleEndPrefab = (bytes) => {
   exitNode._components = [];
   exitNode._active = false;
 
-  // 原继续按钮移到左下。原分享按钮移到右下并改绑退出事件，使用
+  // 继续按钮保持在右下。原分享按钮移到左下并改绑退出事件，使用
   // 独立复制的新 SpriteFrame，绝不覆盖其他页面仍在复用的分享贴图。
-  continueNode._position = { __type__: 'cc.Vec3', x: -418, y: -222 };
+  continueNode._position = { __type__: 'cc.Vec3', x: 418, y: -222 };
   shareNode._name = 'BtnExitBottom';
-  shareNode._position = { __type__: 'cc.Vec3', x: 418, y: -222 };
+  shareNode._position = { __type__: 'cc.Vec3', x: -418, y: -222 };
   shareNode._components.find((component) => component.__type__ === 'cc.Sprite')._spriteFrame = {
     __uuid__: qjshzBusyExit.spritePackedUuid,
   };
@@ -428,6 +444,29 @@ const publishPlatform = (platform, archive) => {
   // 品牌源覆盖，避免从旧安装包生成新版本时恢复旧背景。
   writeAsset('res/raw-assets/d7/d784bb4c-e6d9-4a94-932a-4b9bc139c351.jpg',
     fs.readFileSync(clubHomeBackground), true);
+  // 3D 干瞪眼桌面不能从旧安装包回填；Android 与 iOS 共用同一资源槽位，
+  // iOS 源图额外保留中央东南西北灯盘。
+  writeAsset('res/raw-assets/0e/0ed69516-3023-4cb0-947a-abd9aab04b9f.jpg',
+    encryptCocosImage(tableBackground3d[platform]), true);
+  // 旧位图字体把桌面底色烘焙进了字形矩形；换桌面后会留下深色字块。
+  // 新图集移除旧底色并改为透明浅米金字，确保玩法说明在新桌面上清晰。
+  writeAsset('res/raw-assets/a1/a120356e-9147-4a68-a7ef-f9c4dbbaff41.png',
+    encryptCocosImage(tableText3d), true);
+  // 麻将牌墙升起前会先显示四条动画底座。原资源为蓝色，与新的绿色
+  // 干瞪眼桌面不协调；强制覆盖 81 张原位动画纹理，只改色相，不改
+  // 尺寸、透明通道、帧坐标或动画节奏。
+  const paiDunGreenManifest = JSON.parse(fs.readFileSync(
+    path.join(paiDunGreenRoot, 'manifest.json'), 'utf8',
+  ));
+  if (!Array.isArray(paiDunGreenManifest) || paiDunGreenManifest.length !== 81) {
+    throw new Error('绿色牌墙升起动画清单异常');
+  }
+  for (const frame of paiDunGreenManifest) {
+    if (!/^res\/raw-assets\/[0-9a-f]{2}\/[0-9a-f]{9}\.png$/i.test(frame.asset)) {
+      throw new Error(`绿色牌墙升起动画路径异常：${frame.asset}`);
+    }
+    writeAsset(frame.asset, encryptCocosImage(path.join(paiDunGreenRoot, frame.asset)), true);
+  }
   // 与操作按钮相同，牌面图集由正式源码强制覆盖，不依赖输入安装包。
   for (const [name, atlas] of qjshzPokerAtlases) {
     writeAsset(name, encryptCocosImage(atlas.source), true);
@@ -482,6 +521,12 @@ try {
   if (!fs.existsSync(clubHomeBackground)) {
     throw new Error(`缺少俱乐部首页背景：${clubHomeBackground}`);
   }
+  for (const [platform, source] of Object.entries(tableBackground3d)) {
+    if (!fs.existsSync(source)) throw new Error(`缺少 ${platform} 3D 桌面背景：${source}`);
+  }
+  if (!fs.existsSync(path.join(paiDunGreenRoot, 'manifest.json'))) {
+    throw new Error(`缺少绿色牌墙升起动画：${paiDunGreenRoot}`);
+  }
   const published = {};
   if (ANDROID) published.android = publishPlatform('android', ANDROID);
   if (IOS) published.ios = publishPlatform('ios', IOS);
@@ -534,11 +579,18 @@ try {
   fs.writeFileSync(path.join(stage, 'hot-update.json'), `${JSON.stringify(config, null, 2)}\n`);
   fs.writeFileSync(path.join(stage, 'release.json'), `${JSON.stringify({
     version: VERSION, packageVersion: PACKAGE_VERSION, baseUrl: BASE_URL,
+    git: gitInfo,
     platforms: Object.fromEntries(Object.entries(published).map(([key, value]) => [key, {
       assetCount: value.assetCount, totalBytes: value.totalBytes,
     }])),
   }, null, 2)}\n`);
   fs.renameSync(stage, output);
+  if (!argv.includes('--skip-prune')
+      && path.dirname(output) === path.join(ROOT, 'dist')
+      && path.basename(output) === `hot-update-${VERSION}`) {
+    const pruned = pruneLocal({ distRoot: path.join(ROOT, 'dist'), apply: true });
+    console.log(`自动清理旧发布产物：${pruned.hot.length + pruned.pwa.length + pruned.work.length} 项`);
+  }
   console.log(`完成：${output}`);
   console.log(FULL_RELEASE ? `发布方式：全量，版本 ${VERSION}`
     : `发布方式：灰度待验证，稳定版 ${STABLE_VERSION}，候选版 ${VERSION}，默认 0%`);

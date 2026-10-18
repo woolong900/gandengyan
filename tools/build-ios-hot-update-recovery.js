@@ -6,9 +6,9 @@
 // 二进制资源，并在首次启动时清除一次损坏的热更新搜索路径。
 
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const { makeBuildDir } = require('./build-workspace');
 
 const args = process.argv.slice(2);
 const arg = (name, fallback = null) => {
@@ -43,7 +43,7 @@ for (const target of [baseIpa, fullAssets, patchAssets]) {
 }
 if (!identity) throw new Error('缺少 --identity');
 
-const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'qjqp-ios-recovery-'));
+const stage = makeBuildDir('qjqp-ios-recovery', { minimumFreeBytes: 2 * 1073741824 });
 try {
   run('unzip', ['-q', baseIpa, '-d', stage]);
   const payload = path.join(stage, 'Payload');

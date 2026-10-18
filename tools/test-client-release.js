@@ -77,9 +77,11 @@ assert(source.includes('e.prototype.playName = function() {')
   && source.includes('if ("' + Buffer.from('玩法', 'utf8').toString('binary') + '" === this.typeName(o))')
   && source.includes('return this.gameName();'),
   '客户端没有优先从建房选项取玩法名称');
-assert(source.includes('d = "' + Buffer.from('玩法：', 'utf8').toString('binary') + '" + o + "  " + n;')
-  && !source.includes('d = "' + Buffer.from('玩法：干瞪眼', 'utf8').toString('binary') + '  " + n;'),
-  '战绩分享图仍把玩法写死为干瞪眼');
+assert(source.includes('u = "' + Buffer.from('玩法：', 'utf8').toString('binary') + '" + o;')
+  && !source.includes('" + o + "  " + n;'),
+  '房间结束分享图没有只显示游戏名');
+assert.equal(source.split('n = String(n || "").split("' + Buffer.from(',喜钱：', 'utf8').toString('binary') + '")[0];').length - 1, 2,
+  '单局或整房统计图的算分项仍会显示喜钱明细');
 assert(source.includes(Buffer.from('desc: "潜江晃晃"', 'utf8').toString('binary'))
   && !source.includes(Buffer.from('desc: "潜江癞晃"', 'utf8').toString('binary')),
   '干瞪眼建房页的子玩法名称不是潜江晃晃');
@@ -87,11 +89,43 @@ assert(source.includes('msghead: "support_history"') && source.includes('msghead
   '客户端缺少客服会话读取或发送功能');
 assert(source.includes('eventUtils.emit("support_chat_update"'),
   '客户端缺少客服消息实时分发');
+assert(source.includes('Date.now() - this._lastProgressAt >= 3e4')
+  && source.includes('this._am.downloadFailedAssets();')
+  && source.includes('this._storagePath + "_temp/"')
+  && source.includes('__QJQP_HOT_UPDATE_RECOVERY__'),
+  '热更新缺少停滞检测、失败重试或临时文件自愈');
+assert(source.includes('this._eventNumber(t, "getDownloadedBytes")')
+  && source.includes('this._eventNumber(t, "getTotalBytes")')
+  && source.includes('this._formatBytes(n) + "/" + this._formatBytes(r)')
+  && source.includes('this._retryCount + "/" + this._maxRetryCount')
+  && source.includes(Buffer.from('正在更新游戏资源，请勿退出', 'utf8').toString('binary')),
+  '热更新启动页没有显示下载量或重试次数');
+assert(source.includes('t.scheduleOnce(function() {\nt.hotUpdate.hotUpdate(n.version, l);\n}, .05);'),
+  '热更新没有先让进度界面完成首帧绘制');
 assert(source.includes('var t = cc.winSize.width - e;\nthis.node.width = t;\nthis.node.height = cc.winSize.height;')
   && source.includes('this.node.anchorX = (cc.winSize.width / 2 - e) / t;')
   && source.includes('Math.max(cc.winSize.width / o.width, cc.winSize.height / o.height)')
   && source.includes('o.scaleX = n;\no.scaleY = n;'),
   '俱乐部没有保持左侧安全区并仅向右扩展，或背景未等比例铺满');
+assert(source.includes('var topPanal = this.contentRoot.getChildByName("TopPanal");')
+  && source.includes('var topExtension = new cc.Node("TopPanalRightExtension");')
+  && source.includes('topExtension.width = e + 5;')
+  && source.includes('topExtension.x = this.contentRoot.width / 2;')
+  && source.includes('extensionSprite.spriteFrame = topSprite.spriteFrame;')
+  && source.includes('topExtension.setSiblingIndex(topPanal.getSiblingIndex());')
+  && !source.includes('topExtension.x = topPanal.x + topPanal.width * (1 - topPanal.anchorX) - 5;')
+  && !source.includes('topPanal.width = topWidth + e;')
+  && !source.includes('topPanal.anchorX = topWidth * topAnchorX / topPanal.width;')
+  && !source.includes('topWidget.left = -e - 5;')
+  && !source.includes('topWidget.right = -e - 5;'),
+  '俱乐部顶部遮罩没有使用与原按钮脱离的独立右侧补片');
+for (const [width, safeOffset] of [[1280, 0], [1624, 172], [1792, 256]]) {
+  if (safeOffset <= 0) continue;
+  const contentWidth = width - 2 * safeOffset;
+  const extensionRight = contentWidth / 2 + safeOffset + 5;
+  assert.equal(extensionRight, width / 2 + 5,
+    '俱乐部顶部遮罩右侧补片没有到达屏幕右外沿');
+}
 assert(!source.includes('getChildByName("ClubListLayer");\ni && (i.active = !1);'),
   '俱乐部侧栏仍被额外隐藏，没有恢复原来的折叠显示逻辑');
 assert(source.includes('this._panel(e, "MessageInput", 840, 64, 0, -178'),
@@ -156,4 +190,14 @@ const hotUpdateScript = fs.readFileSync(path.join(__dirname, 'publish-hot-update
 assert(hotUpdateScript.includes('206b229f-fa1c-409e-b47e-b2d2c0938d57.png')
   && hotUpdateScript.includes('dbd4ba35-fdeb-4a79-a26f-1f3ba1fdfca9.jpg'),
 '热更新没有固化战绩二维码和朋友圈海报');
+assert(hotUpdateScript.includes('table-background-3d.jpg')
+  && hotUpdateScript.includes('table-background-3d-ios.png')
+  && hotUpdateScript.includes('0ed69516-3023-4cb0-947a-abd9aab04b9f.jpg'),
+'热更新没有固化 Android/iOS 3D 桌面背景');
+for (const script of ['patchapk.js', 'build-ios-ipa.js', 'publish-hot-update.js']) {
+  const body = fs.readFileSync(path.join(__dirname, script), 'utf8');
+  assert(body.includes('table-text-3d.png')
+    && body.includes('a120356e-9147-4a68-a7ef-f9c4dbbaff41.png'),
+  `${script} 没有固化新版 3D 桌面文字图集`);
+}
 console.log('客户端整包/热更单一源码校验通过');

@@ -1,0 +1,8 @@
+[Unit]
+Description=Prune obsolete QJQP release artifacts
+After=qjqp.service
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/bin/node /opt/qjqp/tools/prune-release-artifacts.js --production --apply --legacy-tmp /tmp

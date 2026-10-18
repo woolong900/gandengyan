@@ -62,6 +62,7 @@ this.btnEixt.active = !0;
 };
 t.prototype.setBaseInfo = function() {
 var e = i.default.gameInfo.singleEndInfo, t = i.default.config.gameCount(), o = i.default.config.playName(), n = a.default.gameLogic().scoreRuleDesc(i.default.config), r = a.default.gameLogic().fengDingDesc(i.default.config);
+n = String(n || "").split(",喜钱：")[0];
 if (i.default.config.index === m.eGameIds.DYHH) {
 var l = "房号：<color=#bb6b0d>" + i.default.roomId + "   </c>", c = "玩法：<color=#bb6b0d>" + o + "   </c>", u = "底分：<color=#bb6b0d>" + n + "   </c>", d = "局数：<color=#bb6b0d>" + i.default.gameInfo.curStep + "/" + t + "   </c>", p = "<size=18>" + s.default.dateFormat(1e3 * e.time, "yyyy-MM-dd hh:mm ") + "</size>", f = "封顶：<color=#bb6b0d>" + r + "   </c>";
 this.richText.string = l + c + u + f + d + p;

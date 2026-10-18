@@ -45,6 +45,31 @@ return t;
 t.prototype.onLoad = function() {
 var e = p.default.offsetX();
 this.contentRoot.width = cc.winSize.width - 2 * e;
+// 原顶部栏和它的子节点完全不动，只在右侧添加一块同纹理的背景补片。
+// 补片不承载任何按钮或文字，避免宽度、锚点或 Widget 变更带动原元素。
+var topPanal = this.contentRoot.getChildByName("TopPanal");
+if (topPanal && e > .001) {
+var topSprite = topPanal.getComponent(cc.Sprite);
+if (topSprite && topSprite.spriteFrame) {
+var topExtension = new cc.Node("TopPanalRightExtension");
+topExtension.parent = this.contentRoot;
+topExtension.width = e + 5;
+topExtension.height = topPanal.height;
+topExtension.anchorX = 0;
+topExtension.anchorY = topPanal.anchorY;
+// onLoad 时顶部栏的 Widget 尚未完成宽屏对齐，不能使用它当前的预制体宽度。
+// 安全内容区右边界是稳定坐标，补片从这里开始并多覆盖 5px 到屏幕外沿。
+topExtension.x = this.contentRoot.width / 2;
+topExtension.y = topPanal.y;
+topExtension.color = topPanal.color;
+topExtension.opacity = topPanal.opacity;
+var extensionSprite = topExtension.addComponent(cc.Sprite);
+extensionSprite.spriteFrame = topSprite.spriteFrame;
+extensionSprite.type = topSprite.type;
+extensionSprite.sizeMode = cc.Sprite.SizeMode.CUSTOM;
+topExtension.setSiblingIndex(topPanal.getSiblingIndex());
+}
+}
 // 左侧仍按原安全区裁切，右侧单独延伸到屏幕边缘。
 // 调整遮罩锚点而不移动子节点，避免改变左侧俱乐部列表的原有布局。
 var t = cc.winSize.width - e;

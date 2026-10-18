@@ -180,6 +180,8 @@ const main = async () => {
     '--service-base-url', 'https://service.example', '--android', fakeApk,
     '--out', release]);
   const manifest = JSON.parse(fs.readFileSync(path.join(release, 'android/236/project.manifest'), 'utf8'));
+  const greenPaiDunManifest = JSON.parse(fs.readFileSync(path.join(__dirname,
+    '../assets/branding/table/pd-ani-green/manifest.json'), 'utf8'));
   check('发布器生成完整清单', [manifest.version, Object.keys(manifest.assets).sort()],
     ['236', [
       'res/import/5c/5c282881-ef01-4d39-8c09-c1df292a8db3.json',
@@ -187,17 +189,20 @@ const main = async () => {
       'res/import/e0/e07c10f8-e75a-5ae8-d2f6-40c4b109d372.json',
       'res/import/e9/e9e4084a-b40b-f780-a5dd-ed4476da7ba7.json',
       'res/import/ee/ee9dd0eb-c83f-4802-bfca-98e27e9cc2d5.json',
+      'res/raw-assets/0e/0ed69516-3023-4cb0-947a-abd9aab04b9f.jpg',
       'res/raw-assets/15/1580e8a3b.png',
       'res/raw-assets/19/191f83490.png',
       'res/raw-assets/1a/1a62d6dfc.png',
       'res/raw-assets/1e/1e79e9934.png',
       'res/raw-assets/1f/1fcde46cd.png',
       'res/raw-assets/20/206b229f-fa1c-409e-b47e-b2d2c0938d57.png',
+      'res/raw-assets/a1/a120356e-9147-4a68-a7ef-f9c4dbbaff41.png',
       'res/raw-assets/d7/d784bb4c-e6d9-4a94-932a-4b9bc139c351.jpg',
       'res/raw-assets/db/dbd4ba35-fdeb-4a79-a26f-1f3ba1fdfca9.jpg',
       'res/raw-assets/e0/e07c10f8-e75a-5ae8-d2f6-40c4b109d372.png',
       'src/project.jsc', 'src/settings.jsc',
-    ]]);
+      ...greenPaiDunManifest.map((frame) => frame.asset),
+    ].sort()]);
   for (const texture of ['1580e8a3b', '191f83490', '1a62d6dfc', '1e79e9934']) {
     const published = fs.readFileSync(path.join(release,
       `android/236/res/raw-assets/${texture.slice(0, 2)}/${texture}.png`));
@@ -209,6 +214,34 @@ const main = async () => {
       decrypted.equals(fs.readFileSync(path.join(__dirname,
         `../client-release-source/assets/resources/_RecoveredDependencies/Textures/${texture}.png`))), true);
   }
+  const publishedTable = fs.readFileSync(path.join(release,
+    'android/236/res/raw-assets/0e/0ed69516-3023-4cb0-947a-abd9aab04b9f.jpg'));
+  const decryptedTable = Buffer.alloc(publishedTable.length - 10);
+  for (let index = 10; index < publishedTable.length; index += 1) {
+    decryptedTable[index - 10] = publishedTable[index] ^ publishedTable[9];
+  }
+  check('发布器强制带入最新版干瞪眼桌面背景',
+    decryptedTable.equals(fs.readFileSync(path.join(__dirname,
+      '../assets/branding/table/table-background-3d.jpg'))), true);
+  const publishedTableText = fs.readFileSync(path.join(release,
+    'android/236/res/raw-assets/a1/a120356e-9147-4a68-a7ef-f9c4dbbaff41.png'));
+  const decryptedTableText = Buffer.alloc(publishedTableText.length - 10);
+  for (let index = 10; index < publishedTableText.length; index += 1) {
+    decryptedTableText[index - 10] = publishedTableText[index] ^ publishedTableText[9];
+  }
+  check('发布器强制带入新版 3D 桌面文字图集',
+    decryptedTableText.equals(fs.readFileSync(path.join(__dirname,
+      '../assets/branding/table/table-text-3d.png'))), true);
+  check('绿色牌墙升起动画保持 81 帧完整覆盖', greenPaiDunManifest.length, 81);
+  const greenPaiDunSample = greenPaiDunManifest.find((frame) => frame.logical.endsWith('/pd9/img8'));
+  const publishedPaiDun = fs.readFileSync(path.join(release, 'android/236', greenPaiDunSample.asset));
+  const decryptedPaiDun = Buffer.alloc(publishedPaiDun.length - 10);
+  for (let index = 10; index < publishedPaiDun.length; index += 1) {
+    decryptedPaiDun[index - 10] = publishedPaiDun[index] ^ publishedPaiDun[9];
+  }
+  check('发布器强制带入绿色牌墙升起动画纹理',
+    decryptedPaiDun.equals(fs.readFileSync(path.join(__dirname,
+      '../assets/branding/table/pd-ani-green', greenPaiDunSample.asset))), true);
   const quickFrame = JSON.parse(fs.readFileSync(path.join(release,
     'android/236/res/import/ee/ee9dd0eb-c83f-4802-bfca-98e27e9cc2d5.json'), 'utf8'));
   check('发布器同步快捷按钮纹理与 SpriteFrame 尺寸',
@@ -230,7 +263,7 @@ const main = async () => {
   ]);
   const wskSingleEnd = JSON.parse(fs.readFileSync(path.join(release,
     'android/236/res/import/5c/5c282881-ef01-4d39-8c09-c1df292a8db3.json'), 'utf8'));
-  check('说胡子结算页互换继续/分享位置并用独立贴图重建退出', [
+  check('说胡子结算页左侧显示退出、右侧显示继续', [
     wskSingleEnd[30]._children.map((child) => child.__id__),
     wskSingleEnd[32]._children.map((child) => child.__id__),
     wskSingleEnd[33]._name, wskSingleEnd[33]._parent, wskSingleEnd[33]._components,
@@ -241,8 +274,8 @@ const main = async () => {
   ], [
     [32, 34, 35], [],
     'RemovedTopExit', null, [],
-    'BtnGameNext', { __type__: 'cc.Vec3', x: -418, y: -222 },
-    'BtnExitBottom', { __type__: 'cc.Vec3', x: 418, y: -222 },
+    'BtnGameNext', { __type__: 'cc.Vec3', x: 418, y: -222 },
+    'BtnExitBottom', { __type__: 'cc.Vec3', x: -418, y: -222 },
     { __uuid__: 'e95AhKtAv3gKXd7UR22nun' }, 'onClickExit',
   ]);
   const busyExitTexture = fs.readFileSync(path.join(release,
@@ -329,6 +362,17 @@ const main = async () => {
     '../client-release-source/assets/Script/Recovered/HotUpdate.js'), 'utf8');
   check('客户端会保存更新后搜索路径',
     clientHotUpdate.includes('Array.prototype.unshift.apply(e, t);'), true);
+  check('客户端热更新失败会自动重试并清理临时文件',
+    clientHotUpdate.includes('Date.now() - this._lastProgressAt >= 3e4') &&
+    clientHotUpdate.includes('this._am.downloadFailedAssets();') &&
+    clientHotUpdate.includes('this._storagePath + "_temp/"') &&
+    clientHotUpdate.includes('__QJQP_HOT_UPDATE_RECOVERY__'), true);
+  check('客户端热更新页显示下载量和重试次数',
+    clientHotUpdate.includes('getDownloadedBytes') && clientHotUpdate.includes('getTotalBytes') &&
+    clientHotUpdate.includes('this._retryCount + "/" + this._maxRetryCount'), true);
+  check('更新错误弹窗仅在需要时加载上下文，避免登录页循环依赖',
+    !clientHotUpdate.includes('h = require("./gContext")') &&
+    clientHotUpdate.includes('n = require("./gContext").default;'), true);
   const gameConstant = fs.readFileSync(path.join(__dirname,
     '../client-release-source/assets/Script/Recovered/GameConstant.js'), 'utf8');
   check('客户端引导基线与整包版本一致',

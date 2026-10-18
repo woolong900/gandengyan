@@ -16,3 +16,11 @@ cocos-client/library/
 cocos-client/local/
 cocos-client/temp/
 cocos-client/build/
+
+# 视觉方案对比稿只保留在本机；正式选中资源位于 assets/branding。
+assets/club-backgrounds/
+assets/game-tables/
+assets/branding/table/table-text-3d-v*-preview.png
+assets/branding/table/table-text-3d-v2.png
+assets/branding/table/table-text-3d-v3-ink-green.png
+assets/branding/table/table-text-3d-v4-ink-green-original-strokes.png
