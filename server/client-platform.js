@@ -18,9 +18,14 @@ const platformFromPlayer = (player, ip, now = Date.now(), ttl = 24 * 60 * 60 * 1
 };
 
 class ClientPlatformTracker {
-  constructor({ ttl = 24 * 60 * 60 * 1000, now = Date.now } = {}) {
+  constructor({
+    ttl = 24 * 60 * 60 * 1000, now = Date.now, maxEntries = 20000, pruneEveryMs = 60 * 1000,
+  } = {}) {
     this.ttl = ttl;
     this.now = now;
+    this.maxEntries = maxEntries;
+    this.pruneEveryMs = pruneEveryMs;
+    this.prunedAt = 0;
     this.recent = new Map();
   }
 
@@ -41,9 +46,19 @@ class ClientPlatformTracker {
     const ip = clientIp(req);
     if (!Number.isSafeInteger(uid) || uid <= 0 || platform === 'unknown' || !ip) return null;
     const now = this.now();
-    this.prune(now);
+    // /version 无需登录，不能每次请求都全表扫描。
+    if (now - this.prunedAt >= this.pruneEveryMs) {
+      this.prunedAt = now;
+      this.prune(now);
+    }
     const observed = { uid, ip, platform, seenAt: now };
-    this.recent.set(this.key(uid, ip), observed);
+    const key = this.key(uid, ip);
+    // 先删再插，让 Map 的插入顺序就是最近访问顺序，超限时淘汰最旧的。
+    this.recent.delete(key);
+    this.recent.set(key, observed);
+    while (this.recent.size > this.maxEntries) {
+      this.recent.delete(this.recent.keys().next().value);
+    }
     return observed;
   }
 

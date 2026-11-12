@@ -41,6 +41,8 @@ const hotUpdate = new HotUpdateService({
 });
 const ipGeo = new IpGeoService();
 const clientPlatforms = new ClientPlatformTracker();
+// 持久化的平台记录 24 小时过期，每小时刷新一次时间戳足够。
+const CLIENT_PLATFORM_REFRESH_MS = 60 * 60 * 1000;
 const operatorKeyFile = process.env.QJQP_OPERATOR_KEY_FILE || path.join(path.dirname(store.FILE), 'operator.key');
 const operatorKey = String(process.env.QJQP_OPERATOR_KEY || (
   fs.existsSync(operatorKeyFile) ? fs.readFileSync(operatorKeyFile, 'utf8') : ''
@@ -131,9 +133,11 @@ const server = http.createServer(async (req, res) => {
     const observed = clientPlatforms.remember(req, url.searchParams);
     if (observed) {
       const player = app.playerByUid(observed.uid);
+      // 只在平台/IP 变化或记录将近过期时落盘。每次刷新时间戳都 persist
+      // 会让未登录的 /version 请求触发整库保存。
       if (player && (player.lastClientPlatform !== observed.platform
           || player.lastClientPlatformIp !== observed.ip
-          || Number(player.lastClientPlatformAt || 0) !== observed.seenAt)) {
+          || observed.seenAt - Number(player.lastClientPlatformAt || 0) >= CLIENT_PLATFORM_REFRESH_MS)) {
         player.lastClientPlatform = observed.platform;
         player.lastClientPlatformIp = observed.ip;
         player.lastClientPlatformAt = observed.seenAt;
@@ -287,7 +291,8 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (url.pathname === '/voice' && req.method === 'POST') {
-    const ip = req.socket.remoteAddress || '';
+    // 部署在 nginx 后面时 socket 地址恒为 127.0.0.1，必须按真实来源 IP 限流。
+    const ip = clientIp(req) || req.socket.remoteAddress || '';
     if (!voice.allowPost(ip)) {
       return json(res, { err_code: 1, err_msg: 'too frequent' }, 429);
     }

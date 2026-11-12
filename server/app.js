@@ -214,7 +214,14 @@ class GameApp {
       const roomId = Number(key.slice(0, i));
       const name = key.slice(i + 1);
       const table = this.tables.get(roomId);
-      if (table) table.onTimer(name);
+      if (!table) return;
+      // 定时器回调不在 WS 的 try/catch 里。单个房间的牌局逻辑出错只记日志，
+      // 不能冒泡成 uncaughtException 让整个进程退出、全服断线。
+      try {
+        table.onTimer(name);
+      } catch (err) {
+        console.error(`[房${roomId}] 定时器 ${name} 执行出错`, err);
+      }
     }, wait);
     if (typeof id.unref === 'function') id.unref();
     this.timeouts.set(key, id);

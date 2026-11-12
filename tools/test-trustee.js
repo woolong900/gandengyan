@@ -414,4 +414,46 @@ const finishRound = (fixtureValue) => {
     [2, true, true]);
 }
 
+{
+  // 无效或查询类消息不改变牌局进度，不能重置真人的托管倒计时。
+  const f = fixture(15);
+  f.table.armTurns();
+  const due = f.timers.get(f.key);
+  f.advance(5000);
+  f.table.handle200(f.member.player.uid, 'foo', {});
+  f.table.handle200(f.member.player.uid, 'gamecurroundcards', {});
+  t('无效消息不重置托管倒计时', [f.timers.get(f.key), f.member.turnDueAt], [due, due]);
+
+  // 真正推进牌局的操作仍要重新计时。
+  f.round.handleAction = () => { f.round.waiting = [1]; return null; };
+  f.table.handle200(f.member.player.uid, 'gamestep', {});
+  const other = `turn-${f.table.members[1].player.uid}`;
+  t('有效操作后轮到下家并重新计时',
+    [f.timers.has(f.key), f.timers.get(other)], [false, f.now() + 15000]);
+}
+
+{
+  // 定时器回调抛错只影响该房间，不能冒泡成 uncaughtException。
+  const { GameApp: App } = require('../server/app');
+  const scheduled = [];
+  const realSetTimeout = global.setTimeout;
+  const realError = console.error;
+  const logged = [];
+  global.setTimeout = (fn) => { scheduled.push(fn); return { unref() {} }; };
+  console.error = (...args) => logged.push(args.join(' '));
+  try {
+    const fake = Object.create(App.prototype);
+    fake.timeouts = new Map();
+    fake.now = () => 0;
+    fake.tables = new Map([[100037, { onTimer() { throw new Error('boom'); } }]]);
+    App.prototype.schedule.call(fake, '100037:turn-1', 0);
+    let thrown = null;
+    try { scheduled[0](); } catch (err) { thrown = err; }
+    t('定时器异常被房间级捕获', [thrown, logged.length === 1 && logged[0].includes('100037')], [null, true]);
+  } finally {
+    global.setTimeout = realSetTimeout;
+    console.error = realError;
+  }
+}
+
 console.log(`\n${pass} 过 / 0 挂`);

@@ -51,6 +51,9 @@ const EMPTY_MAHJONG_OPERATOR = Object.freeze({
   bright_qys: false,
 });
 
+const sameRoundProgress = (a, b) => !!a && !!b
+  && a.round === b.round && a.pending === b.pending && a.key === b.key;
+
 const normalizeLocation = (raw) => {
   if (!raw || typeof raw !== 'object') return null;
   const latitude = Number(raw.latitude);
@@ -529,6 +532,36 @@ class Table {
     const random = this.host.random ? this.host.random() : Math.random();
     const ratio = Math.max(0, Math.min(1, Number.isFinite(random) ? random : 0));
     return BOT_MIN_DELAY_MS + Math.round(ratio * (BOT_MAX_DELAY_MS - BOT_MIN_DELAY_MS));
+  }
+
+  /** 牌局进度的廉价标记：轮次、待响应操作、各家手牌数量任一变化即视为有进展。 */
+  roundProgressMark() {
+    const round = this.round;
+    if (!round) return null;
+    const seatCount = this.seats().length;
+    const hands = [];
+    for (let seat = 0; seat < seatCount; seat++) {
+      let size = '';
+      try {
+        if (typeof round.looseTiles === 'function') size = round.looseTiles(seat).length;
+        else if (Array.isArray(round.hands) && Array.isArray(round.hands[seat])) size = round.hands[seat].length;
+      } catch {
+        size = '?';
+      }
+      hands.push(size);
+    }
+    const pending = round.pending || null;
+    return {
+      round,
+      pending,
+      key: [
+        round.over ? 1 : 0,
+        round.waitingSeats().join(','),
+        round.turn,
+        pending && pending.replies ? pending.replies.size : '',
+        hands.join(','),
+      ].join('|'),
+    };
   }
 
   armTurns(onlyUid) {
@@ -1349,9 +1382,12 @@ class Table {
       return { error: 0 };
     }
     if (msghead !== 'gameready' && this.round) {
+      const before = this.roundProgressMark();
       const err = playerAction(this, uid, msghead, body);
       if (err) return { error: 1, what: err };
-      this.armTurns();
+      // 未知消息、查询类消息（如 gamecurroundcards）不改变牌局进度。
+      // 若照样 armTurns，真人可以靠反复发无效消息无限重置托管倒计时卡住整桌。
+      if (!sameRoundProgress(before, this.roundProgressMark())) this.armTurns();
       this.host.persist();
       return { error: 0 };
     }

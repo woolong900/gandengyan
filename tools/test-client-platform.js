@@ -51,4 +51,32 @@ assert.equal(platformFromPlayer(persisted, '203.0.113.11', now, 500), 'android',
 assert.equal(platformFromPlayer(persisted, '203.0.113.10', now + 501, 500), 'unknown',
   '存档平台过期后也必须拒绝授权');
 
+{
+  // /version 无需登录：内存表必须有上限，且不能每次请求都全表清理。
+  let clock = 0;
+  const capped = new ClientPlatformTracker({
+    ttl: 1000, now: () => clock, maxEntries: 3, pruneEveryMs: 100,
+  });
+  const android = (uid) => query({ uid: String(uid), os_type: 'android', device_name: 'android' });
+  for (let uid = 1; uid <= 5; uid++) capped.remember(req('203.0.113.20'), android(uid));
+  assert.equal(capped.recent.size, 3, '超出容量时淘汰最旧条目');
+  assert.equal(capped.resolve(1, '203.0.113.20'), 'unknown', '最旧条目被淘汰');
+  assert.equal(capped.resolve(5, '203.0.113.20'), 'android', '最新条目保留');
+
+  capped.remember(req('203.0.113.20'), android(3));
+  capped.remember(req('203.0.113.20'), android(6));
+  assert.equal(capped.resolve(3, '203.0.113.20'), 'android', '再次访问的条目会刷新到最新');
+  assert.equal(capped.resolve(4, '203.0.113.20'), 'unknown');
+
+  let scans = 0;
+  const originalPrune = capped.prune.bind(capped);
+  capped.prune = (at) => { scans++; return originalPrune(at); };
+  clock = 1000;
+  capped.remember(req('203.0.113.20'), android(7));
+  capped.remember(req('203.0.113.20'), android(8));
+  clock = 1050;
+  capped.remember(req('203.0.113.20'), android(9));
+  assert.equal(scans, 1, '清理节流：同一窗口内只扫描一次');
+}
+
 console.log('客户端平台识别：账号、移动网络换址、设备信息与过期隔离均通过');

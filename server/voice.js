@@ -34,6 +34,12 @@ const createVoice = (dir, opts = {}) => {
   const allowPost = (ip) => {
     const now = nowFn();
     const key = ip || 'unknown';
+    // 按真实 IP 计数后条目会随来源增多；超过阈值就清掉一分钟内无请求的 IP。
+    if (hits.size > 1000) {
+      for (const [k, times] of hits) {
+        if (!times.length || now - times[times.length - 1] >= 60000) hits.delete(k);
+      }
+    }
     const arr = (hits.get(key) || []).filter((t) => now - t < 60000);
     if (arr.length >= postsPerMin) {
       hits.set(key, arr);
