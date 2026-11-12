@@ -94,6 +94,20 @@ const fakeTable = (extra = {}) => ({
   t('新房间分配不可枚举分享码', /^[0-9a-f]{24}$/.test(table.shareCode), true);
   t('房间快照给客户端分享码', roomInfo(table).room_code, table.shareCode);
   t('重启后分享码稳定', Table.fromDump(table.dump(), {}, new Map()).shareCode, table.shareCode);
+
+  // 房间头像弹窗显示真人的最近登录 IP；机器人和未记录 IP 的账号仍为 127.0.0.1。
+  const member = (uid, extra) => ({ player: { uid, nickname: '', sex: 1, ...extra }, site: 1, online: true });
+  table.members = [
+    member(100001, { lastIp: '113.88.12.34' }),
+    member(100002, {}),
+    member(800000001, { bot: true, lastIp: '10.0.0.1' }),
+  ];
+  t('房间快照下发真实 IP', roomInfo(table).person.map((p) => p.ip),
+    ['113.88.12.34', '127.0.0.1', '127.0.0.1']);
+  table.members[0].player.lastIpCity = '湖北省 潜江市';
+  table.members[2].player.lastIpCity = '内网';
+  t('房间快照下发 IP 所在城市', roomInfo(table).person.map((p) => p.address),
+    ['湖北省 潜江市', '', '']);
 }
 
 {

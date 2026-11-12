@@ -6,6 +6,7 @@
 const {
   assignAvatarIfMissing, emptyPlayer, pack,
 } = require('../common');
+const { displayIp } = require('../../shared');
 
 module.exports = [
   {
@@ -62,7 +63,7 @@ module.exports = [
         sex: c.player.sex,
         roomId,
         cardNum: c.player.cardNum,
-        ip: '127.0.0.1',
+        ip: displayIp(c.player),
       }));
       if (Object.values(this.publicNotices).some(Boolean)) c.send(pack(1007, this.noticeBody()));
       return;

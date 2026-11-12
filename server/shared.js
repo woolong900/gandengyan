@@ -15,6 +15,15 @@ const num = (v) => (v && typeof v === 'object' && 'low' in v ? v.toNumber() : Nu
 
 const maxStep = (room) => room.num * (GAME_COUNT_MUL[room.gameType] || 8);
 
+/**
+ * 下发给客户端（房间头像弹窗、登录回包）的 IP。真人用服务端记录的最近登录 IP；
+ * 机器人或尚未记录 IP 的旧账号沿用原来的 127.0.0.1。
+ */
+const DEFAULT_DISPLAY_IP = '127.0.0.1';
+const displayIp = (player) => (player && !player.bot && player.lastIp) || DEFAULT_DISPLAY_IP;
+/** 头像弹窗“位置”栏显示最近登录 IP 的所在城市；为空时客户端显示“未知”。 */
+const displayCity = (player) => (player && !player.bot && player.lastIp && player.lastIpCity) || '';
+
 const roomInfo = (room) => ({
   type: room.gameType,
   roomid: room.roomId,
@@ -33,10 +42,10 @@ const roomInfo = (room) => ({
     uid: m.player.uid,
     name: m.player.nickname,
     imgurl: m.player.avatarUrl || '',
-    ip: '127.0.0.1',
+    ip: displayIp(m.player),
     latitude: 0,
     longitude: 0,
-    address: '',
+    address: displayCity(m.player),
     index: m.site,
     sex: m.player.sex,
     line: m.online !== false,
@@ -201,6 +210,8 @@ module.exports = {
   num,
   maxStep,
   roomInfo,
+  displayIp,
+  displayCity,
   push,
   playerAction,
   emptyPlayer,
