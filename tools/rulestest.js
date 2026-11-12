@@ -693,6 +693,26 @@ console.log('过手碰');
 }
 
 {
+  const { round } = table(cfg({ 人数: 3, 玩法: '土豪必杠', 只许自摸: true }), (r) => {
+    r.laizi = 31;
+    r.pizi = 9;
+    r.seats[0].bot = true;
+    r.hands = [HAND_PENG_1.slice(), HAND_PENG_1.slice(), HAND_IGNORE_5.slice()];
+    r.drawn = [null, 1, null];
+    r.turn = 1;
+    r.pending = null;
+  });
+  round.discard(1, 1);
+  round.respond(0, 'pass');
+  check('智能托管第一次过碰仍记录同牌', round.passPeng[0].has(1), true);
+  round.pending = null;
+  round.drawn[2] = 1;
+  round.turn = 2;
+  round.discard(2, 1);
+  check('智能托管第二次同牌会重新评估碰牌', pengAsked(round, 0), true);
+}
+
+{
   const { round } = table(cfg({ 人数: 3 }), (r) => {
     r.laizi = 31;
     r.pizi = 9;

@@ -5,7 +5,7 @@ cc._RF.push(t, "3f8c2S8j6ZHB4bSbOCkr4R3", "GameLogic");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = require("./CommonEnum"), r = require("./GameLogicMJ_QJHH"), i = require("./GameLogicMJ_HZHH"), a = require("./GameLogicMJ_HZHZ"), s = require("./GameLogicMJ_LTMJ"), l = require("./GameLogicMJ_XSMJ"), c = require("./GameLogicMJ_QCHZ"), u = require("./GameLogicMJ_QCHH"), d = require("./GameLogicD7_XS"), p = require("./GameLogicMJ_MCHZ"), f = require("./GameLogicMJ_QCGD"), h = require("./GameLogicMJ_HMMJ"), m = require("./GameLogicMJ_YJLY"), y = require("./GameLogicPDK_AA"), g = require("./GameLogicMJ_TMHH"), _ = require("./GameLogicWSK_QCDG"), v = require("./GameLogicWSK_QJSHZ"), C = require("./GameLogicWSK_QJWSKBD"), b = require("./GameLogicMJ_QJHZ"), D = require("./GameLogicMJ_DYKKF"), S = require("./GameLogicMJ_DYHH"), w = require("./GameLogicDBD_HG"), O = require("./GameLogicWSK_XSWSK"), P = require("./GameLogicDDZ"), I = function() {
+var n = require("./CommonEnum"), r = require("./GameLogicMJ_QJHH"), i = require("./GameLogicMJ_HZHH"), a = require("./GameLogicMJ_HZHZ"), s = require("./GameLogicMJ_LTMJ"), l = require("./GameLogicMJ_XSMJ"), c = require("./GameLogicMJ_QCHZ"), u = require("./GameLogicMJ_QCHH"), d = require("./GameLogicD7_XS"), p = require("./GameLogicMJ_MCHZ"), f = require("./GameLogicMJ_QCGD"), h = require("./GameLogicMJ_HMMJ"), m = require("./GameLogicMJ_YJLY"), y = require("./GameLogicPDK_AA"), g = require("./GameLogicMJ_TMHH"), _ = require("./GameLogicWSK_QCDG"), v = require("./GameLogicWSK_QJSHZ"), C = require("./GameLogicWSK_QJWSKBD"), b = require("./GameLogicMJ_QJHZ"), D = require("./GameLogicMJ_DYKKF"), S = require("./GameLogicMJ_DYHH"), w = require("./GameLogicDBD_HG"), O = require("./GameLogicWSK_XSWSK"), P = require("./GameLogicDDZ"), R = require("./GameLogicGD"), I = function() {
 function e() {}
 e.getInstance = function(e) {
 var t = null;
@@ -32,6 +32,8 @@ e === n.eGameIds.DYHH && (t = S.default.getInstance());
 e === n.eGameIds.DBDAA && (t = w.default.getInstance());
 e === n.eGameIds.XSWSK && (t = O.default.getInstance());
 e === n.eGameIds.DDZ && (t = P.default.getInstance());
+e === n.eGameIds.GD && (t = R.default.getInstance());
+e === n.eGameIds.TDAK && (t = require('./GameLogicTDak').default.getInstance());
 null == t && cc.error("GameLogicDDZ.getInstance = null:");
 return t;
 };

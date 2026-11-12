@@ -24,10 +24,12 @@ this.gameInfoPDK = null;
 this.gameInfoWSK = null;
 this.gameInfoDBD = null;
 this.gameInfoDDZ = null;
+this.recordCardWhitelisted = !1;
 }
 e.prototype.setPaybackData = function(e) {
 this.players = new i.default();
 this.roomId = e.roomId;
+this.setKeepScreenOn(!0);
 this.owner = e.owner;
 this.scoreRatio = e.scoreRatio;
 this.config = new n.default({
@@ -59,6 +61,7 @@ n && (this._myWatchPos = n.pos);
 }
 };
 e.prototype.reset = function() {
+this.setKeepScreenOn(!1);
 this.players = new i.default();
 this._totalEndData = null;
 this._playback = !1;
@@ -70,6 +73,23 @@ this.gameInfoDBD = new _.default();
 this.gameInfoDDZ = new D.default();
 this.config && this.config.category() === l.eGameCategort.MJ && c.default.eventUtils.emit(u.default.data_hand_select_clean);
 this.roomId = 0;
+this.recordCardWhitelisted = !1;
+};
+e.prototype.setKeepScreenOn = function(e) {
+try {
+"undefined" != typeof jsb && jsb.Device && "function" == typeof jsb.Device.setKeepScreenOn && jsb.Device.setKeepScreenOn(!!e);
+} catch (t) {
+cc.warn("setKeepScreenOn failed", t);
+}
+};
+e.prototype.setRecordCardAccess = function(e) {
+var t = !!e;
+if (this.recordCardWhitelisted !== t) {
+this.recordCardWhitelisted = t;
+c.default.eventUtils.emit("record_card_access_change", {
+enabled: t
+});
+}
 };
 e.prototype.isPlayback = function() {
 return this._playback;
@@ -115,6 +135,7 @@ return 0 !== this.roomId;
 };
 e.prototype.leaveRoom = function(e) {
 void 0 === e && (e = !0);
+this.setKeepScreenOn(!1);
 var t = this._belongClub;
 d.default.get(t) ? p.default.getClubData(t, function(e, t) {
 t || (0 === e.error ? c.default.uiHelper.loadScene(f.default.ClubSceneName) : c.default.uiHelper.loadScene(f.default.HallSceneName));
@@ -135,8 +156,10 @@ this.gameInfoPDK.update(e);
 } else if (t === l.eGameCategort.WSK) {
 this.gameInfoWSK || (this.gameInfoWSK = new w.default());
 this.gameInfoWSK.update(e);
+if (!this.isWatcher()) {
 var o = this.myAbsolutePos(), n = h.default.wskHandCardsSortType.getValue();
 this.gameInfoWSK.siteInfos.get(o).sortCards(n);
+}
 } else if (t === l.eGameCategort.DBD) {
 this.gameInfoDBD || (this.gameInfoDBD = new _.default());
 this.gameInfoDBD.update(e);

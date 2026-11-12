@@ -1,0 +1,10 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const source=fs.readFileSync('cocos-client/build/web-mobile/assets/main/index.js','utf8');
+const runtime=source.slice(0,source.indexOf('}({')+1);
+const scope={window:{},created:0};
+vm.runInNewContext(runtime+`({RoomInfoData:[function(r,m){created++;m.exports={roomId:123456};},{}]}, {}, []);`,scope);
+const shared=scope.window.__require('RoomInfoData');
+assert.equal(scope.window.__require('../Recovered/RoomInfoData'),shared);
+assert.equal(scope.window.__require('./RoomInfoData'),shared);
+assert.equal(scope.created,1,'relative requires must never replace host singletons');
+console.log('PASS recovered CommonJS host singleton identity across relative imports');

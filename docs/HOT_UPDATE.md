@@ -9,7 +9,7 @@ node tools/publish-hot-update.js \
   --version 236 \
   --stable-version 235 \
   --package-version 1.0.6 \
-  --base-url https://gmhiu.com \
+  --base-url https://gandengyan.top \
   --android dist/当前.apk \
   --ios dist/当前.ipa \
   --require-clean-git
@@ -52,3 +52,15 @@ node tools/publish-hot-update.js \
 - `patchapk.js`、`build-ios-ipa.js` 和 `publish-hot-update.js` 会自动携带同一批修复。
 - `node tools/test-client-release.js` 校验三条流程仍使用共用生成器，并检查 2D/3D 碰后听牌提示等关键回归项。
 - 整包中的序列化资源修复也必须与热更同步；当前已包含说胡子总结算四项统计行距修复。
+
+## 客户端失败恢复规则
+
+`client-release-source/assets/Script/Recovered/HotUpdate.js` 的重试逻辑（`tools/test-client-hot-update-recovery.js` 用假的 cc / jsb 环境覆盖）：
+
+- 单个文件下载失败（`ERROR_UPDATING`）只记录，引擎继续下载其余文件；整体失败（`UPDATE_FAILED`）后用 `downloadFailedAssets()` 续传失败的文件。
+- 网络类失败不清理已下载内容。每轮只要有文件成功就重新获得 3 次自动重试；连续 3 轮毫无进展才弹窗，确认后直接续传。
+- 30 秒无进度会重启游戏并从临时清单续传，同样不清理。
+- 下载完成的文件按清单里的 `size` 校验。只有出现大小不符或清单解析失败、且重试用尽时，才清理一次临时目录重新下载；清理后不再校验，避免清单本身有误时把玩家锁死。
+- 整包版本变化时（`UpdateUtils.cleanLocalCache`），热更新目录、临时目录、`__QJQP_ASSERT_VERSION__`、搜索路径和恢复状态一并清除。
+
+这些规则随热更新下发：玩家要先用旧逻辑成功更新到包含它们的版本，之后的更新才按新规则走。

@@ -197,6 +197,32 @@ const openRoom = (app, host, opts = {}) => {
 
 {
   const { app, login } = boot();
+  const a = { ...login('a', 't_sleep_a'), id: 'a' };
+  const b = { ...login('b', 't_sleep_b'), id: 'b' };
+  const c = { ...login('c', 't_sleep_c'), id: 'c' };
+  const roomId = openRoom(app, a, { 观战: true });
+  app.onMessage('a', packCs(202, { roomId }));
+  app.onMessage('b', packCs(202, { roomId }));
+  app.onMessage('c', packCs(202, { roomId }));
+  const table = app.tables.get(roomId);
+  app.detach('c');
+  const sleeping = table.members.find((m) => m.player.uid === c.player.uid);
+  t('观战断线后保留房间关系', [!!sleeping, sleeping.online, c.player.roomId],
+    [true, false, roomId]);
+  t('观战断线后保留房间索引', app.uidRoom.get(c.player.uid), roomId);
+  t('观战断线后启动清理计时', app.timeouts.has(`${roomId}:kick-${c.player.uid}`), true);
+
+  const resumed = { ...login('c2', 't_sleep_c'), id: 'c2' };
+  t('息屏恢复登录仍返回房间号', num(resumed.login.roomId), roomId);
+  app.onMessage('c2', packCs(202, { roomId }));
+  const rejoined = table.members.find((m) => m.player.uid === c.player.uid);
+  t('息屏恢复后重连观战', [num(last(resumed.box, 202).res.error), rejoined.view,
+    rejoined.online, rejoined.connId, table.watchers().length], [0, true, true, 'c2', 1]);
+  t('观战重连后取消清理计时', app.timeouts.has(`${roomId}:kick-${c.player.uid}`), false);
+}
+
+{
+  const { app, login } = boot();
   const a = { ...login('a', 't_rec_a'), id: 'a' };
   const b = { ...login('b', 't_rec_b'), id: 'b' };
   const c = { ...login('c', 't_rec_c'), id: 'c' };
@@ -210,9 +236,11 @@ const openRoom = (app, host, opts = {}) => {
     id: '10000001101',
     scores: [{ uid: a.player.uid, score: 10 }, { uid: b.player.uid, score: -10 }],
   }];
+  table.members.find((m) => m.player.uid === b.player.uid).bot = true;
   const rec = buildRecord(table, Date.now());
   t('战绩不含观战', rec.uids.includes(c.player.uid), false);
   t('战绩只有在座', rec.players.map((p) => p.uid), [a.player.uid, b.player.uid]);
+  t('战绩固化陪玩身份供历史统计过滤', rec.players.find((p) => p.uid === b.player.uid).bot, true);
 }
 
 {

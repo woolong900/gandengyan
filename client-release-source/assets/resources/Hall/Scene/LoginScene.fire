@@ -638,8 +638,8 @@
     ],
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 250,
-      "height": 50.4
+      "width": 760,
+      "height": 52
     },
     "_position": {
       "__type__": "cc.Vec3",
@@ -662,7 +662,9 @@
     },
     "_isSystemFontUsed": false,
     "_N$verticalAlign": 1,
-    "_N$overflow": 1
+    "_N$overflow": 1,
+    "_enableWrapText": false,
+    "_N$horizontalAlign": 1
   },
   {
     "__type__": "cc.Node",
@@ -1085,8 +1087,8 @@
         "__uuid__": "eca5d2f2-8ef6-41c2-bbe6-f9c79d09c432"
       }
     ],
-        "_string": "",
-        "_N$string": "",
+    "_string": "",
+    "_N$string": "",
     "_fontSize": 20,
     "_lineHeight": 25,
     "_enableWrapText": false,

@@ -48,6 +48,9 @@ t.totalEndPre = null;
 return t;
 }
 t.prototype.start = function() {
+this._settlementFrames = require("./PokerSettlementStyle").titles(this);
+this.btnExit.active = !1;
+require("./PokerActionButtonStyle").applyDdzSettlement(this);
 var e = this, t = p.default.getInstance(), o = d.default.config.gameCount();
 this.roomId.string = "房号：" + d.default.roomId;
 this.gameCount.string = "局数：" + d.default.gameInfoDDZ.curStep + "/" + o;
@@ -80,6 +83,9 @@ s.default.eventUtils.on(y.default.data_status_change, function() {
 g.eDDZGameStatus.SingleEnd !== d.default.gameInfoDDZ.status && e.node.destroy();
 }, this, _.eOffType.OnDestroy);
 };
+t.prototype.onDestroy = function() {
+require("./PokerSettlementStyle").release(this._settlementFrames);
+};
 t.prototype.onClickNext = function() {
 i.default.clickBtn();
 a.default.getInstance().ready(!1);
@@ -91,9 +97,8 @@ this.node.destroy();
 s.default.uiHelper.gameShow(this.totalEndPre);
 };
 t.prototype.onClickShare = function() {
-i.default.clickBtn();
-var e = l.default.screenCapture("single_end_capture.jpg", null, cc.winSize.width, cc.winSize.height);
-s.default.uiHelper.show(c.eWindowID.ShareLayer, u.eShareUIType.ShareCaptureImage, e);
+// Keep the serialized bottom-left button binding, now performing Exit.
+this.onClickExit();
 };
 t.prototype.onClickExit = function() {
 i.default.clickBtn();

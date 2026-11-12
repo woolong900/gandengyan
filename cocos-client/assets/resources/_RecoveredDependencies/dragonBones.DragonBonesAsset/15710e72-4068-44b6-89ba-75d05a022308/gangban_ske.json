@@ -1,0 +1,235 @@
+{
+  "frameRate": 24,
+  "armature": [
+    {
+      "ik": [],
+      "defaultActions": [
+        {
+          "gotoAndPlay": "newAnimation"
+        }
+      ],
+      "type": "MovieClip",
+      "frameRate": 24,
+      "animation": [
+        {
+          "ffd": [],
+          "playTimes": 0,
+          "ik": [],
+          "duration": 25,
+          "frame": [],
+          "bone": [
+            {
+              "frame": [
+                {
+                  "transform": {},
+                  "duration": 25
+                }
+              ],
+              "name": "root"
+            },
+            {
+              "frame": [
+                {
+                  "tweenEasing": 0,
+                  "transform": {
+                    "scX": 0.1,
+                    "y": -0.5,
+                    "x": -198
+                  },
+                  "duration": 5
+                },
+                {
+                  "tweenEasing": 0,
+                  "transform": {
+                    "y": -0.5,
+                    "x": -51
+                  },
+                  "duration": 12
+                },
+                {
+                  "tweenEasing": 0,
+                  "transform": {
+                    "y": -0.5,
+                    "x": -4
+                  },
+                  "duration": 8
+                },
+                {
+                  "transform": {
+                    "y": -0.5,
+                    "x": 25
+                  },
+                  "duration": 0
+                }
+              ],
+              "name": "gb-1"
+            },
+            {
+              "frame": [
+                {
+                  "tweenEasing": 0,
+                  "transform": {
+                    "scX": 0.01,
+                    "y": 2.5,
+                    "x": -154
+                  },
+                  "duration": 5
+                },
+                {
+                  "tweenEasing": 0,
+                  "transform": {
+                    "y": 2.5
+                  },
+                  "duration": 12
+                },
+                {
+                  "tweenEasing": 0,
+                  "transform": {
+                    "y": 2.5,
+                    "x": 44
+                  },
+                  "duration": 8
+                },
+                {
+                  "transform": {
+                    "y": 2.5,
+                    "x": 63
+                  },
+                  "duration": 0
+                }
+              ],
+              "name": "gb"
+            }
+          ],
+          "slot": [
+            {
+              "frame": [
+                {
+                  "tweenEasing": 0,
+                  "color": {
+                    "aM": 0
+                  },
+                  "duration": 5
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 12
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 8
+                },
+                {
+                  "tweenEasing": null,
+                  "color": {
+                    "aM": 0
+                  },
+                  "duration": 0
+                }
+              ],
+              "name": "gb-1"
+            },
+            {
+              "frame": [
+                {
+                  "tweenEasing": 0,
+                  "color": {
+                    "aM": 0
+                  },
+                  "duration": 5
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 12
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 8
+                },
+                {
+                  "tweenEasing": null,
+                  "color": {
+                    "aM": 0
+                  },
+                  "duration": 0
+                }
+              ],
+              "name": "gb"
+            }
+          ],
+          "name": "newAnimation"
+        }
+      ],
+      "bone": [
+        {
+          "name": "root",
+          "transform": {}
+        },
+        {
+          "transform": {},
+          "name": "gb-1",
+          "parent": "root"
+        },
+        {
+          "transform": {},
+          "name": "gb",
+          "parent": "root"
+        }
+      ],
+      "aabb": {
+        "width": 0,
+        "y": 0,
+        "height": 0,
+        "x": 0
+      },
+      "slot": [
+        {
+          "displayIndex": -1,
+          "name": "gb-1",
+          "parent": "gb-1",
+          "color": {}
+        },
+        {
+          "z": 1,
+          "displayIndex": -1,
+          "name": "gb",
+          "parent": "gb",
+          "color": {}
+        }
+      ],
+      "name": "MovieClip",
+      "skin": [
+        {
+          "slot": [
+            {
+              "display": [
+                {
+                  "path": "gb",
+                  "type": "image",
+                  "name": "gb",
+                  "transform": {}
+                }
+              ],
+              "name": "gb"
+            },
+            {
+              "display": [
+                {
+                  "path": "gb-1",
+                  "type": "image",
+                  "name": "gb-1",
+                  "transform": {}
+                }
+              ],
+              "name": "gb-1"
+            }
+          ],
+          "name": ""
+        }
+      ]
+    }
+  ],
+  "isGlobal": 0,
+  "name": "gangban",
+  "version": "5.0"
+}

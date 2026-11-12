@@ -146,7 +146,7 @@ t.checkFull(3);
 t.rootNode.active = !0;
 t.loginRoot.active = !1;
 t._descStr = "正在更新游戏资源，请勿退出";
-var l = n.url || "https://gmhiu.com/" + s.default.appName + "/update/";
+var l = n.url || "https://gandengyan.top/" + s.default.appName + "/update/";
 t.scheduleOnce(function() {
 t.hotUpdate.hotUpdate(n.version, l);
 }, .05);

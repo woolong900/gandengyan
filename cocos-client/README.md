@@ -44,8 +44,8 @@ Creator 必需的工程配置。发布品牌资源可执行 `npm run cocos:asset
 同步，调试 APK 可执行 `npm run cocos:debug-apk` 构建。
 
 浏览器版默认把 HTTP 接口映射到同源路径 `/__qjqp_api`，把 WebSocket
-映射到 `/__qjqp_ws`。`web:serve` 会将它们代理到 `https://gmhiu.com`
-和 `wss://gmhiu.com/ws`，因此本地调试不会触发浏览器 CORS 限制。
+映射到 `/__qjqp_ws`。`web:serve` 会将它们代理到 `https://gandengyan.top`
+和 `wss://gandengyan.top/ws`，因此本地调试不会触发浏览器 CORS 限制。
 
 线上部署时可继续用相同路径配置 Nginx 反向代理；也可以在构建产物的
 `web-config.js` 中把 `apiBase` 和 `websocketUrl` 改为已经允许 CORS 的地址。

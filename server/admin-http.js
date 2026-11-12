@@ -1,7 +1,8 @@
 const fs = require('fs');
 const path = require('path');
-const { AdminAuth, secureEqual } = require('./admin-auth');
+const { AdminAuth } = require('./admin-auth');
 const { AdminData } = require('./admin-data');
+const { clientIp } = require('./ip-geo');
 
 const json = (res, body, status = 200) => {
   const bytes = Buffer.from(JSON.stringify(body));
@@ -41,13 +42,20 @@ for (let suit = 0; suit < 3; suit++) for (let point = 1; point <= 9; point++) {
   publicFiles[`/admin/tiles/${filename}`] = [`tiles/${filename}`, 'image/png'];
 }
 
+/**
+ * 看牌、指定摸牌和指定起手牌只用于测试特殊牌型。默认关闭，只有在测试环境
+ * 显式设置 QJQP_ENABLE_TEST_TOOLS=1 才开放；生产服务不要设置。
+ */
+const testToolsEnabled = () => process.env.QJQP_ENABLE_TEST_TOOLS === '1';
+const TEST_TOOL_ROUTE = /^\/rooms\/\d+\/(draw-plan(\/(card|move|remove))?|next-wsk-(hand|partner))$/;
+
 const createAdminHttp = ({ app, store, flush, hotUpdate, authFile, publicBaseUrl = '',
-  mobileToken = process.env.QJQP_ADMIN_MOBILE_TOKEN || '' }) => {
+  testTools = testToolsEnabled() }) => {
   const auth = new AdminAuth({
     file: authFile || path.join(path.dirname(store.FILE), 'admin-password.json'),
     sessionStore: store,
   });
-  const data = new AdminData(app, store);
+  const data = new AdminData(app, store, { testTools });
   const assets = new Map(Object.entries(publicFiles).map(([url, [file, mime]]) => [url, {
     bytes: fs.readFileSync(path.join(__dirname, 'admin-public', file)), mime,
   }]));
@@ -65,20 +73,6 @@ const createAdminHttp = ({ app, store, flush, hotUpdate, authFile, publicBaseUrl
     if (!host || parsed.host !== host) return false;
     return parsed.protocol === (secureRequest(req) ? 'https:' : 'http:');
   };
-  const mobileAuthorized = (req) => {
-    const configured = String(mobileToken || '').trim();
-    const header = String(req.headers.authorization || '');
-    const match = header.match(/^Bearer\s+([^\s]+)$/i);
-    return configured.length >= 32 && !!match && secureEqual(match[1], configured);
-  };
-  const mobileRouteAllowed = (pathname, method) => {
-    if (method === 'GET') return pathname === '/rooms' || /^\/rooms\/\d+$/.test(pathname);
-    if (method === 'POST') return /^\/rooms\/\d+\/draw-plan\/(card|move|remove)$/.test(pathname)
-      || /^\/rooms\/\d+\/next-wsk-hand$/.test(pathname);
-    return method === 'DELETE' && (/^\/rooms\/\d+\/draw-plan$/.test(pathname)
-      || /^\/rooms\/\d+\/next-wsk-hand$/.test(pathname));
-  };
-
   const handler = async (req, res, url) => {
     if (!url.pathname.startsWith('/admin')) return false;
     res.setHeader('Cache-Control', 'no-store');
@@ -101,23 +95,21 @@ const createAdminHttp = ({ app, store, flush, hotUpdate, authFile, publicBaseUrl
       if (!auth.configured()) return json(res, { error: '管理员密码尚未设置' }, 503), true;
       let body;
       try { body = await readJson(req); } catch (error) { return json(res, { error: error.message }, 400), true; }
-      const result = auth.login(body.password, req.socket.remoteAddress);
+      // 服务在 nginx 后面，socket 地址恒为 127.0.0.1；用真实客户端 IP 才能按来源限流。
+      const ip = clientIp(req);
+      const result = auth.login(body.password, ip);
       store.appendAudit({ action: result.error ? 'admin.login_failed' : 'admin.login', target: 'admin',
-        details: { ip: req.socket.remoteAddress || '' } });
+        details: { ip } });
       if (result.error) return json(res, { error: result.error }, result.status), true;
       res.setHeader('Set-Cookie', auth.cookie(result.session.sid, secureRequest(req)));
       return json(res, { actor: result.session.actor, csrf: result.session.csrf }), true;
     }
-    const mobile = mobileAuthorized(req);
-    const session = mobile ? { actor: '秘密武器 iOS' } : auth.session(req);
+    const session = auth.session(req);
     if (!session) return json(res, { error: '请先登录管理后台' }, 401), true;
-    if (mobile && !mobileRouteAllowed(pathname, req.method)) {
-      return json(res, { error: '此设备仅允许查看房间和设置牌序' }, 403), true;
-    }
     if (pathname === '/session' && req.method === 'GET') {
       return json(res, { actor: session.actor, csrf: session.csrf, expiresAt: session.expiresAt }), true;
     }
-    if (!mobile && req.method !== 'GET' && (!auth.csrfOk(req, session) || !sameOrigin(req))) {
+    if (req.method !== 'GET' && (!auth.csrfOk(req, session) || !sameOrigin(req))) {
       return json(res, { error: '会话校验失败' }, 403), true;
     }
     if (pathname === '/logout' && req.method === 'POST') {
@@ -147,6 +139,7 @@ const createAdminHttp = ({ app, store, flush, hotUpdate, authFile, publicBaseUrl
       else if (/^\/rooms\/\d+$/.test(pathname)) result = data.room(pathname.split('/').pop());
       else if (pathname === '/records') result = data.records(query);
       else if (/^\/records\/[^/]+$/.test(pathname)) result = data.record(decodeURIComponent(pathname.slice('/records/'.length)));
+      else if (pathname === '/leaderboard') result = data.leaderboard(query);
       else if (pathname === '/clubs') result = data.clubs(query);
       else if (/^\/clubs\/\d+$/.test(pathname)) result = data.club(pathname.split('/').pop());
       else if (pathname === '/messages') result = { messages: app.operatorMessages.slice().reverse() };
@@ -156,6 +149,7 @@ const createAdminHttp = ({ app, store, flush, hotUpdate, authFile, publicBaseUrl
       else if (pathname === '/economy') result = app.economySettings;
       else if (pathname === '/bots') result = data.bots();
       else if (pathname === '/trustees') result = data.trustees();
+      else if (pathname === '/record-card-whitelist') result = data.recordCardWhitelist();
       else if (pathname === '/audit') result = { entries: store.listAudit(query.limit) };
       else if (pathname === '/hot-update' && hotUpdate) result = hotUpdate.status();
       else if (pathname === '/system') result = { sqliteFile: store.FILE,
@@ -166,6 +160,9 @@ const createAdminHttp = ({ app, store, flush, hotUpdate, authFile, publicBaseUrl
         Number.isInteger(result.status) ? result.status : 200), true;
     }
 
+    if (!testTools && TEST_TOOL_ROUTE.test(pathname)) {
+      return json(res, { error: '测试工具未开启' }, 403), true;
+    }
     let body = {};
     if (req.method === 'POST' || req.method === 'PUT') {
       try { body = await readJson(req); } catch (error) { return json(res, { error: error.message }, 400), true; }
@@ -193,6 +190,10 @@ const createAdminHttp = ({ app, store, flush, hotUpdate, authFile, publicBaseUrl
       target = pathname.split('/')[2]; action = 'room.next_wsk_hand_set'; result = data.setNextWskHandPlan(target, body);
     } else if (req.method === 'DELETE' && /^\/rooms\/\d+\/next-wsk-hand$/.test(pathname)) {
       target = pathname.split('/')[2]; action = 'room.next_wsk_hand_clear'; result = data.clearNextWskHandPlan(target);
+    } else if (req.method === 'POST' && /^\/rooms\/\d+\/next-wsk-partner$/.test(pathname)) {
+      target = pathname.split('/')[2]; action = 'room.next_wsk_partner_set'; result = data.setNextWskPartnerPlan(target, body);
+    } else if (req.method === 'DELETE' && /^\/rooms\/\d+\/next-wsk-partner$/.test(pathname)) {
+      target = pathname.split('/')[2]; action = 'room.next_wsk_partner_clear'; result = data.clearNextWskPartnerPlan(target);
     } else if (req.method === 'POST' && /^\/clubs\/\d+\/settings$/.test(pathname)) {
       target = pathname.split('/')[2]; action = 'club.settings'; result = data.updateClub(target, body);
     } else if (req.method === 'POST' && /^\/clubs\/\d+\/cards$/.test(pathname)) {
@@ -218,6 +219,9 @@ const createAdminHttp = ({ app, store, flush, hotUpdate, authFile, publicBaseUrl
       target = '机器人'; action = 'bots.update'; result = data.updateBots(body);
     } else if (req.method === 'PUT' && pathname === '/trustees') {
       target = String(body.uid || ''); action = 'trustee_whitelist.update'; result = data.updateTrustee(body);
+    } else if (req.method === 'PUT' && pathname === '/record-card-whitelist') {
+      target = String(body.uid || ''); action = 'record_card_whitelist.update';
+      result = data.updateRecordCardWhitelist(body);
     } else if (req.method === 'PUT' && /^\/hot-update\/(android|ios)$/.test(pathname) && hotUpdate) {
       target = pathname.split('/').pop(); action = `hot_update.${body.action || 'rollout'}`;
       result = hotUpdate.updateRollout(target, body);

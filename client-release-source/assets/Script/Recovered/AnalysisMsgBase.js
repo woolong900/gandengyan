@@ -21,7 +21,11 @@ e.prototype.parse = function(e, t) {
 "chatroom" === e && this._chatMsg(t);
 "game_bye" === e && this._totalEnd(t);
 "trustee" === e && this._autoGame(t);
+"record_card_access" === e && this._recordCardAccess(t);
 "game_end" === e && this._gameEndCleanAutoGame();
+};
+e.prototype._recordCardAccess = function(e) {
+r.default.setRecordCardAccess(e && e.enabled);
 };
 e.prototype._gameEndCleanAutoGame = function() {
 r.default.players.getByUid(f.default.uid).isAutoGameing() && n.default.gameMsgBase().autoGame();
@@ -170,12 +174,20 @@ this._cleanAutoGame();
 };
 e.prototype._parseAutoGame = function(e, t) {
 var o = (t = t || {}).status || !1, i = r.default.players.getByUid(e), a = t.last_ts || 0;
+if (void 0 !== t.manual_enabled) {
+i.manualTrusteeAllowed = !!t.manual_enabled;
+if (Number(e) === Number(f.default.uid)) r.default._manualTrusteeAllowed = i.manualTrusteeAllowed;
+}
 n.default.gameLogic().isAutoGameRoom(r.default.config) ? i.isTurn = a > 0 : i.isTurn = !1;
 i.updateAutoGame(o);
 };
 e.prototype._autoGame = function(e) {
-var t = e.uid, o = e.status || !1;
-r.default.players.getByUid(t).updateAutoGame(o);
+var t = e.uid, o = e.status || !1, i = r.default.players.getByUid(t);
+if (void 0 !== e.manual_enabled) {
+i.manualTrusteeAllowed = !!e.manual_enabled;
+if (Number(t) === Number(f.default.uid)) r.default._manualTrusteeAllowed = i.manualTrusteeAllowed;
+}
+i.updateAutoGame(o);
 };
 e.prototype._roomInfo = function(e) {
 cc.log(">>>>>>>>>>>>>>>>_roomInfo obj:", e);
@@ -190,8 +202,10 @@ d.other[27] = Number(e.xi_money.kings) || 0;
 }
 this._curGameCount = e.step || 0;
 r.default.roomId = e.roomid;
+r.default.setKeepScreenOn(!0);
 r.default.owner = e.host;
 r.default.scoreRatio = e.score_ratio || 1;
+void 0 !== e.record_card_access && r.default.setRecordCardAccess(e.record_card_access);
 r.default.config = new i.default({
 index: t,
 ipLimit: d.ipLimit,

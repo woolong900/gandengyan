@@ -1,0 +1,22 @@
+{
+  "width": 256,
+  "SubTexture": [
+    {
+      "width": 172,
+      "y": 1,
+      "height": 87,
+      "name": "抗贡1",
+      "x": 1
+    },
+    {
+      "width": 168,
+      "y": 90,
+      "height": 77,
+      "name": "抗贡2",
+      "x": 1
+    }
+  ],
+  "height": 256,
+  "name": "kanggong",
+  "imagePath": "kanggong_tex.png"
+}

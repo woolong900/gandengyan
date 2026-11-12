@@ -57,6 +57,11 @@ class AdminAuth {
 
   login(password, ip) {
     const key = String(ip || 'unknown');
+    if (this.failures.size > 10000) {
+      for (const [address, times] of this.failures) {
+        if (!times.some((time) => this.now() - time < WINDOW_MS)) this.failures.delete(address);
+      }
+    }
     const history = (this.failures.get(key) || []).filter((time) => this.now() - time < WINDOW_MS);
     if (history.length >= MAX_FAILURES) return { error: '尝试次数过多，请15分钟后重试', status: 429 };
     if (!this.verify(password)) {

@@ -168,6 +168,37 @@ const io = {
   assert.deepEqual(friend.data, { deal_uid: 710001, friend_card: 170 });
 }
 
+// 后台指定下一局对家时，基准玩家成为庄家，指定玩家坐到其对面，
+// 翻出的牌仍然能在庄家/对家这一组中找到另一张实体牌。
+{
+  const forcedSeats = Array.from({ length: 4 }, (_, index) => ({
+    player: { uid: 711001 + index, nickname: `指定对家${index + 1}`, sex: 1 },
+    score: 0,
+    site: index + 1,
+  }));
+  const forcedEvents = [];
+  const forcedTable = { ...table, dealerUid: 0 };
+  const forced = new WskRound(forcedSeats, {
+    config: plain,
+    forcedPartner: { uid: 711001, partnerUid: 711002 },
+  }, {
+    ...io,
+    table: forcedTable,
+    all: (msghead, data) => forcedEvents.push({ msghead, data }),
+    each: (msghead, build) => {
+      for (let seat = 0; seat < 4; seat++) forcedEvents.push({ msghead, data: build(seat), seat });
+    },
+  });
+  forced.start(rules.buildDeck(false));
+  assert.equal(forced.uid(forced.dealerSeat), 711001, '基准玩家应成为下一局庄家');
+  assert.equal(forced.uid(forced.teammate(forced.dealerSeat)), 711002, '指定玩家应坐在庄家对面');
+  const teamCards = forced.hands[forced.dealerSeat].concat(forced.hands[forced.teammate(forced.dealerSeat)]);
+  assert(teamCards.filter((card) => card === forced.friendCard).length >= 2,
+    '指定对家后的翻牌必须在庄家或对家手中有另一张实体牌');
+  assert.equal(forcedTable.dealerUid, 711001);
+  assert.deepEqual(forced.exchangePosition, [711002, 2, 711003, 1]);
+}
+
 const round = new WskRound(seats, { config: plain, dealerSeat: 0 }, io);
 round.start();
 assert.deepEqual(round.hands.map((hand) => hand.length), [27, 27, 27, 27]);
@@ -298,6 +329,13 @@ const scenario = ({ hands, turn = 0, ranks = [0, 0, 0, 0], finishOrder = [], fir
 {
   const test = scenario({ hands: [[31], [41], [51], [61]] });
   assert.equal(test.round.play(0, [31, 31]), null);
+  const teammateSnapshot = test.events.find((event) => event.msghead === 'game_info' && event.seat === 0);
+  assert(teammateSnapshot, '玩家出完手牌后应立即收到队友手牌快照');
+  assert.deepEqual(teammateSnapshot.data.players[2].card.hand_card, [51],
+    '玩家出完手牌后应直接看到对家手牌');
+  assert(teammateSnapshot.data.players[1].card.hand_card.every((card) => card === 0)
+    && teammateSnapshot.data.players[3].card.hand_card.every((card) => card === 0),
+  '出完牌后不能看到非队友手牌');
   assert.equal(test.round.pass(1), null);
   assert.equal(test.round.pass(2), null);
   assert(!test.events.some((event) => event.msghead === 'game_successor'));
@@ -422,8 +460,23 @@ tablePlayers.forEach((player, index) => {
 const waiting = tableRound.waitingGameSnapshot();
 assert.equal(waiting.players.length, 4);
 assert(waiting.players.every((player) => Array.isArray(player.card.hand_card)));
+assert.deepEqual(tableRound.setNextWskPartnerPlan(tablePlayers[0].uid, tablePlayers[1].uid),
+  { uid: tablePlayers[0].uid, partnerUid: tablePlayers[1].uid });
+assert.deepEqual(tableRound.setNextWskHandPlan(tablePlayers[1].uid, { 3: 5 }).counts,
+  { 3: 5 }, '指定对家应允许同时指定起手牌');
+assert.deepEqual(tableRound.dump().nextWskPartnerPlan,
+  { uid: tablePlayers[0].uid, partnerUid: tablePlayers[1].uid }, '指定对家应写入房间存档');
 tablePlayers.forEach((player, index) => tableRound.handle200(player.uid, 'gameready', { site: index + 1 }));
 assert(tableRound.round instanceof WskRound);
+assert.equal(tableRound.round.uid(tableRound.round.dealerSeat), tablePlayers[0].uid,
+  'Table 开局应应用指定庄家');
+assert.equal(tableRound.round.uid(tableRound.round.teammate(tableRound.round.dealerSeat)), tablePlayers[1].uid,
+  'Table 开局应应用指定对家');
+const protectedPartnerHand = tableRound.round.hands[tableRound.round.seatOf(tablePlayers[1].uid)];
+assert.equal(protectedPartnerHand.filter((card) => rules.cardValue(card) === 3).length, 5,
+  '换到对面后仍应保留该玩家的指定手牌');
+assert.equal(tableRound.nextWskPartnerPlan, null, '指定对家应在开局后自动清除');
+assert.equal(tableRound.nextWskHandPlan, null, '指定手牌应在开局后自动清除');
 assert.equal(tablePlayers[0].cardNum, 96);
 let tableTurns = 0;
 while (tableRound.round && tableTurns++ < 3000) {

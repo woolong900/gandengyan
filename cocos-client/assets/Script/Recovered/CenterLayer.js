@@ -103,8 +103,9 @@ var e = b.default.agentPlatformUrl(a.default.token);
 cc.sys.isNative ? D.default.openWebpage(e) : window.open(e, "_blank");
 };
 t.prototype.updateCreateBtn = function() {
-this.backBtn.active = C.default.isInRoom();
-this.createBtn.active = !C.default.isInRoom();
+var e = "1" === cc.sys.localStorage.getItem("tdak_room_active"), t = C.default.isInRoom() || e;
+this.backBtn.active = t;
+this.createBtn.active = !t;
 };
 t.prototype.bindCardNumChange = function() {
 var e = this;
@@ -213,6 +214,10 @@ v.default.setData(0, -1, 0, 0);
 i.default.uiHelper.show(l.eWindowID.CreateRoom);
 };
 t.prototype.onBtnBackToGame = function() {
+if (!C.default.isInRoom() && "1" === cc.sys.localStorage.getItem("tdak_room_active")) {
+i.default.uiHelper.loadScene("SceneTDak");
+return;
+}
 i.default.uiHelper.loadScene(C.default.gameSceneName());
 };
 t.prototype.onBtnRules = function() {

@@ -5,7 +5,7 @@ cc._RF.push(t, "8e1a8kTdCFLXqNyqv4AFr9c", "PlayerInfoCellData");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = require("./LocationData"), r = require("./pb"), i = require("./UserData"), a = require("./Constants"), s = require("./gContext"), l = require("./EventKeys"), c = require("./RoomInfoData"), u = function() {
+var n = require("./LocationData"), r = require("./pb"), i = require("./UserData"), a = require("./Constants"), s = require("./gContext"), l = require("./EventKeys"), c = require("./RoomInfoData"), v = require("./CommonEnum"), u = function() {
 function e(e) {
 this.uid = 0;
 this.headImg = "";
@@ -19,9 +19,12 @@ this.deal = !1;
 this.onLine = !0;
 this.isDouble = 1;
 this.ready = !0;
+this.selfLevel = 20;
+this.friend_team = 0;
 this._isAutoGameing = !1;
 this.isTurn = !1;
 this.isManager = !1;
+this.gongPai = 0;
 this.uid = e.uid;
 this.headImg = e.headImg || a.default.defHeadUrl;
 this.name = e.name || "";
@@ -37,6 +40,7 @@ this._isAutoGameing = e.isAutoGameing || !1;
 this.isTurn = e.isTurn || !1;
 this.isManager = e.isManager || !1;
 this.isDouble = e.isdouble || 1;
+this.gongPai = e.gongPai || 0;
 }
 e.prototype.pbData = function() {
 return new r.pb.PlayerInfo({
@@ -98,8 +102,14 @@ this.ready = e;
 e.prototype.setIsDoublee = function(e) {
 this.isDouble = e;
 };
+e.prototype.setSelfLevel = function(e) {
+this.selfLevel = e;
+};
+e.prototype.setFriend = function(e) {
+this.friend_team = e;
+};
 e.prototype.scoreDesc = function() {
-return "" + this.score / c.default.scoreRatio;
+return c.default.config && c.default.config.index === v.eGameIds.GD ? "" + this.score / 10 : "" + this.score / c.default.scoreRatio;
 };
 e.prototype.isMe = function() {
 return i.default.uid == this.uid;

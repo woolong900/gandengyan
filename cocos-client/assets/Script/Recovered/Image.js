@@ -60,14 +60,26 @@ enumerable: !0,
 configurable: !0
 });
 t.prototype.onLoad = function() {
+this._applyWebAvatarSize();
 !this.defaultImage && this.spriteFrame && (this.defaultImage = this.spriteFrame);
 this._retryHandler = this._retry.bind(this);
+};
+t.prototype._applyWebAvatarSize = function() {
+if (!cc.sys.isBrowser || !this.node || !cc.isValid(this.node)) return;
+// In WebGL a SpriteFrame may finish loading after the caller sets node size.
+// RAW/TRIMMED then reapplies the texture's dimensions (e.g. 200x200 greyHead).
+// Lock the authored avatar dimensions before assigning any frame; leave native
+// sizing and the surrounding border/position unchanged.
+this.sizeMode = cc.Sprite.SizeMode.CUSTOM;
+if (this.fixWidth > 0) this.node.width = this.fixWidth;
+if (this.fixHeight > 0) this.node.height = this.fixHeight;
 };
 t.prototype._reset = function() {
 this._resetRetry();
 this._resetImage();
 };
 t.prototype._resetImage = function() {
+this._applyWebAvatarSize();
 if (this.defaultImage) {
 this.spriteFrame = this.defaultImage;
 this.node.width > this.fixWidth && (this.node.width = this.fixWidth);
@@ -84,6 +96,7 @@ e._resetImage();
 e.scheduleOnce(e._retryHandler, 3);
 } else if (o) {
 var n = new cc.SpriteFrame(o);
+e._applyWebAvatarSize();
 e.spriteFrame = n;
 o.width > e.fixWidth && (e.node.width = e.fixWidth);
 o.height > e.fixHeight && (e.node.height = e.fixHeight);
@@ -147,6 +160,7 @@ t.setSpriteFrame(e);
 };
 t.prototype.setSpriteFrame = function(e) {
 if (e) {
+this._applyWebAvatarSize();
 this.spriteFrame = e;
 this.node.width > this.fixWidth && (this.node.width = this.fixWidth);
 this.node.height > this.fixHeight && (this.node.height = this.fixHeight);

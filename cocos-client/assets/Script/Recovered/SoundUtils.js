@@ -9,6 +9,7 @@ var n = require("./Storage"), r = new (function() {
 function e() {
 this._isInit = !1;
 this._bgm = null;
+this._pokerVoices = [];
 }
 e.prototype.init = function() {
 var e = n.default.effect.getValue();
@@ -49,15 +50,44 @@ void 0 === t && (t = !1);
 var n = this.getEffectVolume();
 if (n <= 0) return -1;
 if (!e) return -1;
+// The original network flow supplies turn pacing. Local robots instead wait
+// for these original clips; do not queue, replace or interrupt the audio itself.
+var match = /^Games\/(ddz|gd)\/Sound\/(man|woman)\//.exec(e), voice = null;
+if (match && cc.sys.localStorage.getItem(match[1] + "_local_room") === "1") {
+voice = { game: match[1], until: Date.now() + 5000 };
+this._pokerVoices.push(voice);
+}
+function play(clip, volume) {
+var id = cc.audioEngine.play(clip, t, volume);
+if (voice) {
+var duration = Number(clip.duration);
+if (!(duration > 0) && cc.audioEngine.getDuration) duration = cc.audioEngine.getDuration(id);
+voice.until = Date.now() + (duration > 0 ? duration * 1000 : 1500);
+}
+return id;
+}
 var r = cc.loader.getRes(e, cc.AudioClip);
 if (r) {
-return cc.audioEngine.play(r, t, n);
+return play(r, n);
 }
-cc.loader.loadRes(e, cc.AudioClip, function(n) {
-if (!n) return o.playEffect(e, t);
-console.warn("++++ sound load error:", e);
+cc.loader.loadRes(e, cc.AudioClip, function(error, clip) {
+if (error || !clip) {
+if (voice) voice.until = 0;
+console.warn("++++ sound load error:", e, error);
+return;
+}
+// A cache miss is normal on first use. Play the loaded clip directly instead
+// of recursively loading again, and respect a mute made while loading.
+var volume = o.getEffectVolume();
+if (volume > 0) play(clip, volume); else if (voice) voice.until = 0;
 });
-console.warn("++++ playSound error:", e);
+};
+e.prototype.pokerVoiceDelay = function(game) {
+var now = Date.now(), until = now;
+this._pokerVoices = this._pokerVoices.filter(function(voice) { return voice.until > now; });
+if (this.getEffectVolume() <= 0) return 0;
+this._pokerVoices.forEach(function(voice) { if (voice.game === game) until = Math.max(until, voice.until); });
+return until - now;
 };
 e.prototype.clickBtn = function() {
 this.playEffect("Hall/Sound/clickbtn", !1);
@@ -74,10 +104,13 @@ if (this.getMusiceVolume() <= 0) return -1;
 if (!e) return -1;
 var n = cc.loader.getRes(e, cc.AudioClip);
 if (!n) {
-cc.loader.loadRes(e, cc.AudioClip, function(n) {
-o.playMusic(e, t);
+var token = this._musicLoadToken;
+cc.loader.loadRes(e, cc.AudioClip, function(error, clip) {
+if (error || !clip) { console.warn("++++ music load error:", e, error); return; }
+if (token !== o._musicLoadToken || o.getMusiceVolume() <= 0) return;
+var id = cc.audioEngine.playMusic(clip, t);
+cc.audioEngine.setFinishCallback(id, function() { o.replayMusic(); });
 });
-console.warn("++++ _realPlayMusic error:", e);
 return 0;
 }
 var r = cc.audioEngine.playMusic(n, t);
@@ -102,6 +135,7 @@ e.prototype.replayMusic = function() {
 this._bgm && (cc.audioEngine.isMusicPlaying() || r.playMusic(this._bgm));
 };
 e.prototype.stopMusic = function() {
+this._musicLoadToken = (this._musicLoadToken || 0) + 1;
 cc.audioEngine.stopMusic();
 };
 e.prototype.pauseMusic = function() {
@@ -112,8 +146,9 @@ cc.audioEngine.pauseMusic();
 cc.audioEngine.resumeMusic();
 };
 e.prototype.stopAll = function() {
+this._pokerVoices = [];
 cc.audioEngine.stopAllEffects();
-cc.audioEngine.stopMusic();
+this.stopMusic();
 };
 e.prototype.save = function() {
 n.default.effect.setValue(this.getEffectVolume());

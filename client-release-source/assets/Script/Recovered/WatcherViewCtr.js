@@ -48,6 +48,7 @@ a.default.updateWatchPos(o);
 }
 if (a.default.config.category() === i.eGameCategort.WSK) {
 o = (a.default.myAbsolutePos() + parseInt(t) + 4) % 4;
+a.default.players.getByPos(o) && require("./GameMsgWSK").default.getInstance().watchView(a.default.players.getByPos(o).uid);
 a.default.updateWatchPos(o);
 }
 };

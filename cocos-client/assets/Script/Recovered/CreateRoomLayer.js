@@ -27,7 +27,7 @@ return i > 3 && a && Object.defineProperty(t, o, a), a;
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var i = require("./RoomConfigListData"), a = require("./CheckType"), s = require("./BtnGame"), l = require("./gContext"), c = require("./EventKeys"), u = require("./EventUtils"), d = require("./BaseComponent"), p = require("./ExUtils"), f = require("./UserData"), h = require("./SoundUtils"), m = require("./Storage"), y = require("./ClubMsg"), g = require("./CreateRoomAssist"), _ = require("./GameConfig"), v = cc._decorator, C = v.ccclass, b = v.property, D = function(e) {
+var i = require("./RoomConfigListData"), a = require("./CheckType"), s = require("./BtnGame"), l = require("./gContext"), c = require("./EventKeys"), u = require("./EventUtils"), d = require("./BaseComponent"), p = require("./ExUtils"), f = require("./UserData"), h = require("./SoundUtils"), m = require("./Storage"), y = require("./ClubMsg"), g = require("./CreateRoomAssist"), _ = require("./GameConfig"), T = require("./CommonEnum"), A = require("./GDStandalone"), B = require("./DDZStandalone"), v = cc._decorator, C = v.ccclass, b = v.property, D = function(e) {
 n(t, e);
 function t() {
 var t = null !== e && e.apply(this, arguments) || this;
@@ -150,6 +150,38 @@ this._updateIp();
 };
 t.prototype.onClickCreate = function() {
 h.default.clickBtn();
+if (this._chooseGameId === T.eGameIds.TDAK && !this._clubId) {
+var t = g.default.get(this._chooseGameId), o = {
+players: t.peopleCount(),
+pokerMode: t.isChecked(5) ? 1 : t.isChecked(6) ? 2 : 3,
+withJokers: t.isChecked(20),
+dragonTigerLeopard: t.isChecked(21),
+twoScoresFourteen: t.isChecked(22),
+baseScoreFive: t.isChecked(23),
+allInMultiple: t.isChecked(24) ? 30 : 0,
+festerDouble: t.isChecked(25)
+};
+cc.sys.localStorage.setItem("tdak_room_rules", JSON.stringify(o));
+cc.sys.localStorage.setItem("tdak_room_id", String(100000 + Math.floor(9e5 * Math.random())));
+cc.sys.localStorage.setItem("tdak_room_active", "1");
+i.default.save();
+l.default.uiHelper.loadScene("SceneTDak");
+return;
+}
+if (this._chooseGameId === T.eGameIds.GD && !this._clubId) {
+var E = g.default.get(this._chooseGameId);
+if (A.default.start(E) === false) return;
+i.default.save();
+l.default.uiHelper.loadScene("SceneGD");
+return;
+}
+if (this._chooseGameId === T.eGameIds.DDZ && !this._clubId) {
+var F = g.default.get(this._chooseGameId);
+if (B.default.start(F) === false) return;
+i.default.save();
+l.default.uiHelper.loadScene("SceneDDZ");
+return;
+}
 var e = i.default.get(this._chooseGameId);
 if (e.IPStatus()) {
 if (!p.default.checkLocationEnabled()) {
@@ -182,21 +214,25 @@ t.prototype.onClickSave = function() {
 var e = this;
 h.default.clickBtn();
 var t = g.default.get(this._chooseGameId), o = g.default.getClubScheme();
+if (!t || (o !== 1 && o !== 2)) {
+l.default.uiHelper.showTip("玩法配置未就绪，请重新打开新增玩法页面");
+return;
+}
 if (1 === o && t) y.default.clubGameSchemeAdd(this._clubId, "", t, function(t, o) {
-if (o) l.default.uiHelper.showTip("新增玩法失败"); else if (0 === t.res.error) {
+if (o || !t || !t.res) l.default.uiHelper.showTip("新增玩法失败，请检查连接后重试"); else if (0 === t.res.error) {
 l.default.uiHelper.showTip("新增玩法成功");
 l.default.eventUtils.emit(c.default.data_club_get_scheme_list);
 l.default.uiHelper.remove(e);
-}
+} else l.default.uiHelper.showTip("新增玩法失败：" + (t.res.what || "服务端拒绝保存"));
 }); else if (2 === o && t) {
 var n = g.default.getSchemeId(), r = g.default.getSchemeData().color;
 y.default.clubGameSchemeEdit(n, "", this._clubId, r, t, function(t, o) {
-if (o) l.default.uiHelper.showTip("修改玩法失败"); else if (0 === t.res.error) {
+if (o || !t || !t.res) l.default.uiHelper.showTip("修改玩法失败，请检查连接后重试"); else if (0 === t.res.error) {
 l.default.uiHelper.showTip("修改玩法成功");
 l.default.eventUtils.emit(c.default.data_club_get_scheme_list);
 y.default.getClubTableInfo(e._clubId, function() {}, !0);
 l.default.uiHelper.remove(e);
-} else l.default.uiHelper.showTip(t.res.what);
+} else l.default.uiHelper.showTip("修改玩法失败：" + (t.res.what || "服务端拒绝保存"));
 });
 }
 };

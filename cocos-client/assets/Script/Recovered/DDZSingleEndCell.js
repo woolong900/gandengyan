@@ -50,6 +50,7 @@ t.labelTotal = null;
 return t;
 }
 t.prototype.setData = function(e) {
+if (!this._settlementFrames) this._settlementFrames = require("./PokerSettlementStyle").roles(this);
 var t = a.default.getInstance(), o = t.playerUid(e), n = s.default.players.getByUid(o);
 this.headImg.url = n.headImg;
 this.nameLabel.string = l.default.clip(n.name, 6);
@@ -70,6 +71,9 @@ this.labScore.string = "" + h / s.default.scoreRatio;
 var m = t.playerTotal(e);
 this.labelTotal.string = "" + m / s.default.scoreRatio;
 this.winTitle.active = h > 0;
+};
+t.prototype.onDestroy = function() {
+require("./PokerSettlementStyle").release(this._settlementFrames);
 };
 t.prototype._updateCards = function(e, t, o) {
 void 0 === o && (o = !1);

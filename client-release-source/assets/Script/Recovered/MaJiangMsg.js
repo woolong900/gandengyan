@@ -22,6 +22,8 @@ if (e) {
 var p = n.default.players.getByUid(e), h = p.pos, m = n.default.gameInfo.siteInfos.get(h), y = m.isHandCardVisible(), g = n.default.gameInfo.playerPointer;
 t.pointTo = g;
 var _ = new r.default(t);
+var k = n.default.myAbsolutePos(), R = n.default.gameInfo.siteInfos.get(k);
+_.category !== i.eOperateCategory.Guo && R && R.updateOperateOptions(null);
 if (_.category === i.eOperateCategory.LiangDao) {
 var v = _.cards[0], C = _.cards[1], b = _.cards[2];
 y ? m.removeHandCards([ v, C, b ], !0) : m.removeHandCards([ a.MJ_BACK_ID, a.MJ_BACK_ID, a.MJ_BACK_ID ], !0);

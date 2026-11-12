@@ -5,9 +5,10 @@ cc._RF.push(t, "aa685b0qV5FHaodNf705tyn", "AnalysisMsg");
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var n = require("./CommonEnum"), r = require("./AnalysisMsgMJ"), i = require("./AnalysisMsgD7"), a = require("./AnalysisMsgPDK"), s = require("./AnalysisMsgWSK"), l = require("./AnalysisMsgDBD"), c = require("./AnalysisMsgDDZ"), u = function() {
+var n = require("./CommonEnum"), r = require("./AnalysisMsgMJ"), i = require("./AnalysisMsgD7"), a = require("./AnalysisMsgPDK"), s = require("./AnalysisMsgWSK"), l = require("./AnalysisMsgDBD"), c = require("./AnalysisMsgDDZ"), d = require("./AnalysisMsgGD"), u = function() {
 function e() {}
 e.getInstance = function(e) {
+if (e === 7) return this._tdak || (this._tdak = new (require('./AnalysisMsgTDak').default)());
 if (e === n.eGameCategort.MJ) {
 this._mj || (this._mj = new r.default());
 return this._mj;
@@ -32,6 +33,10 @@ if (e === n.eGameCategort.DDZ) {
 this._ddz || (this._ddz = new c.default());
 return this._ddz;
 }
+if (e === n.eGameCategort.GD) {
+this._gd || (this._gd = new d.default());
+return this._gd;
+}
 };
 e._mj = null;
 e._d7 = null;
@@ -39,6 +44,7 @@ e._pdk = null;
 e._wsk = null;
 e._dbd = null;
 e._ddz = null;
+e._gd = null;
 return e;
 }();
 o.default = u;

@@ -605,7 +605,8 @@ class Round {
       && this.config.玩法 === '土豪必杠'
       && this.config.只许自摸);
     if (!eligible || policy === 'legacy') return false;
-    return policy === 'smart' || policy === 'smart-eager' || policy === 'jev' || policy == null;
+    return policy === 'smart' || policy === 'smart-v1' || policy === 'smart-eager'
+      || policy === 'jev' || policy == null;
   }
 
   /**
@@ -615,7 +616,10 @@ class Round {
   autoPlay(seat, policy) {
     if (this.over) return;
     const smart = this.smartBot(seat, policy);
-    const botOptions = { shuaiMode: policy === 'smart-eager' ? 'eager' : 'dynamic' };
+    const botOptions = {
+      shuaiMode: policy === 'smart-eager' ? 'eager' : 'dynamic',
+      strategyVersion: policy === 'smart-v1' ? 1 : 2,
+    };
     const p = this.pending;
     if (p && p.kind === 'self' && p.seat === seat) {
       if (smart) {
@@ -685,12 +689,14 @@ class Round {
     if (pending && pending.kind === 'self' && pending.seat === seat) {
       prepared.kind = 'response';
       if (pending.hu) prepared.promise = Promise.resolve({ op: 'hu', data: {} });
-      else if ((pending.gang || []).includes(this.pizi)) {
-        prepared.promise = Promise.resolve({ op: 'gang', data: { card: this.pizi } });
-      }
       else {
-      const fallback = mahjongBot.chooseSelfAction(this, seat, pending);
-        prepared.promise = jevBot.chooseSelfAction(this, seat, pending, fallback);
+        const forcedGang = mahjongBot.forcedSelfGang(this, seat, pending.gang);
+        if (forcedGang != null) {
+          prepared.promise = Promise.resolve({ op: 'gang', data: { card: forcedGang } });
+        } else {
+          const fallback = mahjongBot.chooseSelfAction(this, seat, pending);
+          prepared.promise = jevBot.chooseSelfAction(this, seat, pending, fallback);
+        }
       }
       return prepared;
     }
@@ -705,7 +711,16 @@ class Round {
       }
       else {
         const fallback = mahjongBot.chooseDiscardResponse(this, seat, pending, candidate);
-        prepared.promise = jevBot.chooseDiscardResponse(this, seat, pending, candidate, fallback);
+        // Jev 可以在普通策略取舍上覆盖本地建议，但不能为了碰牌拆掉
+        // 1223 中已经完成的 123 顺子，也不能否决多癞弃胡后的追杠碰牌。
+        // 这两类硬约束直接在规则入口收口。
+        const forceLocal = (fallback.op === 'pass'
+          && mahjongBot.pengBreaksCompletedSequence(this, seat, pending.card))
+          || (fallback.op === 'peng'
+            && mahjongBot.mustChaseGangPeng(this, seat, pending.card));
+        prepared.promise = forceLocal
+          ? Promise.resolve(fallback)
+          : jevBot.chooseDiscardResponse(this, seat, pending, candidate, fallback);
       }
       return prepared;
     }
@@ -869,7 +884,10 @@ class Round {
         // 过手碰：能碰却过了，摸 / 碰 / 杠之前不能再碰同一张
         // 两张皮子接别人打出的皮子时是朝天，不能再让玩家退回普通碰。
         peng: mahjong.canPeng(this.hands[s], card, this.jokerFor(s))
-          && !this.passPeng[s].has(card)
+          // 普通玩家继续遵守过手碰；智能机器人/后台托管每次看到同牌都
+          // 重新评估。第二张同牌出现后剩余张数和听口价值已经改变，不能
+          // 沿用第一次的“过”，否则对倒会被锁死在越来越窄的单边听口。
+          && (!this.passPeng[s].has(card) || this.smartBot(s))
           && !(card === this.pizi && gang),
         gang,
       };

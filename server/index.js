@@ -23,6 +23,16 @@ const { authorizeWechat } = require('./wechat');
 const { createAdminHttp } = require('./admin-http');
 const { HotUpdateService } = require('./hot-update');
 const { clientIp, IpGeoService } = require('./ip-geo');
+const { ClientPlatformTracker, platformFromPlayer } = require('./client-platform');
+const { TokenBucket, startHeartbeat, WS_MAX_PAYLOAD } = require('./ws-guard');
+const { LISTEN_HOST, PORT } = require('./http/config');
+const { html, json, logUrl, readBody, redirect } = require('./http/responses');
+const { aasa, publicOrigin, pwaWechatResultUrl, recordSharePage, sharePage } = require('./http/pages');
+const { DOWNLOAD_ASSETS, LEGAL_PAGES, SHARE_ICON, servePwa } = require('./http/static-files');
+const {
+  WEB_WECHAT_STATE_TTL, WEB_WECHAT_TICKET_TTL, consumeWebWechatToken, hasWechatCredentials, issueWebWechatToken,
+  webWechatCredentials, webWechatStates, webWechatTickets, wechatCredentials,
+} = require('./http/web-wechat');
 
 const voice = createVoice(path.join(path.dirname(store.FILE), 'voice'));
 const hotUpdate = new HotUpdateService({
@@ -30,160 +40,11 @@ const hotUpdate = new HotUpdateService({
   configFile: process.env.QJQP_HOT_UPDATE_CONFIG || path.join(path.dirname(store.FILE), 'hot-update.json'),
 });
 const ipGeo = new IpGeoService();
-
-const PORT = Number(process.env.PORT) || 8080;
-const LISTEN_HOST = process.env.HOST || '0.0.0.0';
-const APP_BUNDLE_ID = 'com.haoke.gandengyan';
-const APPLE_TEAM_ID = process.env.QJQP_APPLE_TEAM_ID || '4CSMM3394C';
-const SHARE_ICON = fs.readFileSync(path.join(__dirname, 'public', 'share-icon.png'));
-const LEGAL_PAGES = new Map([
-  ['/legal/user-agreement', fs.readFileSync(path.join(__dirname, 'public', 'legal', 'user-agreement.html'))],
-  ['/legal/privacy-policy', fs.readFileSync(path.join(__dirname, 'public', 'legal', 'privacy-policy.html'))],
-]);
-const DOWNLOAD_ROOT = path.join(__dirname, 'public', 'download');
-const PWA_ROOT = path.resolve(process.env.QJQP_PWA_ROOT || path.join(__dirname, '..', 'pwa'));
-const PWA_TYPES = {
-  '.bin': 'application/octet-stream',
-  '.cconb': 'application/octet-stream',
-  '.css': 'text/css; charset=utf-8',
-  '.html': 'text/html; charset=utf-8',
-  '.ico': 'image/x-icon',
-  '.jpeg': 'image/jpeg',
-  '.jpg': 'image/jpeg',
-  '.js': 'text/javascript; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.m4a': 'audio/mp4',
-  '.manifest': 'application/json; charset=utf-8',
-  '.mp3': 'audio/mpeg',
-  '.ogg': 'audio/ogg',
-  '.png': 'image/png',
-  '.ttf': 'font/ttf',
-  '.wav': 'audio/wav',
-  '.webmanifest': 'application/manifest+json; charset=utf-8',
-  '.webp': 'image/webp',
-  '.wasm': 'application/wasm',
-};
-const DOWNLOAD_ASSETS = new Map([
-  ['/download', { filename: 'index.html', type: 'text/html; charset=utf-8', cache: 'public, max-age=300' }],
-  ['/download/', { filename: 'index.html', type: 'text/html; charset=utf-8', cache: 'public, max-age=300' }],
-  ['/download/app.css', { filename: 'app.css', type: 'text/css; charset=utf-8', cache: 'public, max-age=3600' }],
-  ['/download/app.js', { filename: 'app.js', type: 'text/javascript; charset=utf-8', cache: 'public, max-age=3600' }],
-  ['/download/app-icon.webp', { filename: 'app-icon.webp', type: 'image/webp', cache: 'public, max-age=86400' }],
-  ['/download/app-icon-v2.webp', { filename: 'app-icon-v2.webp', type: 'image/webp', cache: 'public, max-age=86400' }],
-  ['/download/game-logo.webp', { filename: 'game-logo.webp', type: 'image/webp', cache: 'public, max-age=86400' }],
-]);
-for (const asset of DOWNLOAD_ASSETS.values()) {
-  if (!asset.body) asset.body = fs.readFileSync(path.join(DOWNLOAD_ROOT, asset.filename));
-}
-
-const servePwa = async (req, res, url) => {
-  if (url.pathname === '/pwa') {
-    res.writeHead(308, { Location: '/pwa/', 'Cache-Control': 'no-store' });
-    return res.end();
-  }
-  let relative;
-  try { relative = decodeURIComponent(url.pathname.slice('/pwa/'.length)); }
-  catch (_) { return res.writeHead(400).end(); }
-  if (!relative || relative.endsWith('/')) relative += 'index.html';
-  const filename = path.resolve(PWA_ROOT, relative);
-  if (filename !== PWA_ROOT && !filename.startsWith(`${PWA_ROOT}${path.sep}`)) {
-    return res.writeHead(403).end();
-  }
-
-  let stat;
-  try { stat = await fs.promises.stat(filename); }
-  catch (_) { return res.writeHead(404).end(); }
-  if (!stat.isFile()) return res.writeHead(404).end();
-
-  const basename = path.basename(filename);
-  const headers = {
-    'Content-Type': PWA_TYPES[path.extname(filename).toLowerCase()] || 'application/octet-stream',
-    'Content-Length': stat.size,
-    'Cache-Control': /^(index\.html|sw\.js|pwa-register\.js|web-config\.js|manifest\.webmanifest)$/.test(basename)
-      ? 'no-cache' : 'public, max-age=3600',
-    'X-Content-Type-Options': 'nosniff',
-    'Accept-Ranges': 'bytes',
-  };
-  if (basename === 'sw.js') headers['Service-Worker-Allowed'] = '/pwa/';
-
-  const range = String(req.headers.range || '').match(/^bytes=(\d*)-(\d*)$/);
-  if (range && stat.size) {
-    const start = range[1] ? Number(range[1]) : Math.max(0, stat.size - Number(range[2] || 0));
-    const end = range[2] ? Math.min(Number(range[2]), stat.size - 1) : stat.size - 1;
-    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || start > end || start >= stat.size) {
-      res.writeHead(416, { 'Content-Range': `bytes */${stat.size}` });
-      return res.end();
-    }
-    headers['Content-Length'] = end - start + 1;
-    headers['Content-Range'] = `bytes ${start}-${end}/${stat.size}`;
-    res.writeHead(206, headers);
-    return req.method === 'HEAD' ? res.end() : fs.createReadStream(filename, { start, end }).pipe(res);
-  }
-
-  res.writeHead(200, headers);
-  return req.method === 'HEAD' ? res.end() : fs.createReadStream(filename).pipe(res);
-};
+const clientPlatforms = new ClientPlatformTracker();
 const operatorKeyFile = process.env.QJQP_OPERATOR_KEY_FILE || path.join(path.dirname(store.FILE), 'operator.key');
 const operatorKey = String(process.env.QJQP_OPERATOR_KEY || (
   fs.existsSync(operatorKeyFile) ? fs.readFileSync(operatorKeyFile, 'utf8') : ''
 )).trim();
-
-const wechatCredentials = (requestedAppId) => {
-  const configuredAppId = String(process.env.QJQP_WECHAT_APPID || '').trim();
-  const apps = new Map();
-  if (configuredAppId && process.env.QJQP_WECHAT_APPSECRET) {
-    apps.set(configuredAppId, String(process.env.QJQP_WECHAT_APPSECRET));
-  }
-  const extra = String(process.env.QJQP_WECHAT_APPS || '').trim();
-  if (extra) {
-    try {
-      const parsed = JSON.parse(extra);
-      for (const [appId, secret] of Object.entries(parsed || {})) {
-        if (/^wx[0-9A-Za-z]{16}$/.test(appId) && String(secret || '').trim()) {
-          apps.set(appId, String(secret).trim());
-        }
-      }
-    } catch (error) { console.error(`QJQP_WECHAT_APPS 配置无效：${error.message}`); }
-  }
-  const appId = String(requestedAppId || configuredAppId).trim();
-  const appSecret = apps.get(appId) || '';
-  return appId && appSecret ? { appId, appSecret } : null;
-};
-const hasWechatCredentials = () => !!(
-  String(process.env.QJQP_WECHAT_APPID || '').trim() && String(process.env.QJQP_WECHAT_APPSECRET || '').trim()
-) || !!String(process.env.QJQP_WECHAT_APPS || '').trim();
-
-const webWechatCredentials = () => {
-  const appId = String(process.env.QJQP_WECHAT_WEB_APPID || '').trim();
-  const appSecret = String(process.env.QJQP_WECHAT_WEB_APPSECRET || '').trim();
-  if (appId && appSecret) return { appId, appSecret };
-  return wechatCredentials();
-};
-const webWechatStates = new Map();
-const webWechatTickets = new Map();
-const WEB_WECHAT_STATE_TTL = 10 * 60 * 1000;
-const WEB_WECHAT_TICKET_TTL = 2 * 60 * 1000;
-const cleanWebWechatTokens = () => {
-  const now = Date.now();
-  for (const [key, value] of webWechatStates) {
-    if (!value || value.expiresAt <= now) webWechatStates.delete(key);
-  }
-  for (const [key, value] of webWechatTickets) {
-    if (!value || value.expiresAt <= now) webWechatTickets.delete(key);
-  }
-};
-const issueWebWechatToken = (map, value, ttl) => {
-  cleanWebWechatTokens();
-  const key = crypto.randomBytes(32).toString('base64url');
-  map.set(key, { ...value, expiresAt: Date.now() + ttl });
-  return key;
-};
-const consumeWebWechatToken = (map, key) => {
-  cleanWebWechatTokens();
-  const token = map.get(String(key || ''));
-  map.delete(String(key || ''));
-  return token && token.expiresAt > Date.now() ? token : null;
-};
 
 let saveTimer = null;
 let saveQueue = Promise.resolve();
@@ -248,124 +109,6 @@ const recordLoginNetwork = (player, req) => {
   });
 };
 
-const json = (res, body, status = 200) => {
-  const s = JSON.stringify(body);
-  res.writeHead(status, {
-    'Content-Type': 'application/json; charset=utf-8',
-    'Content-Length': Buffer.byteLength(s),
-  });
-  res.end(s);
-};
-
-const html = (res, body, status = 200) => {
-  res.writeHead(status, {
-    'Content-Type': 'text/html; charset=utf-8',
-    'Content-Length': Buffer.byteLength(body),
-    'Cache-Control': 'public, max-age=300',
-    'Content-Security-Policy': "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'",
-    'X-Content-Type-Options': 'nosniff',
-  });
-  res.end(body);
-};
-
-const escapeHtml = (value) => String(value || '')
-  .replaceAll('&', '&amp;')
-  .replaceAll('<', '&lt;')
-  .replaceAll('>', '&gt;')
-  .replaceAll('"', '&quot;')
-  .replaceAll("'", '&#39;');
-
-const publicOrigin = (req) => {
-  const configured = String(process.env.QJQP_PUBLIC_BASE_URL || '').replace(/\/$/, '');
-  if (configured) return configured;
-  const forwarded = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
-  const protocol = forwarded === 'https' ? 'https' : (req.socket.encrypted ? 'https' : 'http');
-  const host = String(req.headers.host || `127.0.0.1:${PORT}`).replace(/[\r\n]/g, '');
-  return `${protocol}://${host}`;
-};
-
-const redirect = (res, location) => {
-  res.writeHead(302, {
-    Location: location,
-    'Cache-Control': 'no-store',
-    'Referrer-Policy': 'no-referrer',
-  });
-  res.end();
-};
-
-const pwaWechatResultUrl = (key, value) => {
-  const query = new URLSearchParams({ [key]: String(value || '') });
-  return `/pwa/?${query}`;
-};
-
-const sharePage = (req, roomId) => {
-  const room = /^\d{4,10}$/.test(String(roomId || '')) ? String(roomId) : '';
-  const roomText = room ? `<p class="room">房间号 <strong>${escapeHtml(room)}</strong></p>` : '';
-  const origin = escapeHtml(publicOrigin(req));
-  const title = escapeHtml(room ? `潜江干瞪眼 房间号：${room}` : '潜江干瞪眼');
-  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><meta property="og:type" content="website"><meta property="og:title" content="${title}"><meta property="og:description" content="约上好友一起玩潜江干瞪眼"><meta property="og:image" content="${origin}/share/icon.png"><link rel="icon" type="image/png" href="/share/icon.png"><style>body{margin:0;background:#f7f1e4;color:#4b2d18;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}.card{box-sizing:border-box;max-width:560px;margin:12vh auto;padding:40px 28px;text-align:center;background:#fffaf0;border:1px solid #ead5b5;border-radius:22px;box-shadow:0 14px 40px #6d3e1920}h1{margin:0 0 18px;color:#9b3f20;font-size:32px}.room{font-size:22px}.room strong{font-size:38px;letter-spacing:3px;color:#d2692e}p{line-height:1.7}.tip{color:#765b47}</style></head><body><main class="card"><h1>潜江干瞪眼</h1>${roomText}<p>打开游戏${room ? '，在大厅输入上面的房间号' : ''}即可开始游戏。</p><p class="tip">来自好友的微信分享</p></main></body></html>`;
-};
-
-const recordSharePage = (req, record) => {
-  const origin = escapeHtml(publicOrigin(req));
-  const icon = `${origin}/share/icon.png`;
-  if (!record) {
-    return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>战绩不存在或已过期</title><meta property="og:image" content="${icon}"><link rel="icon" href="/share/icon.png"></head><body style="font-family:sans-serif;text-align:center;padding:12vh 20px;color:#4b2d18"><h1>战绩不存在或已过期</h1><p>请让好友从游戏里重新分享战绩。</p></body></html>`;
-  }
-  const room = escapeHtml(record.roomId);
-  const title = `潜江干瞪眼 战绩 房间号：${room}`;
-  const ratio = Number(record.scoreRatio) > 0 ? Number(record.scoreRatio) : 1;
-  const formatScore = (raw) => {
-    const score = Number(raw || 0) / ratio;
-    return Number.isFinite(score) ? `${Math.round(score * 100) / 100}分` : '0分';
-  };
-  const players = (record.players || []).slice(0, 20);
-  const names = new Map(players.map((player) => [String(player.uid), escapeHtml(player.name)]));
-  const rows = players.map((player) => `<li><span>${escapeHtml(player.name)}</span><strong>${formatScore(player.score)}</strong></li>`).join('');
-  const hands = (record.details || []).slice(0, 100).map((hand, index) => {
-    const scores = (hand.scores || []).map((item) => `<li><span>${names.get(String(item.uid)) || `玩家${escapeHtml(item.uid)}`}</span><strong>${formatScore(item.score)}</strong></li>`).join('');
-    return `<section><h2>第 ${index + 1} 局</h2><ul>${scores}</ul></section>`;
-  }).join('');
-  const time = Number(record.time);
-  const date = Number.isFinite(time) ? new Date(time).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false }) : '';
-  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><meta property="og:type" content="website"><meta property="og:title" content="${title}"><meta property="og:description" content="潜江干瞪眼房间战绩，查看玩家积分"><meta property="og:image" content="${icon}"><link rel="icon" href="/share/icon.png"><style>body{margin:0;background:#f7f1e4;color:#4b2d18;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}.card{box-sizing:border-box;max-width:560px;margin:30px auto;padding:28px;background:#fffaf0;border:1px solid #ead5b5;border-radius:20px}h1{color:#9b3f20}h2{font-size:19px;color:#9b3f20;margin:25px 0 9px}p{color:#765b47}ul{padding:0;margin:0;list-style:none}li{display:flex;justify-content:space-between;border-bottom:1px solid #ead5b5;padding:10px 0}strong{color:#b04e25}</style></head><body><main class="card"><h1>潜江干瞪眼战绩</h1><p>房间号：${room}　${escapeHtml(date)}<br>已打 ${Number(record.gameCount) || 0}/${Number(record.totalCount) || 0} 局</p><h2>总积分</h2><ul>${rows}</ul>${hands}</main></body></html>`;
-};
-
-const aasa = () => ({
-  applinks: {
-    apps: [],
-    details: [{
-      appID: `${APPLE_TEAM_ID}.${APP_BUNDLE_ID}`,
-      paths: ['/wechat/*'],
-    }],
-  },
-});
-
-const logUrl = (url) => {
-  const query = new URLSearchParams(url.searchParams);
-  for (const key of ['token', 'code', 'migrationTicket', 'ticket', 'wechat_ticket', 'state', 'deviceId', 'device_id', 'rollout_key', 'access_token', 'authorization']) {
-    if (query.has(key)) query.set(key, '[redacted]');
-  }
-  const suffix = query.toString();
-  return `${url.pathname}${suffix ? `?${suffix}` : ''}`;
-};
-
-const readBody = (req, limit) => new Promise((resolve, reject) => {
-  const chunks = [];
-  let n = 0;
-  req.on('data', (c) => {
-    n += c.length;
-    if (n > limit) {
-      req.destroy();
-      reject(new Error('too large'));
-      return;
-    }
-    chunks.push(c);
-  });
-  req.on('end', () => resolve(Buffer.concat(chunks)));
-  req.on('error', reject);
-});
-
 const operatorAuthorized = (req) => {
   if (!operatorKey) return false;
   const supplied = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
@@ -385,6 +128,18 @@ const server = http.createServer(async (req, res) => {
   console.log(`HTTP ${req.method} ${logUrl(url)}`);
 
   if (req.method === 'GET' && url.pathname === '/version') {
+    const observed = clientPlatforms.remember(req, url.searchParams);
+    if (observed) {
+      const player = app.playerByUid(observed.uid);
+      if (player && (player.lastClientPlatform !== observed.platform
+          || player.lastClientPlatformIp !== observed.ip
+          || Number(player.lastClientPlatformAt || 0) !== observed.seenAt)) {
+        player.lastClientPlatform = observed.platform;
+        player.lastClientPlatformIp = observed.ip;
+        player.lastClientPlatformAt = observed.seenAt;
+        app.persist();
+      }
+    }
     return json(res, hotUpdate.versionBody(url.searchParams, publicOrigin(req), {
       forwardedFor: req.headers['x-forwarded-for'],
       remoteAddress: req.socket.remoteAddress,
@@ -454,7 +209,7 @@ const server = http.createServer(async (req, res) => {
       'Cache-Control': asset.cache,
       'X-Content-Type-Options': 'nosniff',
     };
-    if (asset.filename === 'index.html') {
+    if (asset.type.startsWith('text/html')) {
       headers['Content-Security-Policy'] = "default-src 'none'; img-src 'self'; style-src 'self'; script-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
     }
     res.writeHead(200, headers);
@@ -614,18 +369,35 @@ const server = http.createServer(async (req, res) => {
 const wss = new WebSocketServer({
   server,
   path: '/ws',
-  maxPayload: 4 * 1024 * 1024,
+  maxPayload: WS_MAX_PAYLOAD,
 });
+startHeartbeat(wss);
 let nextConn = 1;
 
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
   const connId = `n${nextConn++}`;
+  const ip = clientIp(req);
   console.log('WS 连上');
   app.attach(connId, (buf) => {
     if (ws.readyState === 1) ws.send(buf);
-  }, (code = 4003, reason = 'account disabled') => ws.close(code, reason));
+  }, (code = 4003, reason = 'account disabled') => ws.close(code, reason), {
+    platformForUid: (uid) => {
+      const recent = clientPlatforms.resolve(uid, ip);
+      return recent !== 'unknown'
+        ? recent : platformFromPlayer(app.playerByUid(uid), ip, app.now());
+    },
+  });
   ws.on('error', (err) => console.error('WS 错误', err));
+  const bucket = new TokenBucket();
+  let limited = false;
   ws.on('message', (data) => {
+    if (limited) return;
+    if (!bucket.take()) {
+      limited = true;
+      console.warn(`WS 消息过于频繁，断开 ${ip}`);
+      ws.close(1008, 'rate limit');
+      return;
+    }
     try {
       app.onMessage(connId, data);
     } catch (err) {

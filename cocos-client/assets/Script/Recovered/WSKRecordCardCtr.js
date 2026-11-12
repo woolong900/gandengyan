@@ -32,6 +32,14 @@ n(t, e);
 function t() {
 var t = null !== e && e.apply(this, arguments) || this;
 t._uiDirty = !1;
+t._rankValues = [ 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3 ];
+t._rankNames = [ "大", "小", "2", "A", "K", "Q", "J", "十", "9", "8", "7", "6", "5", "4", "3" ];
+t._suitValues = [ 4, 3, 2, 1 ];
+t._countLabels = [];
+t._suitCountLabels = [];
+t._topNode = null;
+t._contentNode = null;
+t._panelGraphics = null;
 t.btnNode = null;
 t.detailsNode = null;
 t.scoreLabel = null;
@@ -56,70 +64,134 @@ return t;
 t.prototype.start = function() {
 var e = this;
 if (!i.default.isWatcher()) {
-if (u.default.gameLogic().isRecordCard(i.default.config)) {
-this.btnNode.active = !0;
-u.default.eventUtils.on([ p.default.data_round_change, p.default.data_status_change ], function() {
+this._buildCounterUI();
+this._syncAccess();
+u.default.eventUtils.on(p.default.data_round_change, function(t, o) {
 e._uiDirty = !0;
+}, this, a.eOffType.OnDestroy);
+u.default.eventUtils.on(p.default.data_status_change, function(t, o) {
+e._uiDirty = !0;
+}, this, a.eOffType.OnDestroy);
+u.default.eventUtils.on("record_card_access_change", function() {
+e._syncAccess();
 }, this, a.eOffType.OnDestroy);
 this._updateUI();
 }
-}
 };
-t.prototype._upateItemV = function(e, t, o) {
-for (var n = 0, r = 0, i = e.length; r < i; r++) {
-var a = e[r];
-o === u.default.gameLogic().cardValue(a) && n++;
-}
-t.string = "" + n;
-return n;
+t.prototype._syncAccess = function() {
+var e = u.default.gameLogic().isRecordCard(i.default.config) || !!i.default.recordCardWhitelisted;
+this.btnNode.active = e;
+e || (this.detailsNode.active = !1);
+this._uiDirty = e;
 };
-t.prototype._upateItemVC = function(e, t, o, n) {
-for (var r = 0, i = 0, a = e.length; i < a; i++) {
-var s = e[i], l = u.default.gameLogic().cardValue(s), c = u.default.gameLogic().cardColor(s);
-o === l && n === c && r++;
+t.prototype._panel = function(e, t, o, n, r, i, a) {
+var s = new cc.Node(t);
+s.parent = e;
+s.setContentSize(o, n);
+s.setPosition(r || 0, i || 0);
+var l = s.addComponent(cc.Graphics);
+l.fillColor = a;
+l.fillRect(-o / 2, -n / 2, o, n);
+l.fill();
+return s;
+};
+t.prototype._label = function(e, t, o, n, r, i, a, s, l) {
+var c = new cc.Node(t), u = c.addComponent(cc.Label);
+c.parent = e;
+c.setPosition(i || 0, a || 0);
+c.setContentSize(s || 32, l || n + 4);
+c.color = r;
+u.string = o || "";
+u.fontSize = n;
+u.lineHeight = n + 2;
+u.horizontalAlign = cc.Label.HorizontalAlign.CENTER;
+u.verticalAlign = cc.Label.VerticalAlign.CENTER;
+u.overflow = cc.Label.Overflow.SHRINK;
+return u;
+};
+t.prototype._drawPanelBackground = function(e, t) {
+this.detailsNode.setContentSize(e, t);
+this._panelGraphics.clear();
+this._panelGraphics.fillColor = cc.color(34, 34, 34, 222);
+this._panelGraphics.fillRect(-e / 2, -t / 2, e, t);
+this._panelGraphics.fill();
+};
+t.prototype._buildCounterUI = function() {
+var e = this.detailsNode.getComponent(cc.Sprite);
+e && (e.enabled = !1);
+this.detailsNode.removeAllChildren();
+this.detailsNode.setPosition(-230, 126);
+this.detailsNode.zIndex = 1;
+this._panelGraphics = this.detailsNode.getComponent(cc.Graphics) || this.detailsNode.addComponent(cc.Graphics);
+this._topNode = new cc.Node("TopCounts");
+this._topNode.parent = this.detailsNode;
+for (var t = 0; t < this._rankNames.length; t++) {
+var o = this._panel(this._topNode, "Rank" + t, 32, 48, -231 + 33 * t, 0, cc.color(68, 68, 68, 190));
+var n = this._label(o, "Name", this._rankNames[t], 16, cc.color(187, 187, 187), 0, 12, 28, 20);
+n.node.color = cc.color(187, 187, 187);
+var r = this._label(o, "Count", "0", 22, cc.color(255, 255, 255), 0, -11, 28, 24);
+this._countLabels.push(r);
 }
-t.string = "" + r;
-return r;
+this._contentNode = new cc.Node("Details");
+this._contentNode.parent = this.detailsNode;
+var a = [ "♠", "♥", "♣", "♦" ], s = [ cc.color(204, 204, 204), cc.color(255, 102, 102), cc.color(102, 187, 102), cc.color(102, 153, 255) ];
+for (var l = 0; l < 4; l++) {
+var c = this._panel(this._contentNode, "Suit" + l, 494, 27, 0, 18 - 28 * l, cc.color(51, 51, 51, 110));
+this._label(c, "Symbol", a[l], 20, s[l], -231, 0, 30, 25);
+this._suitCountLabels[l] = [];
+for (var u = 2; u < this._rankValues.length; u++) this._suitCountLabels[l][u] = this._label(c, "Count" + u, "0", 18, s[l], -231 + 33 * u, 0, 30, 25);
+}
+this._topNode.y = 56;
+this._drawPanelBackground(515, 180);
+this._styleButton();
+};
+t.prototype._styleButton = function() {
+var e = this.btnNode.getComponent(cc.Sprite);
+e && (e.enabled = !0);
+this.btnNode.removeAllChildren();
+this.btnNode.setContentSize(57, 57);
+this.btnNode.zIndex = 2;
+var t = this.btnNode.getComponent(cc.Graphics);
+t && t.clear();
+};
+t.prototype._countColor = function(e) {
+return 0 === e ? cc.color(85, 85, 85) : e <= 3 ? cc.color(255, 68, 68) : 4 === e ? cc.color(68, 255, 68) : cc.color(46, 125, 50);
 };
 t.prototype._updateUI = function() {
-if (this.detailsNode.active) if (i.default.gameInfoWSK.status !== d.eWSKGameStatus.Gameing) {
-this.countDW.string = "?";
-this.countXW.string = "?";
-this.count2.string = "?";
-this.countA.string = "?";
-this.countK_Hei.string = "?";
-this.countK_Hong.string = "?";
-this.countK_Mei.string = "?";
-this.countK_Fang.string = "?";
-this.count10_Hei.string = "?";
-this.count10_Hong.string = "?";
-this.count10_Mei.string = "?";
-this.count10_Fang.string = "?";
-this.count5_Hei.string = "?";
-this.count5_Hong.string = "?";
-this.count5_Mei.string = "?";
-this.count5_Fang.string = "?";
-this.scoreLabel.string = "?";
-} else {
-var e = i.default.gameInfoWSK.allPutCards, t = i.default.gameInfoWSK.siteInfos.get(i.default.myAbsolutePos()).handCards, o = u.default.gameLogic().allCards(i.default.config), n = [].concat(t).concat(e), r = l.default.removeArrayList(o, n);
-this._upateItemV(r, this.countDW, s.WSK_Card_Value_DW);
-this._upateItemV(r, this.countXW, s.WSK_Card_Value_XW);
-this._upateItemV(r, this.count2, s.WSK_Card_Value_2);
-this._upateItemV(r, this.countA, s.WSK_Card_Value_A);
-this._upateItemVC(r, this.countK_Hei, s.WSK_Card_Value_K, s.eWSKCardColor.Hei);
-this._upateItemVC(r, this.countK_Hong, s.WSK_Card_Value_K, s.eWSKCardColor.Hong);
-this._upateItemVC(r, this.countK_Mei, s.WSK_Card_Value_K, s.eWSKCardColor.Mei);
-this._upateItemVC(r, this.countK_Fang, s.WSK_Card_Value_K, s.eWSKCardColor.Fang);
-this._upateItemVC(r, this.count10_Hei, s.WSK_Card_Value_10, s.eWSKCardColor.Hei);
-this._upateItemVC(r, this.count10_Hong, s.WSK_Card_Value_10, s.eWSKCardColor.Hong);
-this._upateItemVC(r, this.count10_Mei, s.WSK_Card_Value_10, s.eWSKCardColor.Mei);
-this._upateItemVC(r, this.count10_Fang, s.WSK_Card_Value_10, s.eWSKCardColor.Fang);
-this._upateItemVC(r, this.count5_Hei, s.WSK_Card_Value_5, s.eWSKCardColor.Hei);
-this._upateItemVC(r, this.count5_Hong, s.WSK_Card_Value_5, s.eWSKCardColor.Hong);
-this._upateItemVC(r, this.count5_Mei, s.WSK_Card_Value_5, s.eWSKCardColor.Mei);
-this._upateItemVC(r, this.count5_Fang, s.WSK_Card_Value_5, s.eWSKCardColor.Fang);
-for (var a = 0, c = 0, p = r.length; c < p; c++) a += u.default.gameLogic().score(r[c]);
-this.scoreLabel.string = "" + a;
+if (!this.detailsNode.active || !this._countLabels.length) return;
+var e = i.default.gameInfoWSK.status === d.eWSKGameStatus.Gameing;
+if (!e) {
+for (var t = 0; t < this._countLabels.length; t++) {
+this._countLabels[t].string = "?";
+this._countLabels[t].node.color = cc.color(170, 170, 170);
+}
+for (var o = 0; o < 4; o++) for (var n = 2; n < this._rankValues.length; n++) {
+this._suitCountLabels[o][n].string = "?";
+this._suitCountLabels[o][n].node.color = cc.color(85, 85, 85);
+}
+return;
+}
+var r = i.default.gameInfoWSK.allPutCards, a = i.default.gameInfoWSK.siteInfos.get(i.default.myAbsolutePos()).handCards, c = u.default.gameLogic().allCards(i.default.config), p = l.default.removeArrayList(c, [].concat(a).concat(r)), f = [], h = [];
+for (t = 0; t < this._rankValues.length; t++) {
+f[t] = 0;
+h[t] = [ 0, 0, 0, 0, 0 ];
+}
+for (t = 0; t < p.length; t++) {
+var m = u.default.gameLogic().cardValue(p[t]), y = this._rankValues.indexOf(m), g = u.default.gameLogic().cardColor(p[t]);
+if (y >= 0) {
+f[y]++;
+g >= 1 && g <= 4 && h[y][g]++;
+}
+}
+var _ = [ cc.color(204, 204, 204), cc.color(255, 102, 102), cc.color(102, 187, 102), cc.color(102, 153, 255) ];
+for (t = 0; t < this._rankValues.length; t++) {
+this._countLabels[t].string = "" + f[t];
+this._countLabels[t].node.color = this._countColor(f[t]);
+}
+for (o = 0; o < 4; o++) for (n = 2; n < this._rankValues.length; n++) {
+var v = h[n][this._suitValues[o]], C = this._suitCountLabels[o][n];
+C.string = "" + v;
+C.node.color = v > 0 ? _[o] : cc.color(85, 85, 85);
 }
 };
 t.prototype.update = function() {
@@ -130,7 +202,7 @@ this._updateUI();
 };
 t.prototype.onClick = function() {
 c.default.clickBtn();
-this.detailsNode.active ? this.detailsNode.active = !1 : this.detailsNode.active = !0;
+this.detailsNode.active = !this.detailsNode.active;
 this._uiDirty = !0;
 };
 r([ m(cc.Node) ], t.prototype, "btnNode", void 0);

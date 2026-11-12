@@ -1,0 +1,22 @@
+{
+  "SubTexture": [
+    {
+      "width": 210,
+      "y": 1,
+      "height": 80,
+      "name": "gb-1",
+      "x": 1
+    },
+    {
+      "width": 163,
+      "y": 83,
+      "height": 84,
+      "name": "gb",
+      "x": 1
+    }
+  ],
+  "width": 256,
+  "height": 256,
+  "name": "gangban",
+  "imagePath": "gangban_tex.png"
+}

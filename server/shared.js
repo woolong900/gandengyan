@@ -8,7 +8,7 @@ const qjshzRules = require('./qjshz-rules');
 
 const GAME_COUNT_MUL = {
   1: 8, 2: 8, 3: 8, 4: 8, 5: 8, 6: 8, 7: 8, 8: 8, 9: 8, 10: 8, 11: 8, 12: 8,
-  13: 4, 14: 5, 15: 8, 16: 3, 17: 3, 18: 3, 19: 8, 20: 8, 21: 8, 22: 3, 23: 5,
+  13: 4, 14: 5, 15: 8, 16: 3, 17: 3, 18: 3, 19: 8, 20: 8, 21: 8, 22: 3, 23: 5, 24: 30, 25: 4,
 };
 
 const num = (v) => (v && typeof v === 'object' && 'low' in v ? v.toNumber() : Number(v || 0));
@@ -47,7 +47,8 @@ const roomInfo = (room) => ({
     ready: !(room.round && !room.round.over) && !!m.ready,
     view: !!m.view,
     force_close: false,
-    trustee: { status: !!m.trustee, last_ts: m.turnDeadline || 0 },
+    trustee: { status: !!m.trustee, last_ts: m.turnDeadline || 0,
+      manual_enabled: Number(room.gameType) === 2 && !!(room.host && room.host.trusteeWhitelisted && room.host.trusteeWhitelisted(m.player.uid)) },
   })),
   agree: (room.dismiss && room.dismiss.agree) || [],
   time: (room.dismiss && room.dismiss.time) || 0,
@@ -135,6 +136,10 @@ const emptyPlayer = (uid, extra = {}) => ({
   lastIpCity: extra.lastIpCity || '',
   lastIpAt: Number(extra.lastIpAt || 0),
   lastIpLocatedAt: Number(extra.lastIpLocatedAt || 0),
+  lastClientPlatform: ['android', 'ios'].includes(extra.lastClientPlatform)
+    ? extra.lastClientPlatform : '',
+  lastClientPlatformIp: extra.lastClientPlatformIp || '',
+  lastClientPlatformAt: Number(extra.lastClientPlatformAt || 0),
   disabled: !!extra.disabled,
   wechatOpenid: extra.wechatOpenid || '',
   wechatUnionid: extra.wechatUnionid || '',
@@ -163,6 +168,9 @@ const emptyPlayer = (uid, extra = {}) => ({
 const emptyMember = (player, extra = {}) => ({
   player,
   connId: extra.connId || null,
+  // 本次进房时由客户端提供，只在内存中用于服务端防作弊距离校验。
+  // 不进入玩家存档，也不通过 roomInfo 向其他玩家广播精确坐标。
+  location: extra.location || null,
   site: extra.site == null ? 1 : extra.site,
   ready: !!extra.ready,
   score: extra.score || 0,
@@ -176,6 +184,8 @@ const emptyMember = (player, extra = {}) => ({
   view: !!extra.view,
   bot: !!extra.bot,
   botStrategy: extra.botStrategy === 'jev' ? 'jev' : (player.botStrategy === 'jev' ? 'jev' : 'local'),
+  wskHandSortType: Number.isInteger(Number(extra.wskHandSortType))
+    ? Math.max(0, Math.min(2, Number(extra.wskHandSortType))) : 0,
 });
 
 const versionBody = () => ({ err_code: '0', data: {} });

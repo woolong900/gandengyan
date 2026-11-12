@@ -27,7 +27,7 @@ return i > 3 && a && Object.defineProperty(t, o, a), a;
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var i = require("./SoundUtils"), a = require("./RoomInfoData"), s = require("./gContext"), l = require("./StringUtils"), c = require("./D7TotalEndCell"), u = require("./D7GameControl"), d = require("./TextureRender"), p = require("./WindowConfig"), f = require("./ShareLayer"), h = require("./BaseComponent"), m = require("./CommonEnum"), y = require("./PDKGameControl"), g = require("./GameConfig"), _ = require("./ExUtils"), v = require("./WSKGameControl"), C = require("./DBDGameControl"), b = require("./DDZGameControl"), D = cc._decorator, S = D.ccclass, w = D.property, O = function(e) {
+var i = require("./SoundUtils"), a = require("./RoomInfoData"), s = require("./gContext"), l = require("./StringUtils"), c = require("./D7TotalEndCell"), u = require("./D7GameControl"), d = require("./TextureRender"), p = require("./WindowConfig"), f = require("./ShareLayer"), h = require("./BaseComponent"), m = require("./CommonEnum"), y = require("./PDKGameControl"), g = require("./GameConfig"), _ = require("./ExUtils"), v = require("./WSKGameControl"), C = require("./DBDGameControl"), b = require("./DDZGameControl"), E = require("./GDGameControl"), D = cc._decorator, S = D.ccclass, w = D.property, O = function(e) {
 n(t, e);
 function t() {
 var t = null !== e && e.apply(this, arguments) || this;
@@ -45,6 +45,8 @@ return t;
 }
 t.prototype.start = function() {
 var e = a.default.config.gameCount(), t = a.default.config.playName(), o = s.default.gameLogic().scoreRuleDesc(a.default.config), n = "房号：<color=#bb6b0d>" + a.default.roomId + "   /   </c>", r = "玩法：<color=#bb6b0d>" + t + "   /   </c>", i = "局数：<color=#bb6b0d>" + a.default.curStep() + "/" + e + "</c>", u = "算分：<color=#bb6b0d>" + o + "   /   </c>", d = "";
+o = String(o || "").split(",喜钱：")[0];
+u = "算分：<color=#bb6b0d>" + o + "   /   </c>";
 if (this.gameCategort === m.eGameCategort.DBD && a.default.config.isChecked(6)) {
 a.default.gameInfoDBD.betNum;
 d = "       底分池剩余积分：<color=#bb6b0d>0</c>";
@@ -63,7 +65,7 @@ t.prototype._rootNodeByGame = function(e) {
 return this.gameCategort === m.eGameCategort.D7 && e > 4 ? this.cellRoot2 : this.gameCategort === m.eGameCategort.PDK && 2 === e ? this.cellRoot2 : this.cellRoot1;
 };
 t.prototype._captureRoot = function() {
-return this.gameCategort === m.eGameCategort.D7 ? u.default.getInstance().captureRoot : this.gameCategort === m.eGameCategort.PDK ? y.default.getInstance().captureRoot : this.gameCategort === m.eGameCategort.WSK ? v.default.getInstance().captureRoot : this.gameCategort === m.eGameCategort.DBD ? C.default.getInstance().captureRoot : this.gameCategort === m.eGameCategort.DDZ ? b.default.getInstance().captureRoot : null;
+return this.gameCategort === m.eGameCategort.D7 ? u.default.getInstance().captureRoot : this.gameCategort === m.eGameCategort.PDK ? y.default.getInstance().captureRoot : this.gameCategort === m.eGameCategort.WSK ? v.default.getInstance().captureRoot : this.gameCategort === m.eGameCategort.DBD ? C.default.getInstance().captureRoot : this.gameCategort === m.eGameCategort.DDZ ? b.default.getInstance().captureRoot : this.gameCategort === m.eGameCategort.GD ? E.default.getInstance().captureRoot : null;
 };
 t.prototype.onClickGameOver = function() {
 i.default.clickBtn();

@@ -9,7 +9,7 @@ const { Table } = require('../server/table');
 const { Round } = require('../server/round');
 const rules = require('../server/rules');
 const qjshzRules = require('../server/qjshz-rules');
-const { emptyMember } = require('../server/shared');
+const { emptyMember, emptyPlayer } = require('../server/shared');
 const { AdminAuth, passwordRecord, hashSessionId } = require('../server/admin-auth');
 const { HotUpdateService } = require('../server/hot-update');
 
@@ -55,8 +55,7 @@ const run = async () => {
     assert_version: '268', rollout_key: 'admin-test-phone', uid: String(player.uid),
     device_name: 'Android 15' }), 'https://game.example');
   const { createAdminHttp } = require('../server/admin-http');
-  const mobileToken = 'mobile-test-token-0123456789-abcdefghijklmnopqrstuvwxyz';
-  const admin = createAdminHttp({ app, store, hotUpdate, authFile, publicBaseUrl: 'https://gmhiu.com', mobileToken,
+  const admin = createAdminHttp({ app, store, hotUpdate, authFile, publicBaseUrl: 'https://gandengyan.top', testTools: true,
     flush: async () => store.save(app.dump()) });
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://localhost');
@@ -75,13 +74,6 @@ const run = async () => {
       body: body === undefined ? undefined : JSON.stringify(body) });
     const payload = await response.json();
     return { status: response.status, body: payload, cookie: response.headers.get('set-cookie') };
-  };
-  const mobileRequest = async (route, method = 'GET', body, token = mobileToken) => {
-    const headers = { Authorization: `Bearer ${token}` };
-    if (body !== undefined) headers['Content-Type'] = 'application/json';
-    const response = await fetch(`${base}/admin/api${route}`, { method, headers,
-      body: body === undefined ? undefined : JSON.stringify(body) });
-    return { status: response.status, body: await response.json() };
   };
   const loginFromOrigin = (origin, host) => new Promise((resolve, reject) => {
     const bytes = Buffer.from(JSON.stringify({ password: 'VeryStrongAdminPassword123!' }));
@@ -117,6 +109,13 @@ const run = async () => {
       adminScript.includes('下一局指定起手牌') && adminScript.includes('/next-wsk-hand') &&
       adminScript.includes('room-wsk-player') && adminScript.includes('room-wsk-count') &&
       !adminScript.includes('name="rank_'), true);
+    check('后台页面包含说胡子指定对家功能',
+      adminScript.includes('下一局生效') && adminScript.includes('/next-wsk-partner') &&
+      adminScript.includes('wsk-partner-plan-form') && adminScript.includes('room-wsk-partner-clear'), true);
+    check('后台积分榜包含日期范围弹层和列头排序',
+      adminIndex.includes('data-view="leaderboard"') && adminScript.includes('date-range-popover') &&
+      adminScript.includes('leaderboard-date-preset') && adminScript.includes('leaderboard-sort') &&
+      !adminScript.includes('<select name="sort"') && adminScript.includes("view === 'leaderboard'"), true);
     check('麻将房间使用头像玩家卡选择指定摸牌玩家',
       adminScript.includes('room-draw-player') && !adminScript.includes('room-target-select'), true);
     check('麻将与说胡子的后台指定牌操作按钮样式统一',
@@ -152,6 +151,11 @@ const run = async () => {
     check('后台提供托管白名单页面和增删操作',
       adminIndex.includes('data-view="trustees"') && adminScript.includes('trustee-form') &&
       adminScript.includes('trustee-remove') && adminScript.includes('/trustees'), true);
+    check('后台提供记牌器白名单页面和增删操作',
+      adminIndex.includes('data-view="record-card-whitelist"') &&
+      adminScript.includes('record-card-whitelist-form') &&
+      adminScript.includes('record-card-remove') && adminScript.includes('/record-card-whitelist') &&
+      adminScript.includes('白名单权限仅对 Android 生效'), true);
     check('后台提供客服会话列表、对话和回复入口',
       adminIndex.includes('data-view="support"') && adminScript.includes('renderSupport') &&
       adminScript.includes('support-reply-form') && adminScript.includes('/support/'), true);
@@ -160,15 +164,19 @@ const run = async () => {
       [200, 'image/png']);
     check('非牌图路径不能读取文件', (await fetch(`${base}/admin/tiles/../admin-password.json`)).status, 404);
     check('未登录不可读取玩家', (await request('/players')).status, 401);
-    check('秘密武器令牌可读取房间列表', (await mobileRequest('/rooms')).status, 200);
-    check('秘密武器令牌不可读取数据面板', (await mobileRequest('/dashboard')).status, 403);
-    check('错误的秘密武器令牌不可读取房间',
-      (await mobileRequest('/rooms', 'GET', undefined, `${mobileToken}x`)).status, 401);
+    check('Bearer 令牌不能绕过后台登录',
+      (await fetch(`${base}/admin/api/rooms`, { headers: { Authorization: 'Bearer anything-anything-anything-anything' } })).status, 401);
     check('密码错误不可登录', (await request('/login', 'POST', { password: 'wrong' }, false)).status, 401);
     check('第三方来源不可登录',
       (await loginFromOrigin('https://attacker.example', 'gandengyan.top')).status, 403);
     check('新域名同源请求可以登录',
       (await loginFromOrigin('https://gandengyan.top', 'gandengyan.top')).status, 200);
+    const proxiedLogin = async (ip, password) => (await fetch(`${base}/admin/api/login`, { method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Real-IP': ip }, body: JSON.stringify({ password }) })).status;
+    for (let i = 0; i < 8; i++) await proxiedLogin('203.0.113.7', 'wrong');
+    check('反代后按真实 IP 限速', await proxiedLogin('203.0.113.7', 'wrong'), 429);
+    check('其他 IP 不受他人失败影响', await proxiedLogin('203.0.113.8', 'VeryStrongAdminPassword123!'), 200);
+    check('审计记录真实 IP', store.listAudit(1)[0].details.ip, '203.0.113.8');
     const login = await request('/login', 'POST', { password: 'VeryStrongAdminPassword123!' }, false);
     check('正确密码登录', login.status, 200);
     cookie = login.cookie.split(';')[0]; csrf = login.body.csrf;
@@ -243,12 +251,16 @@ const run = async () => {
     debugRound.start();
     table.round = debugRound;
     const chosen = debugRound.wall.remainCards().at(-1);
-    check('秘密武器令牌可无 CSRF 追加指定牌',
-      (await mobileRequest('/rooms/100000/draw-plan/card', 'POST', { uid: player.uid, card: chosen })).status, 200);
-    check('秘密武器令牌不可解散房间',
-      (await mobileRequest('/rooms/100000/dissolve', 'POST', { reason: '不应允许此操作' })).status, 403);
-    check('秘密武器令牌可清空指定牌序',
-      (await mobileRequest('/rooms/100000/draw-plan', 'DELETE')).status, 200);
+    const { AdminData } = require('../server/admin-data');
+    const productionData = new AdminData(app, store);
+    const productionRoom = productionData.room(100000);
+    check('默认不返回剩余牌堆', productionRoom.wall, null);
+    check('默认不返回玩家手牌', productionRoom.members.every((member) => member.hand.length === 0), true);
+    check('默认不可指定摸牌', productionData.setRoomDrawPlan(100000, { uid: player.uid, cards: [chosen] }).status, 403);
+    check('默认不可指定起手牌', productionData.setNextWskHandPlan(100000, { uid: player.uid, counts: {} }).status, 403);
+    const productionAdmin = createAdminHttp({ app, store, hotUpdate, authFile, publicBaseUrl: 'https://gandengyan.top',
+      flush: async () => {} });
+    check('未显式开启时测试工具默认关闭', productionAdmin.data.testTools, false);
     const mahjongRoomDetail = (await request('/rooms/100000')).body;
     check('开局房间可读剩余牌堆', mahjongRoomDetail.wall.cards.length, debugRound.wall.remain());
     check('麻将房返回每位玩家完整手牌',
@@ -282,6 +294,17 @@ const run = async () => {
     const trusteeRemoved = await request('/trustees', 'PUT', { uid: player.uid, enabled: false });
     check('后台可将玩家移出托管白名单',
       [trusteeRemoved.body.count, store.load().botSettings.trusteeWhitelist], [0, []]);
+    check('记牌器白名单默认为空', (await request('/record-card-whitelist')).body.count, 0);
+    check('不存在的玩家不能加入记牌器白名单',
+      (await request('/record-card-whitelist', 'PUT', { uid: 999998, enabled: true })).status, 404);
+    const recordCardAdded = await request('/record-card-whitelist', 'PUT', { uid: player.uid, enabled: true });
+    check('后台可将玩家加入记牌器白名单',
+      [recordCardAdded.status, recordCardAdded.body.count, recordCardAdded.body.items[0].uid],
+      [200, 1, player.uid]);
+    check('记牌器白名单写入 SQLite', store.load().botSettings.recordCardWhitelist, [player.uid]);
+    const recordCardRemoved = await request('/record-card-whitelist', 'PUT', { uid: player.uid, enabled: false });
+    check('后台可将玩家移出记牌器白名单',
+      [recordCardRemoved.body.count, store.load().botSettings.recordCardWhitelist], [0, []]);
     const wskTable = new Table({ roomId: 100001, gameType: 17, clubId: 0, num: 1, param1: 10,
       param2: 0, host: player.uid, step: 1, config: qjshzRules.parseConfig(10, 0) }, app.tableHost(100001));
     const wskPlayers = [player].concat(Array.from({ length: 3 }, (_, index) => ({
@@ -292,6 +315,22 @@ const run = async () => {
       stat: { wsk_winner_count: 0, wsk_lose_count: 0, wsk_first_count: 0, wsk_last_count: 0 },
     }));
     app.tables.set(wskTable.roomId, wskTable);
+    check('不能把玩家自己设为对家', (await request('/rooms/100001/next-wsk-partner', 'POST',
+      { uid: player.uid, partnerUid: player.uid })).status, 400);
+    const partnerPlan = await request('/rooms/100001/next-wsk-partner', 'POST',
+      { uid: player.uid, partnerUid: wskPlayers[1].uid });
+    check('后台可指定说胡子下一局对家',
+      [partnerPlan.status, partnerPlan.body.nextWskPartnerPlan],
+      [200, { uid: player.uid, partnerUid: wskPlayers[1].uid }]);
+    check('房间详情显示指定对家', (await request('/rooms/100001')).body.nextWskPartnerPlan,
+      { uid: player.uid, partnerUid: wskPlayers[1].uid });
+    check('指定对家写入房间存档', wskTable.dump().nextWskPartnerPlan,
+      { uid: player.uid, partnerUid: wskPlayers[1].uid });
+    check('指定对家可以同时指定起手牌', (await request('/rooms/100001/next-wsk-hand', 'POST',
+      { uid: player.uid, counts: { 3: 1 } })).status, 200);
+    await request('/rooms/100001/next-wsk-hand', 'DELETE');
+    check('后台可清除指定对家', (await request('/rooms/100001/next-wsk-partner', 'DELETE')).body.cleared,
+      { uid: player.uid, partnerUid: wskPlayers[1].uid });
     const requestedHand = { 3: 5, 15: 4, joker: 2, 13: 6 };
     check('超出牌堆数量的起手牌被拒绝', (await request('/rooms/100001/next-wsk-hand', 'POST',
       { uid: player.uid, counts: { 13: 9 } })).status, 400);
@@ -326,6 +365,51 @@ const run = async () => {
     check('牌局明细可读', (await request('/records/R100000123')).body.details.length, 1);
     check('牌局列表使用历史归档', (await request('/records')).body.total, 1);
     check('历史归档按玩家 ID 查询', (await request(`/records?q=${player.uid}`)).body.total, 1);
+    const leaderboardGuest = app.loginGuest('device-admin-leaderboard').player;
+    const leaderboardZeroGuest = app.loginGuest('device-admin-leaderboard-zero').player;
+    const legacyLeaderboardBot = emptyPlayer(100002, { nickname: '陪玩2' });
+    app.players.set('t_bot_100002', legacyLeaderboardBot);
+    app.playersByUid.set(legacyLeaderboardBot.uid, legacyLeaderboardBot);
+    const removedDynamicBotUid = 800000123;
+    leaderboardGuest.nickname = '积分榜挑战者';
+    leaderboardGuest.avatarUrl = 'https://example.com/challenger.png';
+    player.avatarUrl = 'https://example.com/champion.png';
+    const leaderboardDay = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
+    const leaderboardNoon = Date.parse(`${leaderboardDay}T12:00:00+08:00`);
+    const previousDay = new Date(leaderboardNoon - 86400000 + 8 * 3600000).toISOString().slice(0, 10);
+    store.archiveRecord({ id: 'leaderboard-today', roomId: 100010, gameId: 2, time: leaderboardNoon,
+      scoreRatio: 10, players: [
+        { uid: player.uid, name: '旧昵称', avatarUrl: '', score: 25 },
+        { uid: leaderboardGuest.uid, name: leaderboardGuest.nickname, avatarUrl: '', score: -25 },
+        { uid: leaderboardZeroGuest.uid, name: '零积分玩家', avatarUrl: '', score: 0 },
+        { uid: legacyLeaderboardBot.uid, name: legacyLeaderboardBot.nickname, score: 40 },
+        { uid: removedDynamicBotUid, name: '已离房陪玩', score: 50 },
+      ], uids: [player.uid, leaderboardGuest.uid, leaderboardZeroGuest.uid,
+        legacyLeaderboardBot.uid, removedDynamicBotUid] });
+    store.archiveRecord({ id: 'leaderboard-previous', roomId: 100011, gameId: 17,
+      time: leaderboardNoon - 86400000, scoreRatio: 100, players: [
+        { uid: player.uid, name: player.nickname, score: -100 },
+        { uid: leaderboardGuest.uid, name: leaderboardGuest.nickname, score: 100 },
+      ], uids: [player.uid, leaderboardGuest.uid] });
+    const leaderboardDesc = await request(`/leaderboard?startDate=${leaderboardDay}&endDate=${leaderboardDay}&sort=desc`);
+    check('积分榜按北京时间日期汇总并默认高分在前', [leaderboardDesc.status,
+      leaderboardDesc.body.records, leaderboardDesc.body.items.map((item) => [item.uid, item.score])],
+    [200, 2, [[player.uid, 3.5], [leaderboardGuest.uid, -2.5]]]);
+    check('积分榜不显示总积分为 0 的玩家', leaderboardDesc.body.items.some((item) =>
+      item.uid === leaderboardZeroGuest.uid), false);
+    check('积分榜不显示旧陪玩账号或已经离房的动态陪玩', leaderboardDesc.body.items.some((item) =>
+      item.uid === legacyLeaderboardBot.uid || item.uid === removedDynamicBotUid), false);
+    check('积分榜返回玩家当前昵称和头像', [leaderboardDesc.body.items[0].nickname,
+      leaderboardDesc.body.items[0].avatarUrl], [player.nickname, player.avatarUrl]);
+    const leaderboardAsc = await request(`/leaderboard?startDate=${leaderboardDay}&endDate=${leaderboardDay}&sort=asc`);
+    check('积分榜支持总积分正序排列', leaderboardAsc.body.items.map((item) => item.uid),
+      [leaderboardGuest.uid, player.uid]);
+    const leaderboardPrevious = await request(`/leaderboard?startDate=${previousDay}&endDate=${previousDay}`);
+    check('积分榜日期范围包含首尾日期且排除范围外牌局',
+      [leaderboardPrevious.body.records, leaderboardPrevious.body.items.map((item) => [item.uid, item.score])],
+      [1, [[leaderboardGuest.uid, 1], [player.uid, -1]]]);
+    check('积分榜拒绝起止日期倒置',
+      (await request(`/leaderboard?startDate=${leaderboardDay}&endDate=${previousDay}`)).status, 400);
     check('俱乐部列表可读', (await request('/clubs')).body.items[0].id, club.id);
     check('俱乐部余额可读', (await request(`/clubs/${club.id}`)).body.balanceCard, 0);
     check('奖励默认设置可读', (await request('/economy')).body, {

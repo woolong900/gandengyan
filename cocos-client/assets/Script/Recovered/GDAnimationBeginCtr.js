@@ -1,0 +1,92 @@
+// Recovered from the production CommonJS bundle.
+var e = require, t = module, o = exports;
+"use strict";
+cc._RF.push(t, "136f4s6Tf9M85/FqkdZcFNr", "GDAnimationBeginCtr");
+var n = this && this.__extends || function() {
+var e = function(t, o) {
+return (e = Object.setPrototypeOf || {
+__proto__: []
+} instanceof Array && function(e, t) {
+e.__proto__ = t;
+} || function(e, t) {
+for (var o in t) t.hasOwnProperty(o) && (e[o] = t[o]);
+})(t, o);
+};
+return function(t, o) {
+e(t, o);
+function n() {
+this.constructor = t;
+}
+t.prototype = null === o ? Object.create(o) : (n.prototype = o.prototype, new n());
+};
+}(), r = this && this.__decorate || function(e, t, o, n) {
+var r, i = arguments.length, a = i < 3 ? t : null === n ? n = Object.getOwnPropertyDescriptor(t, o) : n;
+if ("object" == typeof Reflect && "function" == typeof Reflect.decorate) a = Reflect.decorate(e, t, o, n); else for (var s = e.length - 1; s >= 0; s--) (r = e[s]) && (a = (i < 3 ? r(a) : i > 3 ? r(t, o, a) : r(t, o)) || a);
+return i > 3 && a && Object.defineProperty(t, o, a), a;
+};
+Object.defineProperty(o, "__esModule", {
+value: !0
+});
+var i = require("./RoomInfoData"), a = require("./GameSoundGD"), s = require("./GDCardUtils"), l = require("./GDMyBottomUi"), c = require("./GDMyCardsPointer"), u = cc._decorator, d = u.ccclass, p = u.property, f = function(e) {
+n(t, e);
+function t() {
+var t = null !== e && e.apply(this, arguments) || this;
+t.myCardsPointer = null;
+t.ctrRoot = null;
+t.clockRoot = null;
+t.bottomUIRoot = null;
+return t;
+}
+t.prototype.play = function(complete) {
+var e = this;
+var resolveDone, finished = new Promise(function(resolve) { resolveDone = resolve; });
+this.myCardsPointer._dealing = !0;
+var operate = this.myCardsPointer.node && this.myCardsPointer.node.parent;
+var friendPrompt = operate && operate.getChildByName("duiyoupai");
+if (friendPrompt) friendPrompt.active = !1;
+i.default.gameInfoGD.is_shuCard = !1;
+i.default.gameInfoGD.lipaiBtnStuas = !1;
+i.default.gameInfoGD.updatebeginAnim(!0);
+this.bottomUIRoot.restEndways();
+this.bottomUIRoot.retsLiPaiBtn();
+this.myCardsPointer.hideAll();
+for (var t = i.default.myAbsolutePos(), o = i.default.gameInfoGD.siteInfos.get(t).handCards.slice(), n = o.length, r = this.myCardsPointer.getCard(0).node.width, l = cc.winSize.width / 2 + r, c = 0; c < n; c++) {
+this.myCardsPointer.initPosition(c, n);
+this.myCardsPointer.setCard(c, s.GD_HIDE_ID);
+this.myCardsPointer.getCard(c).node.x = l;
+}
+var u = .09 * (n - 1) + .18, d = .04 * n;
+this.ctrRoot.active = !1;
+this.clockRoot.active = !1;
+var finish = function() {
+e.myCardsPointer._dealing = !1;
+e.ctrRoot.active = !0;
+e.clockRoot.active = !0;
+i.default.gameInfoGD.updatebeginAnim(!1);
+if (complete) complete();
+resolveDone();
+};
+if (!n) { finish(); return finished; }
+if (i.default.gameInfoGD.is_shuCard) ; else {
+var p = function(t) {
+var r = .09 * t, i = cc.delayTime(r), s = cc.callFunc(function() {
+a.default.getInstance().dealCard();
+}), l = f.myCardsPointer.getPosition(t, n), c = cc.moveTo(.18, l), d = u - r - .18 + .04 * (n - t), p = cc.delayTime(d), h = cc.callFunc(function() {
+e.myCardsPointer.setCard(t, o[t]);
+if (t === 0) finish();
+}), m = cc.sequence(i, s, c, p, h), g = f.myCardsPointer.getCard(t).node;
+g.stopAllActions();
+g.runAction(m);
+}, f = this;
+for (c = 0; c < n; c++) p(c);
+}
+return finished;
+};
+r([ p(c.default) ], t.prototype, "myCardsPointer", void 0);
+r([ p(cc.Node) ], t.prototype, "ctrRoot", void 0);
+r([ p(cc.Node) ], t.prototype, "clockRoot", void 0);
+r([ p(l.default) ], t.prototype, "bottomUIRoot", void 0);
+return t = r([ d ], t);
+}(cc.Component);
+o.default = f;
+cc._RF.pop();

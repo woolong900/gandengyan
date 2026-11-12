@@ -221,7 +221,7 @@ var t = this;
 return a(this, function(o) {
 switch (o.label) {
 case 0:
-return e !== p.default.HallSceneName && e !== p.default.LoginSceneName && e !== p.default.ClubSceneName ? [ 3, 1 ] : [ 3, 3 ];
+return e !== p.default.HallSceneName && e !== p.default.LoginSceneName && e !== p.default.ClubSceneName && "SceneTDak" !== e ? [ 3, 1 ] : [ 3, 3 ];
 
 case 1:
 return [ 4, y.default.getInstance().initData(m.default.config.index) ];

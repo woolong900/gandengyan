@@ -94,6 +94,13 @@ const clubHomeBackground = path.join(
 const shoppingMallBackground = path.join(
   ROOT, 'assets', 'branding', 'shop', 'shop-background-r338.png',
 );
+const hallButtonSources = new Map([
+  ['5a582a61-69ad-4721-93c3-c76ae5b19a53', 'club_btn.png'],
+  ['239688a6-a09f-4414-b75b-e631f7a42a5b', 'createroom_btn.png'],
+  ['729289fb-7448-40a2-b047-93553336b3d5', 'joinroom_btn.png'],
+  ['fce0d237-72b2-4de9-b145-ac4de1c62144', 'backroom_btn.png'],
+]);
+const hallButtonRoot = path.join(ROOT, 'assets', 'branding', 'hall', 'selected-v3');
 const tableBackground3d = {
   android: path.join(ROOT, 'assets', 'branding', 'table', 'table-background-3d.jpg'),
   ios: path.join(ROOT, 'assets', 'branding', 'table', 'table-background-3d-ios.png'),
@@ -453,6 +460,13 @@ const publishPlatform = (platform, archive) => {
   // 把旧城市湖景重新带回。该资源沿用原包的 Cocos XOR 封装。
   writeAsset('res/raw-assets/0b/0b113fff-15df-4c89-8321-fb74e12e940f.png',
     encryptCocosImage(shoppingMallBackground), true);
+  // 大厅四个主按钮沿用原 SpriteFrame UUID 和尺寸，热更始终从选定设计稿
+  // 导出的透明资源覆盖，避免旧安装包在后续发布时把按钮恢复成原图。
+  for (const [uuid, filename] of hallButtonSources) {
+    const source = path.join(hallButtonRoot, filename);
+    if (!fs.existsSync(source)) throw new Error(`缺少大厅按钮资源：${source}`);
+    writeAsset(`res/raw-assets/${uuid.slice(0, 2)}/${uuid}.png`, encryptCocosImage(source), true);
+  }
   // 3D 干瞪眼桌面不能从旧安装包回填；Android 与 iOS 共用同一资源槽位，
   // iOS 源图额外保留中央东南西北灯盘。
   writeAsset('res/raw-assets/0e/0ed69516-3023-4cb0-947a-abd9aab04b9f.jpg',

@@ -77,11 +77,12 @@ return this._otType;
 e.prototype.jiaoDizhuType = function() {
 return this._jiaodizhu;
 };
-e.prototype.setOtType = function(e) {
+e.prototype.setOtType = function(e, phase) {
 this._otType = e;
 e > -1 && r.default.eventUtils.emit(i.default.ui_jiaodizhu_change, {
 pos: this.pos,
-otType: e
+otType: e,
+choicePhase: phase
 });
 };
 Object.defineProperty(e.prototype, "roundType", {

@@ -1,0 +1,22 @@
+{
+  "SubTexture": [
+    {
+      "width": 188,
+      "y": 1,
+      "height": 111,
+      "name": "jf1",
+      "x": 1
+    },
+    {
+      "width": 154,
+      "y": 114,
+      "height": 111,
+      "name": "jf2",
+      "x": 1
+    }
+  ],
+  "width": 256,
+  "height": 256,
+  "name": "jiefeng",
+  "imagePath": "jiefeng_tex.png"
+}

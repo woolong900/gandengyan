@@ -1,0 +1,188 @@
+// Recovered from the production CommonJS bundle.
+var e = require, t = module, o = exports;
+"use strict";
+cc._RF.push(t, "4e75eF2EhdGOLDotLfnfPkI", "GDMyCardsTouchCtr");
+var n = this && this.__extends || function() {
+var e = function(t, o) {
+return (e = Object.setPrototypeOf || {
+__proto__: []
+} instanceof Array && function(e, t) {
+e.__proto__ = t;
+} || function(e, t) {
+for (var o in t) t.hasOwnProperty(o) && (e[o] = t[o]);
+})(t, o);
+};
+return function(t, o) {
+e(t, o);
+function n() {
+this.constructor = t;
+}
+t.prototype = null === o ? Object.create(o) : (n.prototype = o.prototype, new n());
+};
+}(), r = this && this.__decorate || function(e, t, o, n) {
+var r, i = arguments.length, a = i < 3 ? t : null === n ? n = Object.getOwnPropertyDescriptor(t, o) : n;
+if ("object" == typeof Reflect && "function" == typeof Reflect.decorate) a = Reflect.decorate(e, t, o, n); else for (var s = e.length - 1; s >= 0; s--) (r = e[s]) && (a = (i < 3 ? r(a) : i > 3 ? r(t, o, a) : r(t, o)) || a);
+return i > 3 && a && Object.defineProperty(t, o, a), a;
+};
+Object.defineProperty(o, "__esModule", {
+value: !0
+});
+var i = require("./RoomInfoData"), a = require("./GameSoundGD"), s = require("./gContext"), l = require("./GDEventKeys"), c = require("./GDMyCardsPointer"), u = cc._decorator, d = u.ccclass, p = u.property, f = function(e) {
+n(t, e);
+function t() {
+var t = null !== e && e.apply(this, arguments) || this;
+t._rects = [];
+t._beginIndex = -1;
+t._endIndex = -1;
+t.indexOffest = 0;
+t.selectArr = [];
+t.myCardsPointer = null;
+t.touchLayer = null;
+return t;
+}
+t.prototype._touchBegin = function() {
+if (this.myCardsPointer._dealing) return;
+this._beginIndex = -1;
+this.selectArr = [];
+this._rects = [];
+var e = i.default.myAbsolutePos(), t = i.default.gameInfoGD.siteInfos.get(e).handCards;
+if (i.default.gameInfoGD.is_shuCard || i.default.gameInfoGD.lipaiBtnStuas) {
+this.indexOffest = 26 - t.length;
+for (var o = 26; o > 26 - t.length; o--) {
+var n = (a = this.myCardsPointer.getCard(o).node).convertToWorldSpaceAR(cc.v2(0, 0)), r = new cc.Rect(n.x - a.width / 2, n.y - a.height / 2, a.width, a.height);
+this._rects.push(r);
+}
+} else for (o = t.length - 1; o >= 0; o--) {
+var a;
+n = (a = this.myCardsPointer.getCard(o).node).convertToWorldSpaceAR(cc.v2(0, 0)),
+r = new cc.Rect(n.x - a.width / 2, n.y - a.height / 2, a.width, a.height);
+this._rects.push(r);
+}
+};
+t.prototype._doMove = function(e) {
+if (this.myCardsPointer._dealing) return;
+for (var t = this._beginIndex, o = this._endIndex, n = 0, r = this._rects.length; n < r; n++) {
+if (this._rects[n].contains(e)) {
+this._beginIndex >= 0 || (i.default.gameInfoGD.is_shuCard || i.default.gameInfoGD.lipaiBtnStuas ? this._beginIndex = r - n + this.indexOffest : this._beginIndex = r - 1 - n);
+i.default.gameInfoGD.is_shuCard || i.default.gameInfoGD.lipaiBtnStuas ? this._endIndex = r - n + this.indexOffest : this._endIndex = r - 1 - n;
+break;
+}
+}
+t === this._beginIndex && o === this._endIndex || a.default.getInstance().selectCard();
+this._cleanSelect();
+this._setSelect(this._beginIndex, this._endIndex);
+};
+t.prototype._realIndex = function(e, t) {
+if (e >= 0 && t >= 0) {
+var o = e, n = t;
+if (e > t) {
+o = t;
+n = e;
+}
+return {
+s: o,
+e: n,
+b: !0
+};
+}
+return {
+s: -1,
+e: -1,
+b: !1
+};
+};
+t.prototype._getValidSelect = function(e, t) {
+for (var o = [], n = e; n <= t; n++) {
+this.myCardsPointer.getCard(n).isInvalid() || o.push(n);
+}
+return o;
+};
+t.prototype._setSelect = function(e, t) {
+var o = this._realIndex(e, t), n = o.s, r = o.e;
+if (o.b) for (var a = n; a <= r; a++) {
+var s = this.myCardsPointer.getCard(a);
+(i.default.gameInfoGD.is_shuCard || i.default.gameInfoGD.lipaiBtnStuas) && (this.selectArr.includes(a) || this.selectArr.push(a));
+s.setSelectColor();
+}
+};
+t.prototype._cleanSelect = function() {
+for (var e = 0; e < this.myCardsPointer.cards.length; e++) {
+this.myCardsPointer.getCard(e).cleanSelectColor();
+}
+};
+t.prototype._showSelect = function(e, t) {
+for (var o = !1, n = e; n <= t; n++) {
+var r = this.myCardsPointer.getCard(n);
+if (r._GongPaistate = !o) {
+o = !0;
+s.default.eventUtils.emit(l.default.gongpai_select_btn, {
+btn: !1
+});
+}
+r.isChoose() ? r.setNormal() : r.setChooseFocus();
+}
+};
+t.prototype._showSelect_shupai = function() {
+for (var e = !1, t = 0; t < this.selectArr.length; t++) {
+var o = this.myCardsPointer.getCard(this.selectArr[t]);
+if (o._GongPaistate = !e) {
+e = !0;
+s.default.eventUtils.emit(l.default.gongpai_select_btn, {
+btn: !1
+});
+}
+o.isChoose() ? o.setNormal() : o.setChooseFocus();
+}
+};
+t.prototype._selectEnd = function(e, t) {
+if (i.default.gameInfoGD.is_shuCard || i.default.gameInfoGD.lipaiBtnStuas) this._showSelect_shupai(); else {
+var o = this._realIndex(e, t), n = o.s, r = o.e;
+if (!o.b) return;
+this._showSelect(n, r);
+}
+};
+t.prototype._touchEnd = function() {
+if (this.myCardsPointer._dealing) return;
+this._cleanSelect();
+if (this._beginIndex >= 0) {
+this._selectEnd(this._beginIndex, this._endIndex);
+a.default.getInstance().selectCardEnd();
+s.default.eventUtils.emit(l.default.ui_my_card_choose_change);
+} else this._cleanAllChoosed();
+};
+t.prototype._cleanAllChoosed = function() {
+for (var e = !1, t = i.default.myAbsolutePos(), o = 0, n = i.default.gameInfoGD.siteInfos.get(t).handCards.length; o < n; o++) {
+var r = this.myCardsPointer.getCard(o);
+if (r.isChoose()) {
+r.clicked();
+e || r.isChoose() || (e = !0);
+}
+}
+e && s.default.eventUtils.emit(l.default.ui_my_card_choose_change);
+};
+t.prototype.start = function() {
+var e = this;
+if (!i.default.isWatcher()) {
+this.touchLayer.on(cc.Node.EventType.TOUCH_START, function(t) {
+e._touchBegin();
+e._doMove(t.getLocation());
+}, this);
+this.touchLayer.on(cc.Node.EventType.TOUCH_MOVE, function(t) {
+e._doMove(t.getLocation());
+}, this);
+this.touchLayer.on(cc.Node.EventType.TOUCH_END, function(t) {
+e._doMove(t.getLocation());
+e._touchEnd();
+}, this);
+this.touchLayer.on(cc.Node.EventType.TOUCH_CANCEL, function(t) {
+e._doMove(t.getLocation());
+e._touchEnd();
+}, this);
+}
+};
+r([ p(c.default) ], t.prototype, "myCardsPointer", void 0);
+r([ p(cc.Node) ], t.prototype, "touchLayer", void 0);
+return t = r([ d ], t);
+}(cc.Component);
+o.default = f;
+cc._RF.pop();

@@ -1,0 +1,192 @@
+{
+  "frameRate": 24,
+  "isGlobal": 0,
+  "armature": [
+    {
+      "ik": [],
+      "type": "MovieClip",
+      "name": "MovieClip",
+      "defaultActions": [
+        {
+          "gotoAndPlay": "newAnimation"
+        }
+      ],
+      "bone": [
+        {
+          "name": "root",
+          "transform": {}
+        },
+        {
+          "transform": {},
+          "name": "yupai_1",
+          "parent": "root"
+        },
+        {
+          "transform": {},
+          "name": "yupai_2",
+          "parent": "root"
+        }
+      ],
+      "aabb": {
+        "width": 0,
+        "y": 0,
+        "height": 0,
+        "x": 0
+      },
+      "slot": [
+        {
+          "displayIndex": -1,
+          "name": "yupai_1",
+          "parent": "yupai_1",
+          "color": {}
+        },
+        {
+          "z": 1,
+          "displayIndex": -1,
+          "name": "yupai_2",
+          "parent": "yupai_2",
+          "color": {}
+        }
+      ],
+      "frameRate": 24,
+      "animation": [
+        {
+          "ffd": [],
+          "playTimes": 0,
+          "duration": 12,
+          "ik": [],
+          "frame": [],
+          "bone": [
+            {
+              "frame": [
+                {
+                  "transform": {},
+                  "duration": 12
+                }
+              ],
+              "name": "root"
+            },
+            {
+              "frame": [
+                {
+                  "tweenEasing": 0,
+                  "transform": {},
+                  "duration": 12
+                },
+                {
+                  "transform": {},
+                  "duration": 0
+                }
+              ],
+              "name": "yupai_1"
+            },
+            {
+              "frame": [
+                {
+                  "tweenEasing": 0,
+                  "transform": {},
+                  "duration": 4
+                },
+                {
+                  "tweenEasing": 0,
+                  "transform": {},
+                  "duration": 4
+                },
+                {
+                  "tweenEasing": 0,
+                  "transform": {},
+                  "duration": 4
+                },
+                {
+                  "transform": {},
+                  "duration": 0
+                }
+              ],
+              "name": "yupai_2"
+            }
+          ],
+          "slot": [
+            {
+              "frame": [
+                {
+                  "tweenEasing": 0,
+                  "duration": 12
+                },
+                {
+                  "tweenEasing": null,
+                  "duration": 0
+                }
+              ],
+              "name": "yupai_1"
+            },
+            {
+              "frame": [
+                {
+                  "tweenEasing": 0,
+                  "color": {
+                    "aM": 0
+                  },
+                  "duration": 4
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 4
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 4
+                },
+                {
+                  "tweenEasing": null,
+                  "color": {
+                    "aM": 0
+                  },
+                  "duration": 0
+                }
+              ],
+              "name": "yupai_2"
+            }
+          ],
+          "name": "newAnimation"
+        }
+      ],
+      "skin": [
+        {
+          "slot": [
+            {
+              "display": [
+                {
+                  "path": "yupai_2",
+                  "type": "image",
+                  "name": "yupai_2",
+                  "transform": {}
+                }
+              ],
+              "name": "yupai_2"
+            },
+            {
+              "display": [
+                {
+                  "path": "yupai_1",
+                  "type": "image",
+                  "name": "yupai_1",
+                  "transform": {}
+                },
+                {
+                  "path": "yupai_2",
+                  "type": "image",
+                  "name": "yupai_2",
+                  "transform": {}
+                }
+              ],
+              "name": "yupai_1"
+            }
+          ],
+          "name": ""
+        }
+      ]
+    }
+  ],
+  "name": "yupai_shanshuo",
+  "version": "5.0"
+}

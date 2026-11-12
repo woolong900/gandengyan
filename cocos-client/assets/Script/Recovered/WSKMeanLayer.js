@@ -49,6 +49,8 @@ return t;
 }
 t.prototype.start = function() {
 var e = this;
+this.restoreMenuButtonFrames();
+this.node.zIndex = 100;
 this.popMenu.active = !1;
 c.default.eventUtils.on(d.default.data_status_change, function() {
 e._uiDirty = !0;
@@ -85,6 +87,45 @@ this.btnDissolve.active = !1;
 }
 }
 }
+};
+t.prototype.restoreMenuButtonFrames = function() {
+if (this._menuFrames) return;
+this._menuFrames = [];
+var drawer = this.popMenu && this.popMenu.getChildByName("sz_db");
+var buttons = drawer && drawer.getChildByName("Btns");
+if (!drawer || !buttons) return;
+var owned = this._menuFrames;
+function restore(node, rect, rotated, width, height) {
+var sprite = node && node.getComponent(cc.Sprite);
+if (!sprite || !sprite.spriteFrame) return;
+var frame = new cc.SpriteFrame(sprite.spriteFrame.getTexture(),
+cc.rect.apply(cc, rect), rotated, cc.v2(0, 0), cc.size(rect[2], rect[3]));
+owned.push(frame);
+sprite.sizeMode = cc.Sprite.SizeMode.CUSTOM;
+sprite.type = cc.Sprite.Type.SIMPLE;
+sprite.trim = true;
+sprite.spriteFrame = frame;
+node.setContentSize(width, height);
+}
+// SceneWSK authors a 450px drawer. TRIMMED sizing otherwise shrinks it to
+// the 269px atlas crop. Retain its original anchor, position and gradient.
+restore(drawer, [3, 3, 269, 720], false, 450, 720);
+// WSK uses its own atlas (1ee0cabd5), with different Y coordinates from DDZ.
+// Recovered imports clamp rotated frame widths to 338-278=60, losing icons.
+var specs = [["BtnExit",198,127],["BtnJS",331,127],["BtnQZJS",3,189],
+["BtnLocation",464,124],["BtnSetting",594,124]];
+for (var index = 0; index < specs.length; index++) {
+var spec = specs[index];
+restore(buttons.getChildByName(spec[0]), [278,spec[1],spec[2],57], true, spec[2],57);
+}
+// Return-to-hall uses a separate, unrotated image; never substitute DDZ art.
+restore(this.btnBack, [0,0,127,57], false,127,57);
+var layout = buttons.getComponent(cc.Layout);
+if (layout) layout.updateLayout();
+};
+t.prototype.onDestroy = function() {
+if (this._menuFrames) this._menuFrames.forEach(function(frame) { frame.destroy(); });
+this._menuFrames = null;
 };
 t.prototype.update = function() {
 if (this._uiDirty) {

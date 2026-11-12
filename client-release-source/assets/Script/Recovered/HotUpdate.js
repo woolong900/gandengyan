@@ -61,6 +61,10 @@ t._retryHandler = null;
 t._watchdogHandler = null;
 t._fatalShown = !1;
 t._recoveryLoadedVersion = null;
+t._corruptSeen = !1;
+t._okFiles = 0;
+t._okFilesAtLastFailure = 0;
+t._failedFiles = 0;
 return t;
 }
 t.prototype.onLoad = function() {
@@ -73,12 +77,26 @@ this._am = new jsb.AssetsManager("", this._storagePath, function(e, t) {
 cc.log("JS Custom Version Compare: version A is " + e + ", version B is " + t);
 return e === t ? 0 : -1;
 });
+var o = this;
 this._am.setVerifyCallback(function(e, t) {
-t.compressed;
-return !0;
+return o._verifyAsset(e, t);
 });
 cc.sys.os === cc.sys.OS_ANDROID && this._am.setMaxConcurrentTask(3);
 }
+};
+t.prototype._verifyAsset = function(e, t) {
+try {
+if (this._retryCleaned) return !0;
+var o = t ? Number(t.size) : 0;
+if (!(o > 0) || !jsb.fileUtils || "function" !== typeof jsb.fileUtils.getFileSize) return !0;
+var n = Number(jsb.fileUtils.getFileSize(e));
+if (n >= 0 && n !== o) {
+this._corruptSeen = !0;
+cc.warn("Hot update asset size mismatch: " + e + " expect " + o + " got " + n);
+return !1;
+}
+} catch (e) {}
+return !0;
 };
 t.prototype.updateCb = function(e) {
 var t = !1;
@@ -93,8 +111,17 @@ this._updateProgressUI(n, e);
 break;
 
 case jsb.EventAssetsManager.ERROR_DOWNLOAD_MANIFEST:
-case jsb.EventAssetsManager.ERROR_PARSE_MANIFEST:
 this._scheduleRetry("更新清单下载失败", "restart");
+break;
+
+case jsb.EventAssetsManager.ERROR_PARSE_MANIFEST:
+this._corruptSeen = !0;
+this._scheduleRetry("更新清单解析失败", "restart");
+break;
+
+case jsb.EventAssetsManager.ASSET_UPDATED:
+this._okFiles++;
+this._lastProgressAt = Date.now();
 break;
 
 case jsb.EventAssetsManager.ALREADY_UP_TO_DATE:
@@ -108,12 +135,19 @@ t = !0;
 break;
 
 case jsb.EventAssetsManager.UPDATE_FAILED:
-this._scheduleRetry("部分文件下载失败", "failed");
+if (this._okFiles > this._okFilesAtLastFailure) this._retryCount = 0;
+this._okFilesAtLastFailure = this._okFiles;
+this._failedFiles = 0;
+this._scheduleRetry(this._corruptSeen ? "部分文件校验失败" : "部分文件下载失败", "failed");
+break;
+
+case jsb.EventAssetsManager.ERROR_DECOMPRESS:
+this._corruptSeen = !0;
 break;
 
 case jsb.EventAssetsManager.ERROR_UPDATING:
-case jsb.EventAssetsManager.ERROR_DECOMPRESS:
-this._setStatus("部分文件校验失败，正在处理");
+this._failedFiles++;
+this._lastProgressAt = Date.now();
 }
 if (t) {
 this._stopWatchdog();
@@ -129,11 +163,13 @@ if (this._recoveryLoadedVersion === e) return;
 this._recoveryLoadedVersion = e;
 this._retryCount = 0;
 this._retryCleaned = !1;
+this._corruptSeen = !1;
 try {
 var t = JSON.parse(cc.sys.localStorage.getItem(this._recoveryKey()) || "null");
 if (t && Number(t.version) === Number(e) && Date.now() - Number(t.lastAt || 0) < 6e5) {
 this._retryCount = Math.max(0, Math.min(this._maxRetryCount, Number(t.count) || 0));
 this._retryCleaned = !!t.cleaned;
+this._corruptSeen = !!t.corrupt;
 }
 } catch (e) {}
 };
@@ -143,6 +179,7 @@ cc.sys.localStorage.setItem(this._recoveryKey(), JSON.stringify({
 version: this._version,
 count: this._retryCount,
 cleaned: this._retryCleaned,
+corrupt: this._corruptSeen,
 lastAt: Date.now()
 }));
 } catch (e) {}
@@ -153,6 +190,7 @@ cc.sys.localStorage.removeItem(this._recoveryKey());
 } catch (e) {}
 this._retryCount = 0;
 this._retryCleaned = !1;
+this._corruptSeen = !1;
 };
 t.prototype._setStatus = function(e) {
 if (this.pLabel && this.pLabel.node && this.pLabel.node.isValid) this.pLabel.string = e;
@@ -211,7 +249,7 @@ this._retryCount++;
 this._saveRecoveryState();
 this._setStatus(e + "，正在重试（" + this._retryCount + "/" + this._maxRetryCount + "）");
 this.scheduleOnce(this._retryHandler, 2 * this._retryCount);
-} else if (!this._retryCleaned) {
+} else if (this._corruptSeen && !this._retryCleaned) {
 this._retryCleaned = !0;
 this._saveRecoveryState();
 this._setStatus("正在清理异常下载并重新获取更新");
@@ -240,16 +278,14 @@ var o = function() {
 t._fatalShown = !1;
 t._retryPending = !1;
 t._retryCount = 0;
-t._retryCleaned = !1;
-t._clearTemporaryFiles();
 t._saveRecoveryState();
-cc.game.restart();
+if ("failed" === t._retryMode && t._am) t._retryUpdate(); else cc.game.restart();
 };
 var n = null;
 try {
 n = require("./gContext").default;
 } catch (e) {}
-n && n.msgBox && n.msgBox.showOnlyOk ? n.msgBox.showOnlyOk("更新未完成：" + e + "。请切换到稳定网络，确认后重新下载。", o) : this.scheduleOnce(o, 3);
+n && n.msgBox && n.msgBox.showOnlyOk ? n.msgBox.showOnlyOk("更新未完成：" + e + "。请切换到稳定网络，确认后继续下载，已下载的内容会保留。", o) : this.scheduleOnce(o, 3);
 };
 t.prototype.reStartGame = function() {
 if (this._am) {

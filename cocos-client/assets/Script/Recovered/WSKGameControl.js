@@ -169,7 +169,18 @@ t.getInstance = function() {
 return this._instance;
 };
 t.prototype.start = function() {
-var e = this, t = cc.instantiate(this.dismissRoomPre);
+var e = this;
+h.default.eventUtils.on(u.default.data_room_destroyed, function(e, t) {
+1 === t.reason ? h.default.msgBox.showOnlyOk("房主已解散房间！", function() {
+l.default.leaveRoom();
+}) : l.default.leaveRoom();
+}, this, d.eOffType.OnDestroy);
+try {
+require("./PokerActionButtonStyle").apply(this.node);
+} catch (t) {
+cc.error("WSK action button style failed", t);
+}
+var t = cc.instantiate(this.dismissRoomPre);
 this.dismissRoot.addChild(t);
 this.dismissRoot.active = !1;
 this._updateDismissVisible();
@@ -186,11 +197,6 @@ o.o;
 o.n === m.eWSKGameStatus.SingleEnd && e.scheduleOnce(function() {
 e.updateSingleEnd();
 }, 1);
-}, this, d.eOffType.OnDestroy);
-h.default.eventUtils.on(u.default.data_room_destroyed, function(e, t) {
-1 === t.reason ? h.default.msgBox.showOnlyOk("房主已解散房间！", function() {
-l.default.leaveRoom();
-}) : l.default.leaveRoom();
 }, this, d.eOffType.OnDestroy);
 h.default.eventUtils.on(u.default.data_game_total_end, function() {
 e._updateTotalEnd();
@@ -216,6 +222,99 @@ f.default.getInstance().bombEffect();
 e.dragon510k.playAnimation("Sprite", 1);
 }
 }, this, d.eOffType.OnDestroy);
+try {
+this._installWatchControls();
+} catch (o) {
+cc.error("WSK watch controls install failed", o);
+}
+};
+t.prototype._findWatchNode = function(e, t) {
+if (!e) return null;
+if (e.name === t) return e;
+for (var o = e.children || [], n = 0; n < o.length; n++) {
+var r = this._findWatchNode(o[n], t);
+if (r) return r;
+}
+return null;
+};
+t.prototype._makeWatchButton = function(e, t, o, n, s) {
+var r = new cc.Node(e);
+r.setContentSize(57, 57);
+r.setPosition(o.x, o.y);
+r.zIndex = 80;
+(s || this.node).addChild(r);
+var i = r.addComponent(cc.Sprite);
+i.sizeMode = cc.Sprite.SizeMode.CUSTOM;
+var a = r.addComponent(cc.Button);
+a.transition = cc.Button.Transition.SCALE;
+a.zoomScale = .95;
+r.on("click", n, this);
+if (t && "string" != typeof t) i.spriteFrame = t; else cc.loader.loadRes(t, cc.SpriteFrame, function(e, t) {
+if (!e && cc.isValid(r)) i.spriteFrame = t;
+});
+return r;
+};
+t.prototype._installWatchControls = function() {
+if (!l.default.isWatcher() || l.default.isPlayback()) return;
+var e = this;
+this._watchChangeTime = 0;
+this._watchRequestTime = 0;
+var r = this._findWatchNode(this.node, "BtnWatch"), i = r && r.getComponent(cc.Sprite), t = "Hall/Res/Texture/Game/icon_watch";
+this._watchViewRoot = new cc.Node("WatcherViewLayer");
+this._watchViewRoot.zIndex = 80;
+this.node.addChild(this._watchViewRoot);
+[ {
+offset: 2,
+x: 0,
+y: 219
+}, {
+offset: 3,
+x: -330,
+y: 60
+}, {
+offset: 1,
+x: 330,
+y: 60
+} ].forEach(function(o) {
+e._makeWatchButton("WSKWatchView" + o.offset, t, cc.v2(o.x, o.y), function() {
+e._switchWatchView(o.offset);
+}, e._watchViewRoot);
+});
+var a = i && i.spriteFrame ? i.spriteFrame : "Hall/Res/Texture/Game/icon_watch";
+this._watchHandButton = this._makeWatchButton("WSKWatchHandRequest", a, cc.v2(570, -220), function() {
+e._requestWatchHand();
+});
+this._refreshWatchHandButton();
+h.default.eventUtils.on(u.default.data_game_watch_pos_change, function() {
+e._refreshWatchHandButton();
+}, this, d.eOffType.OnDestroy);
+h.default.eventUtils.on(y.default.data_status_change, function() {
+e._refreshWatchHandButton();
+}, this, d.eOffType.OnDestroy);
+};
+t.prototype._switchWatchView = function(e) {
+var t = Date.now();
+if (t - this._watchChangeTime < 1e3) return h.default.uiHelper.showTip("切换视角过于频繁~");
+this._watchChangeTime = t;
+var o = (l.default.myAbsolutePos() + Number(e) + 4) % 4, n = l.default.players.getByPos(o);
+if (!n) return;
+require("./SoundUtils").default.clickBtn();
+require("./GameMsgWSK").default.getInstance().watchView(n.uid);
+l.default.updateWatchPos(o);
+};
+t.prototype._requestWatchHand = function() {
+var e = Date.now();
+if (e - this._watchRequestTime < 1e3) return;
+this._watchRequestTime = e;
+var t = l.default.players.getByPos(l.default.myAbsolutePos());
+if (!t || t.isWatcher && t.isWatcher()) return h.default.uiHelper.showTip("当前没有可查看的玩家~");
+require("./SoundUtils").default.clickBtn();
+require("./GameMsgWSK").default.getInstance().requestWatchHand(t.uid);
+};
+t.prototype._refreshWatchHandButton = function() {
+if (!this._watchHandButton) return;
+var e = l.default.players.getByPos(l.default.myAbsolutePos());
+this._watchHandButton.active = !!(l.default.isWatcher() && e && !(e.isWatcher && e.isWatcher()));
 };
 t.prototype._updateTotalEnd = function() {
 var e = l.default.getTotalEndData();

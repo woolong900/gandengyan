@@ -43,6 +43,10 @@ t.prototype.parse = function(t, o) {
 "game_end" === t && this._gameEnd(o);
 "game_curroundcards" === t && this._roundDetails(o);
 "game_showxicard" === t && this._showXiCards(o);
+"wsk_hand_sort" === t && this._handSort(o);
+"wsk_watch_view" === t && this._watchView(o);
+"wsk_watch_hand_request" === t && this._watchHandRequest(o);
+"wsk_watch_hand_granted" === t && this._watchHandGranted(o);
 e.prototype.parse.call(this, t, o);
 };
 t.prototype.parseGame = function(e) {
@@ -78,6 +82,7 @@ t.prototype._roundDetails = function(e) {
 p.default.eventUtils.emit(i.default.data_round_details_change, e.cur_round);
 };
 t.prototype._gameInfo = function(e) {
+null != e.watch_pos && c.default.isWatcher() && c.default.updateWatchPos(Number(e.watch_pos));
 var t = e.begin, o = e.players, n = e.step, i = e.game_stage, a = e.friend_card || 0;
 (e.hard_card_uid || 0) > 0 && (a = -1);
 var s = n || 0, u = 0;
@@ -106,6 +111,7 @@ pos: y,
 rank: g,
 pickScore: _,
 handCards: v,
+handSortType: null != m.hand_sort_type ? Number(m.hand_sort_type) : 0,
 xiCards: C
 });
 var b = m.card.last_dis_card || [];
@@ -144,6 +150,33 @@ if ((e.last_put_uid || 0) > 0) {
 var k = c.default.players.getByUid(e.last_put_uid);
 k && c.default.gameInfoWSK.siteInfos.setLastPut(k.pos);
 } else c.default.gameInfoWSK.siteInfos.clearLastPut();
+};
+t.prototype._handSort = function(e) {
+var t = c.default.players.getByUid(Number(e.uid) || 0), o = Number(e.sort_type);
+if (t && Number.isInteger(o) && o >= 0 && o <= 2) c.default.gameInfoWSK.siteInfos.get(t.pos).sortCards(o);
+};
+t.prototype._watchView = function(e) {
+if (c.default.isWatcher() && null != e.pos) c.default.updateWatchPos(Number(e.pos));
+p.default.eventUtils.emit("wsk_watch_hand_state", {
+uid: Number(e.uid) || 0,
+granted: !!e.hand_granted
+});
+};
+t.prototype._watchHandRequest = function(e) {
+if (c.default.isWatcher()) return;
+var t = String(e.watcher_name || "观战玩家"), o = String(e.request_id || ""), n = Number(e.watcher_uid) || 0;
+if (!o || !n) return;
+p.default.msgBox.show(t + "申请查看您的手牌，是否同意？", function() {
+require("./GameMsgWSK").default.getInstance().replyWatchHand(o, n, !0);
+}, function() {
+require("./GameMsgWSK").default.getInstance().replyWatchHand(o, n, !1);
+}, null, !0, !0, "同意", "拒绝");
+};
+t.prototype._watchHandGranted = function(e) {
+p.default.eventUtils.emit("wsk_watch_hand_state", {
+uid: Number(e.uid) || 0,
+granted: !0
+});
 };
 t.prototype._parsePlayer = function(e) {
 var t = e.uid, o = c.default.players.getByUid(t);

@@ -7,7 +7,7 @@
  *
  * 用法：
  *   node tools/benchmark-mahjong-bot.js
- *   node tools/benchmark-mahjong-bot.js --baseline=smart-eager --seeds=100 --players=2,3,4
+ *   node tools/benchmark-mahjong-bot.js --baseline=smart-v1 --seeds=100 --players=2,3,4
  */
 const { performance } = require('perf_hooks');
 const { Round } = require('../server/round');
@@ -34,8 +34,8 @@ function parseArgs(argv) {
   if (!players.length || players.some((n) => !Number.isInteger(n) || n < 2 || n > 4)) {
     throw new Error('--players 只支持逗号分隔的 2、3、4');
   }
-  if (!['legacy', 'smart-eager'].includes(baseline)) {
-    throw new Error('--baseline 只支持 legacy 或 smart-eager');
+  if (!['legacy', 'smart-v1', 'smart-eager'].includes(baseline)) {
+    throw new Error('--baseline 只支持 legacy、smart-v1 或 smart-eager');
   }
   return { seeds, startSeed, maxActions, players: [...new Set(players)], baseline };
 }
@@ -140,8 +140,12 @@ function playOne({ peopleCount, seed, dealerSeat, targetSeat, targetPolicy, maxA
   // Round 内部在协调多家碰/杠应答时也会查询策略。基准必须使这些查询
   // 和本局的 A/B 座位分配一致，不能让其他 legacy 座位被默认当成 smart。
   round.smartBot = (seat, explicitPolicy) => {
-    if (explicitPolicy != null) return explicitPolicy === 'smart' || explicitPolicy === 'smart-eager';
-    return policies[seat] === 'smart' || policies[seat] === 'smart-eager';
+    if (explicitPolicy != null) {
+      return explicitPolicy === 'smart' || explicitPolicy === 'smart-v1'
+        || explicitPolicy === 'smart-eager';
+    }
+    return policies[seat] === 'smart' || policies[seat] === 'smart-v1'
+      || policies[seat] === 'smart-eager';
   };
 
   const startedAt = performance.now();

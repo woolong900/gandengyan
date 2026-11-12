@@ -164,7 +164,7 @@ r.length > 0 && (n = parseInt(r[0]));
 n && n > 0 ? u.default.getClubData(n, function(e, t) {
 t || (0 === e.error ? l.default.eventUtils.emit(m.default.data_reconnect_club) : l.default.uiHelper.loadScene(c.default.HallSceneName));
 }) : l.default.uiHelper.loadScene(c.default.HallSceneName);
-} else o !== c.default.GameSceneName && o !== c.default.D7SceneName && o !== c.default.PDKSceneName && o !== c.default.WSKSceneName && o !== c.default.DBDSceneName && o !== c.default.DDZSceneName || f.default.isPlayback() || f.default.getTotalEndData() || f.default.leaveRoom();
+} else o !== c.default.GameSceneName && o !== c.default.D7SceneName && o !== c.default.PDKSceneName && o !== c.default.WSKSceneName && o !== c.default.DBDSceneName && o !== c.default.DDZSceneName && o !== c.default.GDSceneName || f.default.isPlayback() || f.default.getTotalEndData() || f.default.leaveRoom();
 }
 };
 e.prototype.syncData = function(e) {

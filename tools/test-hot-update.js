@@ -197,13 +197,29 @@ const main = async () => {
       'res/raw-assets/1e/1e79e9934.png',
       'res/raw-assets/1f/1fcde46cd.png',
       'res/raw-assets/20/206b229f-fa1c-409e-b47e-b2d2c0938d57.png',
+      'res/raw-assets/23/239688a6-a09f-4414-b75b-e631f7a42a5b.png',
+      'res/raw-assets/5a/5a582a61-69ad-4721-93c3-c76ae5b19a53.png',
+      'res/raw-assets/72/729289fb-7448-40a2-b047-93553336b3d5.png',
       'res/raw-assets/a1/a120356e-9147-4a68-a7ef-f9c4dbbaff41.png',
       'res/raw-assets/d7/d784bb4c-e6d9-4a94-932a-4b9bc139c351.jpg',
       'res/raw-assets/db/dbd4ba35-fdeb-4a79-a26f-1f3ba1fdfca9.jpg',
       'res/raw-assets/e0/e07c10f8-e75a-5ae8-d2f6-40c4b109d372.png',
+      'res/raw-assets/fc/fce0d237-72b2-4de9-b145-ac4de1c62144.png',
       'src/project.jsc', 'src/settings.jsc',
       ...greenPaiDunManifest.map((frame) => frame.asset),
     ].sort()]);
+  for (const [uuid, filename] of [
+    ['5a582a61-69ad-4721-93c3-c76ae5b19a53', 'club_btn.png'],
+    ['239688a6-a09f-4414-b75b-e631f7a42a5b', 'createroom_btn.png'],
+    ['729289fb-7448-40a2-b047-93553336b3d5', 'joinroom_btn.png'],
+    ['fce0d237-72b2-4de9-b145-ac4de1c62144', 'backroom_btn.png'],
+  ]) {
+    const encrypted = fs.readFileSync(path.join(release,
+      `android/236/res/raw-assets/${uuid.slice(0, 2)}/${uuid}.png`));
+    const decoded = Buffer.from(encrypted.subarray(10).map((value) => value ^ encrypted[9]));
+    check(`大厅按钮使用选定设计 ${filename}`, decoded.equals(fs.readFileSync(path.join(__dirname,
+      '../assets/branding/hall/selected-v3', filename))), true);
+  }
   for (const texture of ['1580e8a3b', '191f83490', '1a62d6dfc', '1e79e9934']) {
     const published = fs.readFileSync(path.join(release,
       `android/236/res/raw-assets/${texture.slice(0, 2)}/${texture}.png`));
@@ -376,6 +392,20 @@ const main = async () => {
     clientHotUpdate.includes('this._am.downloadFailedAssets();') &&
     clientHotUpdate.includes('this._storagePath + "_temp/"') &&
     clientHotUpdate.includes('__QJQP_HOT_UPDATE_RECOVERY__'), true);
+  check('单个文件下载失败只记录，不清空进度也不重启',
+    clientHotUpdate.includes('case jsb.EventAssetsManager.ERROR_UPDATING:\nthis._failedFiles++;') &&
+    !clientHotUpdate.includes('this._scheduleRetry("部分文件校验失败", "restart");'), true);
+  check('只有出现校验或解析损坏才清理临时文件',
+    clientHotUpdate.includes('} else if (this._corruptSeen && !this._retryCleaned) {') &&
+    clientHotUpdate.split('this._clearTemporaryFiles();').length === 2, true);
+  check('客户端按清单大小校验下载文件',
+    clientHotUpdate.includes('t.prototype._verifyAsset = function(e, t) {') &&
+    clientHotUpdate.includes('jsb.fileUtils.getFileSize(e)'), true);
+  const clientUpdateUtils = fs.readFileSync(path.join(__dirname,
+    '../client-release-source/assets/Script/Recovered/UpdateUtils.js'), 'utf8');
+  check('整包升级时清掉资源版本记录和搜索路径',
+    clientUpdateUtils.includes('"__QJQP_ASSERT_VERSION__", "__KY_Hot_Update_Search_Paths__", "__QJQP_HOT_UPDATE_RECOVERY__"') &&
+    clientUpdateUtils.split('this._cleanHotUpdateState();').length === 3, true);
   check('客户端热更新页显示下载量和重试次数',
     clientHotUpdate.includes('getDownloadedBytes') && clientHotUpdate.includes('getTotalBytes') &&
     clientHotUpdate.includes('this._retryCount + "/" + this._maxRetryCount'), true);

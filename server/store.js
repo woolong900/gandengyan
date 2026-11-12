@@ -30,6 +30,7 @@ const empty = () => ({
     enabled: process.env.QJQP_FILLBOTS !== '0',
     mode: process.env.QJQP_BOT_MODE || 'local',
     trusteeWhitelist: [],
+    recordCardWhitelist: [],
     stats: {
       local: { rounds: 0, wins: 0, draws: 0, score: 0 },
       jev: { rounds: 0, wins: 0, draws: 0, score: 0 },
@@ -84,7 +85,8 @@ const open = () => {
   fs.mkdirSync(path.dirname(FILE), { recursive: true });
   db = new Database(FILE);
   db.pragma('journal_mode = WAL');
-  db.pragma('synchronous = FULL');
+  // WAL + NORMAL：断电最多丢失最后几次提交，不会损坏数据库；省去每次提交的 fsync。
+  db.pragma('synchronous = NORMAL');
   db.pragma('foreign_keys = ON');
   db.pragma('busy_timeout = 5000');
   db.exec(`
@@ -221,62 +223,170 @@ const open = () => {
         next_operator_message_id=excluded.next_operator_message_id,
         next_support_message_id=excluded.next_support_message_id,
         updated_at=excluded.updated_at`),
-    player: db.prepare('INSERT INTO players (position, token, uid, invite_code, data) VALUES (?, ?, ?, ?, ?)'),
-    operatorMessage: db.prepare('INSERT INTO operator_messages (position, id, data) VALUES (?, ?, ?)'),
-    supportConversation: db.prepare(`INSERT INTO support_conversations
-      (position, uid, updated_at, data) VALUES (?, ?, ?, ?)`),
     publicNotices: db.prepare('INSERT INTO public_notices (id, data) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET data=excluded.data'),
     economySettings: db.prepare('INSERT INTO economy_settings (id, data) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET data=excluded.data'),
     botSettings: db.prepare('INSERT INTO bot_settings (id, data) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET data=excluded.data'),
-    room: db.prepare('INSERT INTO rooms (position, room_id, club_id, data) VALUES (?, ?, ?, ?)'),
-    record: db.prepare('INSERT INTO records (position, record_id, time, club_id, data) VALUES (?, ?, ?, ?, ?)'),
-    club: db.prepare('INSERT INTO clubs (position, club_id, owner_uid, data) VALUES (?, ?, ?, ?)'),
   };
+  tableCache = new Map();
   return db;
+};
+
+/**
+ * 增量保存：每张快照表按主键比对上次写入的 JSON，只 INSERT/UPDATE/DELETE 有变化的行。
+ * position 只在新增时分配（追加到末尾），已有行保持原 position，load 时 ORDER BY position 顺序不变。
+ * 无法保持顺序（中间插入、重排）或出现重复键、约束冲突时，该表回退为整表重写。
+ */
+const SNAPSHOT_TABLES = {
+  players: { key: 'token', keyOf: (item) => String(item.token || ''),
+    extraCols: ['uid', 'invite_code'], extras: (item) => [Number(item.uid), String(item.inviteCode || '')] },
+  operator_messages: { key: 'id', keyOf: (item) => Number(item.id), extraCols: [], extras: () => [] },
+  support_conversations: { key: 'uid', keyOf: (item) => Number(item.uid),
+    extraCols: ['updated_at'], extras: (item) => [Number(item.updatedAt || 0)] },
+  rooms: { key: 'room_id', keyOf: (item) => Number(item.roomId),
+    extraCols: ['club_id'], extras: (item) => [Number(item.clubId || 0)] },
+  records: { key: 'record_id', keyOf: (item) => String(item.id || ''),
+    extraCols: ['time', 'club_id'], extras: (item) => [Number(item.time || 0), Number(item.clubId || 0)] },
+  clubs: { key: 'club_id', keyOf: (item) => Number(item.id),
+    extraCols: ['owner_uid'], extras: (item) => [Number(item.ownerUid || 0)] },
+};
+
+// 表名 → Map(key → { position, json, extras })，代表数据库当前内容；open() 时清空，首次写入时从库里读回。
+let tableCache = new Map();
+const tableStatements = new Map();
+const writeStats = { inserted: 0, updated: 0, deleted: 0, rewrites: 0 };
+
+const statementsFor = (table) => {
+  if (tableStatements.has(table) && tableStatements.get(table).db === db) return tableStatements.get(table);
+  const spec = SNAPSHOT_TABLES[table];
+  const cols = [spec.key, ...spec.extraCols, 'data'];
+  const set = [...spec.extraCols, 'data'].map((col) => `${col}=?`).join(', ');
+  const prepared = {
+    db,
+    insert: db.prepare(`INSERT INTO ${table} (position, ${cols.join(', ')}) VALUES (?, ${cols.map(() => '?').join(', ')})`),
+    update: db.prepare(`UPDATE ${table} SET ${set} WHERE ${spec.key}=?`),
+    remove: db.prepare(`DELETE FROM ${table} WHERE ${spec.key}=?`),
+    clear: db.prepare(`DELETE FROM ${table}`),
+    all: db.prepare(`SELECT position, ${cols.join(', ')} FROM ${table}`),
+  };
+  tableStatements.set(table, prepared);
+  return prepared;
+};
+
+const cacheFor = (table) => {
+  if (tableCache.has(table)) return tableCache.get(table);
+  const spec = SNAPSHOT_TABLES[table];
+  const cache = new Map();
+  for (const row of statementsFor(table).all.all()) {
+    const key = row[spec.key];
+    if (cache.has(key)) { cache.clear(); cache.duplicate = true; break; }
+    cache.set(key, { position: Number(row.position), json: row.data,
+      extras: JSON.stringify(spec.extraCols.map((col) => row[col])) });
+  }
+  tableCache.set(table, cache);
+  return cache;
+};
+
+const rewriteTable = (table, rows) => {
+  const stmt = statementsFor(table);
+  stmt.clear.run();
+  const next = new Map();
+  rows.forEach((row, position) => {
+    stmt.insert.run(position, row.key, ...row.extras, row.json);
+    next.set(row.key, { position, json: row.json, extras: JSON.stringify(row.extras) });
+  });
+  writeStats.rewrites++;
+  writeStats.inserted += rows.length;
+  return next;
+};
+
+/** 在当前事务中把一张表同步到 rows；返回写入后的新缓存（事务提交后才生效）。 */
+const syncTable = (table, rows) => {
+  const cache = cacheFor(table);
+  const keys = new Set(rows.map((row) => row.key));
+  if (cache.duplicate || keys.size !== rows.length) return rewriteTable(table, rows);
+
+  // 已有行在新快照里的相对顺序必须不变，新行必须都在已有行之后。
+  let lastPosition = -Infinity;
+  let sawNew = false;
+  for (const row of rows) {
+    const old = cache.get(row.key);
+    if (!old) { sawNew = true; continue; }
+    if (sawNew || old.position <= lastPosition) return rewriteTable(table, rows);
+    lastPosition = old.position;
+  }
+
+  const stmt = statementsFor(table);
+  const next = new Map();
+  let nextPosition = 0;
+  for (const entry of cache.values()) nextPosition = Math.max(nextPosition, entry.position + 1);
+  try {
+    for (const key of cache.keys()) {
+      if (!keys.has(key)) { stmt.remove.run(key); writeStats.deleted++; }
+    }
+    for (const row of rows) {
+      const old = cache.get(row.key);
+      const extras = JSON.stringify(row.extras);
+      if (!old) {
+        stmt.insert.run(nextPosition, row.key, ...row.extras, row.json);
+        next.set(row.key, { position: nextPosition++, json: row.json, extras });
+        writeStats.inserted++;
+      } else {
+        if (old.json !== row.json || old.extras !== extras) {
+          stmt.update.run(...row.extras, row.json, row.key);
+          writeStats.updated++;
+        }
+        next.set(row.key, { position: old.position, json: row.json, extras });
+      }
+    }
+  } catch (error) {
+    // 例如两个玩家互换 uid 触发唯一约束：同一事务内整表重写即可。
+    if (!/constraint/i.test(String(error && error.code || error && error.message))) throw error;
+    return rewriteTable(table, rows);
+  }
+  return next;
+};
+
+const snapshotRows = (table, items) => {
+  const spec = SNAPSHOT_TABLES[table];
+  return items.map((item) => ({ key: spec.keyOf(item), extras: spec.extras(item), json: encode(item) }));
 };
 
 const writeTransaction = (data) => {
   const state = normalize(data);
   open();
+  // 先序列化，常见的数据错误不会触碰现有快照；事务负责兜底回滚。
+  const tables = {
+    players: snapshotRows('players', state.players),
+    operator_messages: snapshotRows('operator_messages', state.operatorMessages),
+    support_conversations: snapshotRows('support_conversations', state.supportConversations),
+    rooms: snapshotRows('rooms', state.rooms),
+    records: snapshotRows('records', state.records),
+    clubs: snapshotRows('clubs', state.clubs.clubs),
+  };
+  const publicNotices = encode(state.publicNotices);
+  const economySettings = encode(state.economySettings);
+  const botSettings = encode(state.botSettings);
   const write = db.transaction(() => {
-    // 先序列化再删除，常见的数据错误不会触碰现有快照；事务还负责兜底回滚。
-    const players = state.players.map((item) => encode(item));
-    const operatorMessages = state.operatorMessages.map((item) => encode(item));
-    const supportConversations = state.supportConversations.map((item) => encode(item));
-    const publicNotices = encode(state.publicNotices);
-    const economySettings = encode(state.economySettings);
-    const botSettings = encode(state.botSettings);
-    const rooms = state.rooms.map((item) => encode(item));
-    const records = state.records.map((item) => encode(item));
-    const clubs = state.clubs.clubs.map((item) => encode(item));
-    db.exec(`DELETE FROM players; DELETE FROM operator_messages; DELETE FROM support_conversations;
-      DELETE FROM rooms; DELETE FROM records; DELETE FROM clubs;`);
     statements.meta.run(
       state.nextUid, state.nextRoomId, state.playbackSeq,
       state.clubs.nextId, state.clubs.nextOpId, state.nextOperatorMessageId,
       state.nextSupportMessageId, Date.now(),
     );
-    state.players.forEach((item, i) => statements.player.run(
-      i, String(item.token || ''), Number(item.uid), String(item.inviteCode || ''), players[i],
-    ));
-    state.operatorMessages.forEach((item, i) => statements.operatorMessage.run(i, Number(item.id), operatorMessages[i]));
-    state.supportConversations.forEach((item, i) => statements.supportConversation.run(
-      i, Number(item.uid), Number(item.updatedAt || 0), supportConversations[i],
-    ));
     statements.publicNotices.run(publicNotices);
     statements.economySettings.run(economySettings);
     statements.botSettings.run(botSettings);
-    state.rooms.forEach((item, i) => statements.room.run(
-      i, Number(item.roomId), Number(item.clubId || 0), rooms[i],
-    ));
-    state.records.forEach((item, i) => statements.record.run(
-      i, String(item.id || ''), Number(item.time || 0), Number(item.clubId || 0), records[i],
-    ));
-    state.clubs.clubs.forEach((item, i) => statements.club.run(
-      i, Number(item.id), Number(item.ownerUid || 0), clubs[i],
-    ));
+    const caches = new Map();
+    for (const [table, rows] of Object.entries(tables)) caches.set(table, syncTable(table, rows));
+    return caches;
   });
-  write();
+  let caches;
+  try {
+    caches = write();
+  } catch (error) {
+    tableCache = new Map(); // 回滚后缓存可能与库不一致，下次从库里重新读取。
+    throw error;
+  }
+  for (const [table, cache] of caches) tableCache.set(table, cache);
   return state;
 };
 
@@ -483,6 +593,17 @@ const listPlayerRecordHistory = (uid, limit = 10) => {
     .map((row) => JSON.parse(row.data));
 };
 
+const listRecordHistoryRange = (from, to) => {
+  open();
+  const start = Number(from);
+  const end = Number(to);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end) return [];
+  return db.prepare(`SELECT data FROM record_history
+    WHERE time >= ? AND time < ? ORDER BY time ASC, id ASC`)
+    .all(start, end)
+    .map((row) => JSON.parse(row.data));
+};
+
 const recordHistoryStats = (since) => {
   open();
   const total = db.prepare('SELECT COUNT(*) n FROM record_history').get().n;
@@ -496,10 +617,12 @@ const close = () => {
   db.close();
   db = null;
   statements = null;
+  tableCache = new Map();
+  tableStatements.clear();
 };
 
 module.exports = { FILE, LEGACY_FILE, load, save, saveAsync, backup, appendAudit, listAudit,
   saveAdminSession, getAdminSession, deleteAdminSession, clearAdminSessions, pruneAdminSessions,
   appendAgentApplication, listAgentApplications,
-  archiveRecord, backfillRecords, listRecordHistory, listPlayerRecordHistory,
-  getRecordHistory, recordHistoryStats, close };
+  archiveRecord, backfillRecords, listRecordHistory, listPlayerRecordHistory, listRecordHistoryRange,
+  getRecordHistory, recordHistoryStats, close, writeStats };

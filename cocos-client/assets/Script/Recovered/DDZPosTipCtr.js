@@ -38,15 +38,27 @@ return t;
 }
 t.prototype.start = function() {
 var e = this;
+// A previous choice may still be visible when this seat gets its next turn.
+// Clear it instead of moving the label away from newly visible controls.
+i.default.eventUtils.on(a.default.data_round_data_update, function(t, o) {
+if (e.posCtr.deskPos() !== o.pos) return;
+var room = require("./RoomInfoData").default;
+var type = room.gameInfoDDZ.siteInfos.get(o.pos).roundType;
+var types = require("./DDZEnum").eRoundTypeDDZ;
+if (type === types.JiaoDiZhu || type === types.Turn) {
+e.scoreTip.node.stopAllActions();
+e.scoreTip.node.active = !1;
+}
+}, this, s.eOffType.OnDestroy);
 i.default.eventUtils.on(a.default.ui_jiaodizhu_change, function(t, o) {
 var n = o.pos;
 if (e.posCtr.deskPos() === n) {
-e._updateScore(o.otType || 0);
+e._updateScore(o.otType || 0, o.choicePhase);
 e._showAnimate(e.scoreTip.node);
 }
 }, this, s.eOffType.OnDestroy);
 };
-t.prototype._updateScore = function(e) {
+t.prototype._updateScore = function(e, phase) {
 var t = e;
 this.scoreTip.string = "";
 var o = "";
@@ -54,9 +66,11 @@ var o = "";
 1 === t && (o = "叫地主");
 2 === t && (o = "不加倍");
 3 === t && (o = "加倍");
+if (phase === "rob") o = t === 1 ? "抢地主" : "不抢";
 this.scoreTip.string = "" + o;
 };
 t.prototype._showAnimate = function(e) {
+e.stopAllActions();
 e.active = !0;
 var t = cc.delayTime(2), o = cc.callFunc(function() {
 e.active = !1;

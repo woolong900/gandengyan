@@ -1,0 +1,22 @@
+{
+  "width": 256,
+  "SubTexture": [
+    {
+      "width": 209,
+      "y": 83,
+      "height": 79,
+      "name": "ths-1",
+      "x": 1
+    },
+    {
+      "width": 225,
+      "y": 1,
+      "height": 80,
+      "name": "ths",
+      "x": 1
+    }
+  ],
+  "height": 256,
+  "name": "ths",
+  "imagePath": "ths_tex.png"
+}

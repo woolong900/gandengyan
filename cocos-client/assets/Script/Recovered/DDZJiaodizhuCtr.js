@@ -39,6 +39,7 @@ t.unRedouble = null;
 return t;
 }
 t.prototype.start = function() {
+require("./PokerActionButtonStyle").applyBidding(this);
 var e = this;
 a.default.eventUtils.on(l.default.data_round_data_update, function(t, o) {
 o.pos === i.default.myAbsolutePos() && (e._uiDirty = !0);

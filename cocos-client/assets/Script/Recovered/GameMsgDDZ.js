@@ -23,7 +23,7 @@ t.prototype = null === o ? Object.create(o) : (n.prototype = o.prototype, new n(
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var r = require("./GameMsgBase"), i = require("./RoomInfoData"), a = require("./SoundUtils"), s = function(e) {
+var r = require("./GameMsgBase"), i = require("./RoomInfoData"), a = require("./SoundUtils"), c = require("./DDZStandalone"), s = function(e) {
 n(t, e);
 function t() {
 return null !== e && e.apply(this, arguments) || this;
@@ -33,7 +33,12 @@ this._instance || (this._instance = new t());
 return this._instance;
 };
 t.prototype.ready = function(e) {
+if (i.default.isPlayback()) return;
 a.default.playReady();
+if (c.default.isActive()) {
+c.default.ready();
+return;
+}
 if (e) {
 var t = i.default.myPlayerData().pos + 1, o = {
 msghead: "gameready",
@@ -51,6 +56,7 @@ this.gameJson(o, null, !0);
 }
 };
 t.prototype.jiaodizhu = function(e) {
+if (c.default.isActive()) { c.default.bid(Number(e)); return; }
 var t = {
 msghead: "gamebid",
 msgdata: JSON.stringify({
@@ -60,6 +66,7 @@ score: e
 this.gameJson(t, null, !0);
 };
 t.prototype.DoRedouble = function(e) {
+if (c.default.isActive()) { c.default.redouble(Number(e)); return; }
 var t = {
 msghead: "gameredouble",
 msgdata: JSON.stringify({
@@ -70,6 +77,10 @@ this.gameJson(t, null, !0);
 };
 t.prototype.putCard = function(e, t, o) {
 void 0 === o && (o = 0);
+if (c.default.isActive()) {
+c.default.putCard(e.concat([]), t.concat([]), o);
+return;
+}
 var n = new Array();
 n.push(o);
 var r = n.concat(e, t), i = {
@@ -81,6 +92,10 @@ card: r
 this.gameJson(i, null, !0);
 };
 t.prototype.pass = function() {
+if (c.default.isActive()) {
+c.default.pass();
+return;
+}
 this.gameJson({
 msghead: "gameguo"
 }, null, !0);

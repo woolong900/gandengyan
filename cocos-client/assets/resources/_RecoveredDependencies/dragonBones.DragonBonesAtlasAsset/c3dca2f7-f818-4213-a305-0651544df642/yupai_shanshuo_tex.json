@@ -1,0 +1,22 @@
+{
+  "SubTexture": [
+    {
+      "width": 53,
+      "y": 1,
+      "height": 71,
+      "name": "yupai_1",
+      "x": 1
+    },
+    {
+      "width": 53,
+      "y": 1,
+      "height": 71,
+      "name": "yupai_2",
+      "x": 56
+    }
+  ],
+  "width": 128,
+  "height": 128,
+  "name": "yupai_shanshuo",
+  "imagePath": "yupai_shanshuo_tex.png"
+}

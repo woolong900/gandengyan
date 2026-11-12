@@ -1,0 +1,478 @@
+{
+  "armature": [
+    {
+      "ik": [],
+      "aabb": {
+        "width": 0,
+        "y": 0,
+        "height": 0,
+        "x": 0
+      },
+      "defaultActions": [
+        {
+          "gotoAndPlay": "touyou"
+        }
+      ],
+      "skin": [
+        {
+          "name": "",
+          "slot": [
+            {
+              "display": [
+                {
+                  "path": "ey",
+                  "type": "image",
+                  "name": "ey",
+                  "transform": {}
+                }
+              ],
+              "name": "ey"
+            },
+            {
+              "display": [
+                {
+                  "path": "db_ey",
+                  "type": "image",
+                  "name": "db_ey",
+                  "transform": {}
+                }
+              ],
+              "name": "db_ey"
+            },
+            {
+              "display": [
+                {
+                  "path": "db_ty",
+                  "type": "image",
+                  "name": "db_ty",
+                  "transform": {}
+                }
+              ],
+              "name": "db_ty"
+            },
+            {
+              "display": [
+                {
+                  "path": "ty",
+                  "type": "image",
+                  "name": "ty",
+                  "transform": {}
+                }
+              ],
+              "name": "ty"
+            }
+          ]
+        }
+      ],
+      "type": "MovieClip",
+      "frameRate": 24,
+      "bone": [
+        {
+          "name": "root",
+          "transform": {}
+        },
+        {
+          "transform": {},
+          "name": "ty",
+          "parent": "root"
+        },
+        {
+          "transform": {},
+          "name": "db_ty",
+          "parent": "root"
+        },
+        {
+          "transform": {},
+          "name": "ey",
+          "parent": "root"
+        },
+        {
+          "transform": {},
+          "name": "db_ey",
+          "parent": "root"
+        }
+      ],
+      "slot": [
+        {
+          "displayIndex": -1,
+          "name": "db_ty",
+          "parent": "db_ty",
+          "color": {}
+        },
+        {
+          "z": 1,
+          "displayIndex": -1,
+          "name": "ty",
+          "parent": "ty",
+          "color": {}
+        },
+        {
+          "z": 2,
+          "displayIndex": -1,
+          "name": "db_ey",
+          "parent": "db_ey",
+          "color": {}
+        },
+        {
+          "z": 3,
+          "displayIndex": -1,
+          "name": "ey",
+          "parent": "ey",
+          "color": {}
+        }
+      ],
+      "animation": [
+        {
+          "bone": [
+            {
+              "frame": [
+                {
+                  "duration": 17,
+                  "transform": {}
+                }
+              ],
+              "name": "root"
+            },
+            {
+              "frame": [
+                {
+                  "tweenEasing": 0,
+                  "duration": 2,
+                  "transform": {
+                    "scX": 0.2,
+                    "scY": 0.2
+                  }
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 2,
+                  "transform": {}
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 2,
+                  "transform": {
+                    "scX": 1.5,
+                    "scY": 1.5
+                  }
+                },
+                {
+                  "duration": 11,
+                  "transform": {}
+                },
+                {
+                  "duration": 0,
+                  "transform": {}
+                }
+              ],
+              "name": "ty"
+            },
+            {
+              "frame": [
+                {
+                  "duration": 5,
+                  "transform": {}
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 2,
+                  "transform": {
+                    "y": -3.0455
+                  }
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 8,
+                  "transform": {
+                    "y": -3.0455
+                  }
+                },
+                {
+                  "duration": 1,
+                  "transform": {
+                    "skY": 180,
+                    "skX": 180
+                  }
+                },
+                {
+                  "duration": 1,
+                  "transform": {
+                    "skY": 180,
+                    "skX": 180
+                  }
+                }
+              ],
+              "name": "db_ty"
+            },
+            {
+              "frame": [
+                {
+                  "duration": 17,
+                  "transform": {}
+                }
+              ],
+              "name": "ey"
+            },
+            {
+              "frame": [
+                {
+                  "duration": 17,
+                  "transform": {}
+                }
+              ],
+              "name": "db_ey"
+            }
+          ],
+          "ik": [],
+          "ffd": [],
+          "duration": 17,
+          "playTimes": 0,
+          "frame": [],
+          "slot": [
+            {
+              "frame": [
+                {
+                  "tweenEasing": 0,
+                  "duration": 2,
+                  "color": {
+                    "aM": 0
+                  }
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 2
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 2
+                },
+                {
+                  "tweenEasing": null,
+                  "duration": 11
+                },
+                {
+                  "tweenEasing": null,
+                  "duration": 0
+                }
+              ],
+              "name": "ty"
+            },
+            {
+              "frame": [
+                {
+                  "tweenEasing": null,
+                  "displayIndex": -1,
+                  "duration": 5
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 2,
+                  "color": {
+                    "aM": 0
+                  }
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 8,
+                  "color": {
+                    "aM": 60
+                  }
+                },
+                {
+                  "tweenEasing": null,
+                  "duration": 1,
+                  "color": {
+                    "aM": 60
+                  }
+                },
+                {
+                  "tweenEasing": null,
+                  "duration": 1,
+                  "color": {
+                    "aM": 0
+                  }
+                }
+              ],
+              "name": "db_ty"
+            }
+          ],
+          "name": "touyou"
+        },
+        {
+          "bone": [
+            {
+              "frame": [
+                {
+                  "duration": 17,
+                  "transform": {}
+                }
+              ],
+              "name": "root"
+            },
+            {
+              "frame": [
+                {
+                  "duration": 17,
+                  "transform": {}
+                }
+              ],
+              "name": "ty"
+            },
+            {
+              "frame": [
+                {
+                  "duration": 17,
+                  "transform": {}
+                }
+              ],
+              "name": "db_ty"
+            },
+            {
+              "frame": [
+                {
+                  "tweenEasing": 0,
+                  "duration": 2,
+                  "transform": {
+                    "scX": 0.01,
+                    "scY": 0.01
+                  }
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 2,
+                  "transform": {}
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 2,
+                  "transform": {
+                    "scX": 1.5,
+                    "scY": 1.5
+                  }
+                },
+                {
+                  "duration": 11,
+                  "transform": {}
+                },
+                {
+                  "duration": 0,
+                  "transform": {}
+                }
+              ],
+              "name": "ey"
+            },
+            {
+              "frame": [
+                {
+                  "duration": 5,
+                  "transform": {}
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 2,
+                  "transform": {}
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 8,
+                  "transform": {}
+                },
+                {
+                  "duration": 1,
+                  "transform": {
+                    "skY": 180,
+                    "skX": 180
+                  }
+                },
+                {
+                  "duration": 1,
+                  "transform": {
+                    "skY": 180,
+                    "skX": 180
+                  }
+                }
+              ],
+              "name": "db_ey"
+            }
+          ],
+          "ik": [],
+          "ffd": [],
+          "duration": 17,
+          "playTimes": 0,
+          "frame": [],
+          "slot": [
+            {
+              "frame": [
+                {
+                  "tweenEasing": 0,
+                  "duration": 2
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 2
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 2
+                },
+                {
+                  "tweenEasing": null,
+                  "duration": 11
+                },
+                {
+                  "tweenEasing": null,
+                  "duration": 0
+                }
+              ],
+              "name": "ey"
+            },
+            {
+              "frame": [
+                {
+                  "tweenEasing": null,
+                  "displayIndex": -1,
+                  "duration": 5
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 2,
+                  "color": {
+                    "aM": 0
+                  }
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 8,
+                  "color": {
+                    "aM": 60
+                  }
+                },
+                {
+                  "tweenEasing": null,
+                  "duration": 1,
+                  "color": {
+                    "aM": 60
+                  }
+                },
+                {
+                  "tweenEasing": null,
+                  "duration": 1,
+                  "color": {
+                    "aM": 0
+                  }
+                }
+              ],
+              "name": "db_ey"
+            }
+          ],
+          "name": "eryou"
+        }
+      ],
+      "name": "MovieClip"
+    }
+  ],
+  "frameRate": 24,
+  "name": "teyou",
+  "version": "5.0",
+  "isGlobal": 0
+}

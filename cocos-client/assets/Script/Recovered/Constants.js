@@ -16,6 +16,7 @@ PDKSceneName: "ScenePDK",
 WSKSceneName: "SceneWSK",
 DBDSceneName: "SceneDBD",
 DDZSceneName: "SceneDDZ",
+GDSceneName: "SceneGD",
 defHeadUrl: ""
 };
 cc._RF.pop();

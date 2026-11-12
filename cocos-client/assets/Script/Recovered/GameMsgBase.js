@@ -81,6 +81,11 @@ var h = JSON.parse(o.json).msgdata, y = JSON.parse(h), g = y.room, _ = y.game;
 i.default.reset();
 var v = u.default[g.type].category, C = p.default.getInstance(v);
 C.parseRoom(g);
+if (v === 7) {
+C.parseGame(_);
+cc.sys.localStorage.removeItem('tdak_room_active');
+cc.director.getScene().name !== 'SceneTDak' && s.default.uiHelper.loadScene('SceneTDak');
+}
 if (v === a.eGameCategort.MJ) {
 C.parseGame(_);
 cc.director.getScene().name !== l.default.GameSceneName && s.default.uiHelper.loadScene(l.default.GameSceneName);
@@ -108,6 +113,10 @@ if (v === a.eGameCategort.DDZ) {
 C.parseGame(_);
 cc.director.getScene().name !== l.default.DDZSceneName && s.default.uiHelper.loadScene(l.default.DDZSceneName);
 }
+if (v === a.eGameCategort.GD) {
+C.parseGame(_);
+cc.director.getScene().name !== l.default.GDSceneName && s.default.uiHelper.loadScene(l.default.GDSceneName);
+}
 c && c(!1);
 } catch (e) {
 cc.error("join room parse error:", e && (e.stack || e.message) || e);
@@ -121,6 +130,26 @@ e.prototype.sendChatMsg = function(e, t, o, n, r) {
 var i = c.default.millisecond;
 if (i - this._lastChatMsgSendTime < 1e3) s.default.uiHelper.showTip("发送消息过快~"); else {
 this._lastChatMsgSendTime = i;
+// Standalone rooms have no server-side membership. Feed preset voice/text and
+// emoji and avatar gifts into the same receive event as chatroom. Gift receivers
+// retain the original flight animation, animation clips and sound events.
+var localGD = require("./GDStandalone").default;
+var localDDZ = require("./DDZStandalone").default;
+var chatTypes = require("./CommonEnum").eChatMsgType;
+if ((localGD.isActive() || localDDZ.isActive()) &&
+(e === chatTypes.ChatText || e === chatTypes.ChatEmoji || e === chatTypes.ChatInputText || e === chatTypes.ChatGift)) {
+var room = require("./RoomInfoData").default, sender = room.myPlayerData();
+if (!sender) {
+o && o({ error: 1, what: "不在房间里" }, null);
+return;
+}
+var ChatMsgData = require("./ChatMsgData").default;
+s.default.eventUtils.emit(require("./EventKeys").default.data_chat_msg, {
+o: new ChatMsgData({ fromUid: sender.uid, toUid: n, content: t, type: e, duration: r })
+});
+o && o({ error: 0 }, null);
+return;
+}
 var a = JSON.stringify({
 fromUid: c.default.uid,
 toUid: n,
@@ -140,6 +169,20 @@ n ? o(null, n) : o(e.res, null);
 }
 };
 e.prototype.dismissRoom = function(e, t) {
+// The original confirmation dialog is shared by network and local DDZ rooms.
+// A local room has no server membership and must be closed by its adapter.
+var localDDZ = require("./DDZStandalone").default;
+if (localDDZ.isActive()) {
+e && localDDZ.dismiss();
+t && t({ error: 0 }, null);
+return;
+}
+var localGD = require("./GDStandalone").default;
+if (localGD.isActive()) {
+e && localGD.dismiss();
+t && t({ error: 0 }, null);
+return;
+}
 var o = {
 msghead: "",
 msgdata: JSON.stringify({})

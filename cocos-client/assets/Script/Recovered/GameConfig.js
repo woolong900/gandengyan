@@ -26,7 +26,7 @@ configurable: !0
 e.prototype.appDunUrl = function(e) {
 if (this.platform === n.ePlatformType.web && "undefined" != typeof window && window.location && /^https?:\/\//.test(e)) try {
 var t = new URL(e), o = window.QJQP_WEB_CONFIG || {}, r = o.apiBase || "/__qjqp_api";
-if ("gmhiu.com" === t.hostname) return r.replace(/\/$/, "") + t.pathname + t.search + t.hash;
+if ("gandengyan.top" === t.hostname) return r.replace(/\/$/, "") + t.pathname + t.search + t.hash;
 } catch (i) {}
 return e;
 };

@@ -14,18 +14,18 @@ serviceQQ: "17252659",
 freeCardPercent: "20%",
 limitOfCreateClub: 0,
 gameList: [ c.eGameIds.QJHH, c.eGameIds.QJSHZ ],
-check_version_addr: (n = {}, n[c.eGameMode.debug] = "https://gmhiu.com/version",
-n[c.eGameMode.release] = "https://gmhiu.com/version", n),
-account_server_addr: (r = {}, r[c.eGameMode.debug] = "https://gmhiu.com/login",
-r[c.eGameMode.release] = "https://gmhiu.com/login", r),
-socket_server_addr: (i = {}, i[c.eGameMode.debug] = "wss://gmhiu.com/ws",
-i[c.eGameMode.release] = "wss://gmhiu.com/ws", i),
-game_base_url: (a = {}, a[c.eGameMode.debug] = "https://gmhiu.com",
-a[c.eGameMode.release] = "https://gmhiu.com", a),
+check_version_addr: (n = {}, n[c.eGameMode.debug] = "https://gandengyan.top/version",
+n[c.eGameMode.release] = "https://gandengyan.top/version", n),
+account_server_addr: (r = {}, r[c.eGameMode.debug] = "https://gandengyan.top/login",
+r[c.eGameMode.release] = "https://gandengyan.top/login", r),
+socket_server_addr: (i = {}, i[c.eGameMode.debug] = "wss://gandengyan.top/ws",
+i[c.eGameMode.release] = "wss://gandengyan.top/ws", i),
+game_base_url: (a = {}, a[c.eGameMode.debug] = "https://gandengyan.top",
+a[c.eGameMode.release] = "https://gandengyan.top", a),
 download_url: (s = {}, s[c.eGameMode.debug] = "https://gandengyan.top", s[c.eGameMode.release] = "https://gandengyan.top",
 s),
-agent_base_url: (l = {}, l[c.eGameMode.debug] = "https://gmhiu.com",
-l[c.eGameMode.release] = "https://gmhiu.com", l)
+agent_base_url: (l = {}, l[c.eGameMode.debug] = "https://gandengyan.top",
+l[c.eGameMode.release] = "https://gandengyan.top", l)
 };
 o.default = u;
 cc._RF.pop();

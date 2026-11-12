@@ -39,6 +39,7 @@ t.touchLayer = null;
 return t;
 }
 t.prototype._touchBegin = function() {
+if (this.myCardsPointer._dealing) return;
 this._beginIndex = -1;
 this._rects = [];
 for (var e = a.default.myAbsolutePos(), t = a.default.gameInfoDDZ.siteInfos.get(e).handCards.length - 1; t >= 0; t--) {
@@ -47,6 +48,7 @@ this._rects.push(r);
 }
 };
 t.prototype._doMove = function(e) {
+if (this.myCardsPointer._dealing) return;
 this._cleanSelect();
 for (var t = this._beginIndex, o = this._endIndex, n = 0, r = this._rects.length; n < r; n++) {
 if (this._rects[n].contains(e)) {
@@ -106,6 +108,7 @@ var o = this._realIndex(e, t), n = o.s, r = o.e;
 o.b && this._showSelect(n, r);
 };
 t.prototype._touchEnd = function() {
+if (this.myCardsPointer._dealing) return;
 if (this._beginIndex >= 0) {
 this._selectEnd(this._beginIndex, this._endIndex);
 s.default.getInstance().selectCardEnd();

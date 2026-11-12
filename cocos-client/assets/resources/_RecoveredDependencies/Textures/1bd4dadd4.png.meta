@@ -1,0 +1,52 @@
+{
+  "ver": "2.2.0",
+  "uuid": "1bd4dadd4",
+  "type": "texture",
+  "wrapMode": "clamp",
+  "filterMode": "bilinear",
+  "premultiplyAlpha": false,
+  "subMetas": {
+    "btn_game_gonon": {
+      "ver": "1.0.3",
+      "uuid": "c6c4d7c6-0805-4495-a975-d54a1c0f395e",
+      "rawTextureUuid": "1bd4dadd4",
+      "trimType": "custom",
+      "trimThreshold": 1,
+      "rotated": true,
+      "offsetX": 0,
+      "offsetY": -0.5,
+      "trimX": 3,
+      "trimY": 318,
+      "width": 303,
+      "height": 89,
+      "rawWidth": 305,
+      "rawHeight": 90,
+      "borderTop": 0,
+      "borderBottom": 0,
+      "borderLeft": 0,
+      "borderRight": 0,
+      "subMetas": {}
+    },
+    "btn_fxzj": {
+      "ver": "1.0.3",
+      "uuid": "f65af7b0-f41a-4870-9262-cacbc9a2bf94",
+      "rawTextureUuid": "1bd4dadd4",
+      "trimType": "custom",
+      "trimThreshold": 1,
+      "rotated": true,
+      "offsetX": 0,
+      "offsetY": 0,
+      "trimX": 3,
+      "trimY": 3,
+      "width": 309,
+      "height": 95,
+      "rawWidth": 309,
+      "rawHeight": 95,
+      "borderTop": 0,
+      "borderBottom": 0,
+      "borderLeft": 0,
+      "borderRight": 0,
+      "subMetas": {}
+    }
+  }
+}

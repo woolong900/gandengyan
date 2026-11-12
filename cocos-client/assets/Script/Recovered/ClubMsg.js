@@ -532,7 +532,12 @@ n ? t(null, n) : t(e, null);
 }, !1);
 };
 e.prototype.clubGameSchemeAdd = function(e, t, o, i) {
-var a = r.default.gameLogic(o.index).roomConfig2Param(o, e), s = {
+var logic = o && r.default.gameLogic(o.index);
+if (!logic || typeof logic.roomConfig2Param !== "function") {
+i({ res: { error: 1, what: "该游戏尚未接入俱乐部玩法配置，当前仅支持本地测试" } }, null);
+return;
+}
+var a = logic.roomConfig2Param(o, e), s = {
 clubId: e,
 name: "",
 gameType: a.gameType,
@@ -545,7 +550,12 @@ o ? i(null, o) : i(e, null);
 }, !1);
 };
 e.prototype.clubGameSchemeEdit = function(e, t, o, i, a, s) {
-var l = r.default.gameLogic(a.index).roomConfig2Param(a, o), c = {
+var logic = a && r.default.gameLogic(a.index);
+if (!logic || typeof logic.roomConfig2Param !== "function") {
+s({ res: { error: 1, what: "该游戏尚未接入俱乐部玩法配置，当前仅支持本地测试" } }, null);
+return;
+}
+var l = logic.roomConfig2Param(a, o), c = {
 id: e,
 name: "",
 gameType: l.gameType,

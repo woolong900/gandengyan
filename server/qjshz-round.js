@@ -79,6 +79,12 @@ class WskRound {
     this.config = opts.config;
     this.dealerSeat = opts.dealerSeat || 0;
     this.forcedFlipIndex = Number.isInteger(opts.flipIndex) ? opts.flipIndex : null;
+    this.forcedPartner = opts.forcedPartner && Number(opts.forcedPartner.uid)
+      && Number(opts.forcedPartner.partnerUid) ? {
+        uid: Number(opts.forcedPartner.uid),
+        partnerUid: Number(opts.forcedPartner.partnerUid),
+      } : null;
+    this.protectedHandUid = Number(opts.protectedHandUid) || 0;
     this.io = io;
     this.peopleCount = 4;
     this.over = false;
@@ -105,28 +111,84 @@ class WskRound {
     this.hands = Array.from({ length: this.n }, () => []);
     for (let i = 0; i < deck.length; i++) this.hands[i % this.n].push(deck[i]);
 
-    // 每局随机翻开一张实体牌，拿到它的玩家为庄。另一张完全相同的
-    // 牌决定对家；如果两张都在庄家手中，则直接以庄家对面的玩家为对家。
-    const flipIndex = this.forcedFlipIndex == null
-      ? randomInt(deck.length) : Math.max(0, Math.min(deck.length - 1, this.forcedFlipIndex));
-    this.friendCard = deck[flipIndex];
-    this.dealerSeat = flipIndex % this.n;
-    const sameCardIndexes = [];
-    for (let i = 0; i < deck.length; i++) if (deck[i] === this.friendCard) sameCardIndexes.push(i);
-    const mateIndex = sameCardIndexes.find((index) => index !== flipIndex);
-    let friendSeat = mateIndex == null ? this.teammate(this.dealerSeat) : mateIndex % this.n;
-    const oppositeSeat = this.teammate(this.dealerSeat);
+    // 测试后台可以指定下一局的一组对家。基准玩家作为庄家，将指定玩家
+    // 换到其对面；翻牌仍取一张真实牌，并确保另一张同牌在庄家或对家手中。
+    let friendSeat;
     this.exchangePosition = [];
-    if (friendSeat !== this.dealerSeat && friendSeat !== oppositeSeat) {
-      const friendUid = this.uid(friendSeat);
-      const oppositeUid = this.uid(oppositeSeat);
-      [this.seats[friendSeat], this.seats[oppositeSeat]] = [this.seats[oppositeSeat], this.seats[friendSeat]];
-      [this.hands[friendSeat], this.hands[oppositeSeat]] = [this.hands[oppositeSeat], this.hands[friendSeat]];
-      for (let seat = 0; seat < this.n; seat++) this.seats[seat].site = seat + 1;
-      this.exchangePosition = [friendUid, oppositeSeat, oppositeUid, friendSeat];
-      friendSeat = oppositeSeat;
-    } else if (friendSeat === this.dealerSeat) {
-      friendSeat = oppositeSeat;
+    if (this.forcedPartner) {
+      this.dealerSeat = this.seatOf(this.forcedPartner.uid);
+      friendSeat = this.seatOf(this.forcedPartner.partnerUid);
+      if (this.dealerSeat < 0 || friendSeat < 0 || this.dealerSeat === friendSeat) {
+        throw new Error('指定对家玩家不在本局座位中');
+      }
+      const forcedOppositeSeat = this.teammate(this.dealerSeat);
+      if (friendSeat !== forcedOppositeSeat) {
+        const friendUid = this.uid(friendSeat);
+        const oppositeUid = this.uid(forcedOppositeSeat);
+        [this.seats[friendSeat], this.seats[forcedOppositeSeat]] = [this.seats[forcedOppositeSeat], this.seats[friendSeat]];
+        [this.hands[friendSeat], this.hands[forcedOppositeSeat]] = [this.hands[forcedOppositeSeat], this.hands[friendSeat]];
+        for (let seat = 0; seat < this.n; seat++) this.seats[seat].site = seat + 1;
+        this.exchangePosition = [friendUid, forcedOppositeSeat, oppositeUid, friendSeat];
+        friendSeat = forcedOppositeSeat;
+      }
+      const dealerCounts = new Map();
+      const partnerCounts = new Map();
+      for (const card of this.hands[this.dealerSeat]) dealerCounts.set(card, (dealerCounts.get(card) || 0) + 1);
+      for (const card of this.hands[friendSeat]) partnerCounts.set(card, (partnerCounts.get(card) || 0) + 1);
+      this.friendCard = this.hands[this.dealerSeat].find((card) =>
+        dealerCounts.get(card) > 1 || partnerCounts.has(card));
+      if (this.friendCard == null) {
+        const protectedSeat = this.seatOf(this.protectedHandUid);
+        const duplicateOutside = (card, seat) => this.hands.findIndex((hand, index) =>
+          index !== seat && hand.includes(card));
+        if (protectedSeat === friendSeat) {
+          // 指定手牌属于对家时不改他的牌：从他的牌中选一张，将另一副同牌
+          // 换进庄家手里，换出的庄家牌回填到原持有人。
+          this.friendCard = this.hands[friendSeat].find((card) => duplicateOutside(card, friendSeat) >= 0);
+          const donorSeat = duplicateOutside(this.friendCard, friendSeat);
+          if (this.friendCard == null || donorSeat < 0) throw new Error('无法为指定对家安排翻牌');
+          const donorIndex = this.hands[donorSeat].indexOf(this.friendCard);
+          const dealerCard = this.hands[this.dealerSeat][0];
+          this.hands[this.dealerSeat][0] = this.friendCard;
+          this.hands[donorSeat][donorIndex] = dealerCard;
+        } else {
+          // 其余情况保留庄家（包括后台指定手牌玩家）的牌，将另一副同牌
+          // 换进对家手中。优先避开第三位受保护的指定手牌玩家。
+          this.friendCard = this.hands[this.dealerSeat].find((card) => {
+            const seat = duplicateOutside(card, this.dealerSeat);
+            return seat >= 0 && seat !== protectedSeat;
+          }) || this.hands[this.dealerSeat][0];
+          const donorSeat = duplicateOutside(this.friendCard, this.dealerSeat);
+          if (donorSeat < 0) throw new Error('无法为指定对家安排翻牌');
+          const donorIndex = this.hands[donorSeat].indexOf(this.friendCard);
+          const partnerCard = this.hands[friendSeat][0];
+          this.hands[friendSeat][0] = this.friendCard;
+          this.hands[donorSeat][donorIndex] = partnerCard;
+        }
+      }
+    } else {
+      // 每局随机翻开一张实体牌，拿到它的玩家为庄。另一张完全相同的
+      // 牌决定对家；如果两张都在庄家手中，则直接以庄家对面的玩家为对家。
+      const flipIndex = this.forcedFlipIndex == null
+        ? randomInt(deck.length) : Math.max(0, Math.min(deck.length - 1, this.forcedFlipIndex));
+      this.friendCard = deck[flipIndex];
+      this.dealerSeat = flipIndex % this.n;
+      const sameCardIndexes = [];
+      for (let i = 0; i < deck.length; i++) if (deck[i] === this.friendCard) sameCardIndexes.push(i);
+      const mateIndex = sameCardIndexes.find((index) => index !== flipIndex);
+      friendSeat = mateIndex == null ? this.teammate(this.dealerSeat) : mateIndex % this.n;
+      const naturalOppositeSeat = this.teammate(this.dealerSeat);
+      if (friendSeat !== this.dealerSeat && friendSeat !== naturalOppositeSeat) {
+        const friendUid = this.uid(friendSeat);
+        const oppositeUid = this.uid(naturalOppositeSeat);
+        [this.seats[friendSeat], this.seats[naturalOppositeSeat]] = [this.seats[naturalOppositeSeat], this.seats[friendSeat]];
+        [this.hands[friendSeat], this.hands[naturalOppositeSeat]] = [this.hands[naturalOppositeSeat], this.hands[friendSeat]];
+        for (let seat = 0; seat < this.n; seat++) this.seats[seat].site = seat + 1;
+        this.exchangePosition = [friendUid, naturalOppositeSeat, oppositeUid, friendSeat];
+        friendSeat = naturalOppositeSeat;
+      } else if (friendSeat === this.dealerSeat) {
+        friendSeat = naturalOppositeSeat;
+      }
     }
     for (const hand of this.hands) hand.sort((a, b) => rules.compareCard(b, a, true));
     this.wall = new PokerWall();
@@ -168,7 +230,9 @@ class WskRound {
   }
 
   visibleHand(seat, viewer, reveal) {
-    const canSeeTeam = this.config.观看队友手牌 && viewer >= 0 && this.teamOf(seat) === this.teamOf(viewer);
+    const sameTeam = viewer >= 0 && this.teamOf(seat) === this.teamOf(viewer);
+    const viewerFinished = viewer >= 0 && this.ranks && this.ranks[viewer] > 0;
+    const canSeeTeam = sameTeam && (this.config.观看队友手牌 || viewerFinished);
     if (reveal || viewer === seat || canSeeTeam) return this.hands[seat].slice();
     return this.hands[seat].map(() => 0);
   }
@@ -183,6 +247,7 @@ class WskRound {
       card_step_out: this.ranks[seat] || 0,
       grasp_score: this.pickScores[seat] || 0,
       bomb_score: this.xiScores[seat] || 0,
+      hand_sort_type: Number(this.seats[seat].wskHandSortType) || 0,
       show_xi_card: [],
       pass: state === 'pass',
       card: {
@@ -212,6 +277,19 @@ class WskRound {
     };
     if (Array.isArray(extra.exchangePosition) && extra.exchangePosition.length) {
       snapshot.exchange_position = extra.exchangePosition.slice();
+    }
+    return snapshot;
+  }
+
+  /**
+   * 生成说胡子观战快照。观战者默认只能看到牌背；只有目标玩家明确
+   * 同意后，才单独替换该座位的手牌，避免借用普通玩家视角时顺带泄露
+   * “观看队友手牌”配置允许看到的另一家牌。
+   */
+  watcherSnapshot(targetSeat, revealTarget = false, extra = {}) {
+    const snapshot = this.snapshot(-1, extra);
+    if (revealTarget && targetSeat >= 0 && targetSeat < this.n) {
+      snapshot.players[targetSeat] = this.playerSnapshot(targetSeat, targetSeat, false);
     }
     return snapshot;
   }
@@ -332,6 +410,11 @@ class WskRound {
       this.finishOrder.push(seat);
       if (this.firstOutSeat < 0) this.firstOutSeat = seat;
       this.io.log(`${this.uid(seat)} 第 ${rank} 个出完`);
+      // 出完牌的玩家接下来不再参与出牌，立即刷新他的专属快照，让他直接
+      // 看到对家剩余手牌。只发给本人，不扩大其他玩家或观战者的可见范围。
+      if (!this.teamFinished(this.teamOf(seat))) {
+        this.io.one(seat, 'game_info', this.snapshot(seat, { begin: true }));
+      }
     }
 
     // 对家组成一队；任意一队两人的手牌都出完，牌局立即结束。

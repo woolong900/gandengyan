@@ -23,7 +23,7 @@ t.prototype = null === o ? Object.create(o) : (n.prototype = o.prototype, new n(
 Object.defineProperty(o, "__esModule", {
 value: !0
 });
-var r = require("./RoomInfoData"), i = require("./SoundUtils"), a = function(e) {
+var r = require("./RoomInfoData"), i = require("./SoundUtils"), s = require("./gContext"), a = function(e) {
 n(t, e);
 function t() {
 return null !== e && e.apply(this, arguments) || this;
@@ -82,6 +82,42 @@ card: e
 })
 };
 this.gameJson(t, null, !0);
+};
+t.prototype.syncHandSort = function(e) {
+this.gameJson({
+msghead: "wsk_hand_sort",
+msgdata: JSON.stringify({
+sort_type: Number(e) || 0
+})
+}, null, !0);
+};
+t.prototype.watchView = function(e) {
+this.gameJson({
+msghead: "wsk_watch_view",
+msgdata: JSON.stringify({
+uid: e
+})
+}, null, !0);
+};
+t.prototype.requestWatchHand = function(e) {
+this.gameJson({
+msghead: "wsk_watch_hand_request",
+msgdata: JSON.stringify({
+uid: e
+})
+}, function(e, t, o) {
+o ? s.default.uiHelper.showTip("网络请求失败，请稍后重试～") : e && e.res && e.res.error && s.default.uiHelper.showTip(e.res.what || "暂时无法查看手牌");
+}, !0);
+};
+t.prototype.replyWatchHand = function(e, t, o) {
+this.gameJson({
+msghead: "wsk_watch_hand_reply",
+msgdata: JSON.stringify({
+request_id: e,
+watcher_uid: t,
+agree: !!o
+})
+}, null, !0);
 };
 t._instance = null;
 return t;

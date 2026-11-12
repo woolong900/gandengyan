@@ -12,7 +12,7 @@ static BOOL qjLastDownloadIsLocal = NO;
 
 static NSString *qjVoiceBaseURL(void) {
     NSString *baseURL = [NSBundle.mainBundle objectForInfoDictionaryKey:@"QJQPVoiceBaseURL"];
-    if (![baseURL isKindOfClass:NSString.class] || baseURL.length == 0) baseURL = @"https://gmhiu.com";
+    if (![baseURL isKindOfClass:NSString.class] || baseURL.length == 0) baseURL = @"https://gandengyan.top";
     return [baseURL stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"/"]];
 }
 

@@ -45,7 +45,7 @@ for (const card of new Set(before)) {
 const app = { tables: new Map([[100001, { roomId: 100001, closed: false, round: restored,
   members: seats.map((seat) => ({ player: seat.player, site: seat.site })), config: restored.config,
   step: 1, num: 1, gameType: 2, clubId: 0, schemeId: 0, hostUid: 101 }]]), persist() {} };
-const admin = new AdminData(app, null);
+const admin = new AdminData(app, null, { testTools: true });
 assert.equal(admin.room(100001).wall.remaining, restored.wall.remain());
 const distinct = [...new Set(after)].slice(0, 3);
 assert.equal(distinct.length, 3);

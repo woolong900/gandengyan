@@ -5,9 +5,10 @@ const path = require('path');
 const { toJs, toJsc } = require('./jsc');
 
 const args = process.argv.slice(2);
-const arg = (name) => {
+const arg = (name, fallback = '') => {
   const index = args.indexOf(`--${name}`);
-  if (index < 0 || !args[index + 1]) throw new Error(`缺少 --${name}`);
+  if (index < 0) return fallback;
+  if (!args[index + 1]) throw new Error(`缺少 --${name}`);
   return args[index + 1];
 };
 const root = path.join(__dirname, '..');
@@ -15,8 +16,18 @@ const from = Number(arg('from'));
 const version = Number(arg('version'));
 const source = path.resolve(arg('source'));
 const output = path.resolve(arg('out'));
+const stableValue = arg('stable-version');
+const includeValue = arg('include-uids');
+const targeted = Boolean(stableValue || includeValue);
+const stableVersion = targeted ? Number(stableValue) : version;
+const includeUids = includeValue.split(',').map((value) => value.trim()).filter(Boolean);
 if (!Number.isSafeInteger(from) || !Number.isSafeInteger(version) || version <= from) {
   throw new Error('回滚发布版本必须大于源资源版本');
+}
+if (targeted && (!Number.isSafeInteger(stableVersion) || stableVersion < 1
+    || stableVersion > from || !includeUids.length
+    || includeUids.some((uid) => !/^\d{1,20}$/.test(uid)))) {
+  throw new Error('定向回滚必须指定不高于源版本的 --stable-version 和合法 --include-uids');
 }
 if (fs.existsSync(output)) throw new Error(`输出目录已存在：${output}`);
 
@@ -60,10 +71,10 @@ config.publishedAt = Date.now();
 for (const platform of ['android', 'ios']) {
   const item = config.platforms[platform];
   item.latestAssetVersion = version;
-  item.stableAssetVersion = version;
-  item.rollout.enabled = false;
-  item.rollout.percentage = 100;
-  item.rollout.includeUids = [];
+  item.stableAssetVersion = stableVersion;
+  item.rollout.enabled = targeted;
+  item.rollout.percentage = targeted ? 0 : 100;
+  item.rollout.includeUids = targeted ? includeUids : [];
   item.rollout.includeDeviceIds = [];
   item.rollout.excludeUids = [];
   item.rollout.excludeDeviceIds = [];
@@ -72,5 +83,6 @@ for (const platform of ['android', 'ios']) {
 fs.writeFileSync(path.join(output, 'hot-update.json'), `${JSON.stringify(config, null, 2)}\n`);
 fs.writeFileSync(path.join(output, 'release.json'), `${JSON.stringify({
   version, rollbackFrom: from, source: path.relative(root, source),
+  stableVersion, includeUids: targeted ? includeUids : [],
 }, null, 2)}\n`);
-console.log(`已将 R${from} 原资源重新封装为回滚版本 R${version}：${output}`);
+console.log(`已将 R${from} 原资源重新封装为${targeted ? '定向' : '全量'}回滚版本 R${version}：${output}`);

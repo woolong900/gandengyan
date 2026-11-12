@@ -9,7 +9,7 @@ const tls = require('tls');
 const root = path.resolve(process.env.QJQP_WEB_ROOT || path.join(__dirname, '..', 'build', 'web-mobile'));
 const host = process.env.QJQP_WEB_HOST || '127.0.0.1';
 const port = Number(process.env.QJQP_WEB_PORT || 7456);
-const upstreamHost = process.env.QJQP_UPSTREAM_HOST || 'gmhiu.com';
+const upstreamHost = process.env.QJQP_UPSTREAM_HOST || 'gandengyan.top';
 const apiPrefix = '/__qjqp_api';
 const websocketPath = '/__qjqp_ws';
 

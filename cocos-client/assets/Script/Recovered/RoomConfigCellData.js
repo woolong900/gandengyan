@@ -17,7 +17,25 @@ this.index = 0;
 this._storageData = null;
 this.index = e.index;
 this._storageData = i.default.clone(e);
+this._normalizePokerMode();
 }
+// Keep legacy option definitions readable, but never restore retired room modes.
+e.prototype._retiredPokerOption = function(id) {
+return this.index === l.eGameIds.DDZ ? [ 5, 6, 7 ].indexOf(id) !== -1 :
+this.index === l.eGameIds.GD && [ 5, 6, 50, 51 ].indexOf(id) !== -1;
+};
+e.prototype._normalizePokerMode = function() {
+if (this.index !== l.eGameIds.DDZ && this.index !== l.eGameIds.GD) return;
+var self = this, ids = (this._storageData.ids || []).filter(function(id) {
+return !self._retiredPokerOption(id);
+});
+if (ids.indexOf(4) === -1) ids.push(4);
+if (this.index === l.eGameIds.GD) {
+if (ids.indexOf(18) === -1) ids.push(18);
+if (ids.indexOf(53) === -1 && ids.indexOf(54) === -1) ids.push(53);
+}
+this._storageData.ids = this._unique(ids);
+};
 e.prototype.replaceDYJPay = function() {
 var e = this._storageData.ids;
 if (2 === this.index && e) {
@@ -135,8 +153,10 @@ if (-1 !== a.indexOf(e)) {
 var s = this.getValue(e);
 if (t) {
 var c = s / i.gameCountMul;
-12 === s && i.index === l.eGameIds.XSMJ ? c = Math.ceil(c) : 12 === s && i.index === l.eGameIds.DYKKF ? c = Math.ceil(c) : 12 === s && i.index === l.eGameIds.DYHH ? c = Math.ceil(c) : 12 === s && i.index === l.eGameIds.DBDAA ? c = Math.ceil(c) : 12 === s && i.index === l.eGameIds.DDZ && (c = Math.ceil(c));
-return this.payType() === l.eGamePayType.AA ? s + "局(" + c + "张房卡)" : s + "局(" + this.peopleCount() * c + "张房卡)";
+12 === s && i.index === l.eGameIds.XSMJ ? c = Math.ceil(c) : 12 === s && i.index === l.eGameIds.DYKKF ? c = Math.ceil(c) : 12 === s && i.index === l.eGameIds.DYHH ? c = Math.ceil(c) : 12 === s && i.index === l.eGameIds.DBDAA ? c = Math.ceil(c) : 12 === s && i.index === l.eGameIds.DDZ ? c = Math.ceil(c) : 12 === s && i.index === l.eGameIds.GD && (c = Math.ceil(c));
+if (this.payType() === l.eGamePayType.AA) return s + "局(" + c + "张房卡)";
+if (i.index === l.eGameIds.GD && this.isChecked(6)) return s + "局(" + 2 * c + "张房卡)";
+return s + "局(" + this.peopleCount() * c + "张房卡)";
 }
 return s + "局";
 }
@@ -197,6 +217,7 @@ e.prototype.gameCount = function() {
 return this._getSingleValue(n.gameCount);
 };
 e.prototype.peopleCount = function() {
+if (this.index === l.eGameIds.GD) return 6 == this._getCheckedIds(4)[0] ? 2 : 4;
 return this._getSingleValue(n.peopleCount);
 };
 e.prototype.payType = function() {
@@ -264,6 +285,7 @@ this._saveStyle1(e, n[0]);
 } else cc.error("错误的类型");
 };
 e.prototype.onClicked = function(e) {
+if (this._retiredPokerOption(e)) return;
 var t = function(e, t) {
 for (var o = [], n = 0, r = t.length; n < r; n++) {
 var i = t[n];

@@ -50,6 +50,7 @@ t.prototype.onLoad = function() {
 o._instance = this;
 };
 t.prototype.onDestroy = function() {
+require("./PokerDealFlow").detach(require("./DDZStandalone").default, this.animationBeginCtr);
 o._instance = null;
 };
 t.getInstance = function() {
@@ -78,12 +79,15 @@ this.bg_node_two.active = !1;
 }
 };
 t.prototype.start = function() {
+require("./PokerActionButtonStyle").apply(this.node);
 var e = this, t = cc.instantiate(this.dismissRoomPre);
 this.dismissRoot.addChild(t);
 this.dismissRoot.active = !1;
 this._updateDismissVisible();
 this.updateSingleEnd();
 this.changeBg();
+var localRoom = require("./DDZStandalone").default;
+if (localRoom.isActive()) require("./PokerDealFlow").attach(localRoom, this.animationBeginCtr);
 i.default.eventUtils.on(a.default.data_dismiss_state_change, function(t, o) {
 e._updateDismissVisible();
 if (!s.default.getTotalEndData() && s.default.gameInfoDDZ.status !== u.eDDZGameStatus.Free && !l.default.destroying) {
@@ -143,8 +147,8 @@ this.singleEndRoot.addChild(t);
 }
 }
 };
-t.prototype.playAnimationBegin = function() {
-this.animationBeginCtr.play();
+t.prototype.playAnimationBegin = function(complete) {
+this.animationBeginCtr.play(complete);
 };
 var o;
 t._instance = null;

@@ -77,6 +77,22 @@ const replaceModules = (baseText, moduleText, names) => {
   return result;
 };
 
+// 模块灰度会把新版模块嵌到旧稳定版中。显式校验跨模块方法，避免新版
+// AnalysisMsgBase 调用旧版 RoomInfoData 不存在的方法，出现“服务端已入座，
+// 客户端仍停在俱乐部”的半进房状态。
+const assertModuleCompatibility = (sourceText, platform) => {
+  const modulesByName = moduleRanges(sourceText);
+  const analysis = modulesByName.get('AnalysisMsgBase');
+  const roomInfo = modulesByName.get('RoomInfoData');
+  if (!analysis || !roomInfo) return;
+  for (const method of ['setKeepScreenOn', 'setRecordCardAccess']) {
+    if (analysis.source.includes(`.${method}(`)
+      && !roomInfo.source.includes(`prototype.${method} = function`)) {
+      throw new Error(`${platform} 模块依赖不完整：AnalysisMsgBase 需要 RoomInfoData.${method}`);
+    }
+  }
+};
+
 fs.mkdirSync(output, { recursive: true });
 for (const platform of ['android', 'ios']) {
   const sourceRoot = path.join(source, platform, String(from));
@@ -87,6 +103,7 @@ for (const platform of ['android', 'ios']) {
   const baseScript = toJs(fs.readFileSync(path.join(sourceRoot, 'src', 'project.jsc'))).toString('utf8');
   const selectedScript = toJs(fs.readFileSync(path.join(moduleRoot, 'src', 'project.jsc'))).toString('utf8');
   let nextScript = replaceModules(baseScript, selectedScript, modules);
+  assertModuleCompatibility(nextScript, platform);
   if (lazyGContext) {
     nextScript = replaceOnce(nextScript,
       'var i = require("./UpdateUtils"), a = require("./SoundUtils"), h = require("./gContext"), s = cc._decorator, l = s.ccclass, c = s.property, u = function(e, t, o) {',

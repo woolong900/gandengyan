@@ -83,6 +83,40 @@ card: e
 };
 this.gameJson(t, null, !0);
 };
+t.prototype.syncHandSort = function(e) {
+this.gameJson({
+msghead: "wsk_hand_sort",
+msgdata: JSON.stringify({
+sort_type: Number(e) || 0
+})
+}, null, !0);
+};
+t.prototype.watchView = function(e) {
+this.gameJson({
+msghead: "wsk_watch_view",
+msgdata: JSON.stringify({
+uid: e
+})
+}, null, !0);
+};
+t.prototype.requestWatchHand = function(e) {
+this.gameJson({
+msghead: "wsk_watch_hand_request",
+msgdata: JSON.stringify({
+uid: e
+})
+}, null, !0);
+};
+t.prototype.replyWatchHand = function(e, t, o) {
+this.gameJson({
+msghead: "wsk_watch_hand_reply",
+msgdata: JSON.stringify({
+request_id: e,
+watcher_uid: t,
+agree: !!o
+})
+}, null, !0);
+};
 t._instance = null;
 return t;
 }(require("./GameMsgBase").default);

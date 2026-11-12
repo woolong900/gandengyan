@@ -43,7 +43,7 @@ return t;
 }
 t.prototype.start = function() {
 var e = this;
-u.default.eventUtils.on([ a.default.data_player_add, a.default.data_player_update, a.default.data_player_remove, a.default.data_game_score_change ], function() {
+u.default.eventUtils.on([ a.default.data_player_add, a.default.data_player_update, a.default.data_player_remove, a.default.data_game_score_change, a.default.data_game_watch_pos_change ], function() {
 e._uiDirty = !0;
 }, this, s.eOffType.OnDestroy);
 this._updateUI();

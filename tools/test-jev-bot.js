@@ -79,8 +79,10 @@ const run = async () => {
   smartRound.pizi = 28;
   smartRound.laizi = 29;
   // 两个候选各有取舍（牌形质量 vs 两步收益），应继续交给 Jev 决策。
-  smartRound.hands[0] = [38, 37, 1, 37, 16, 36, 27, 38, 16, 35, 27, 2, 16];
-  smartRound.drawn[0] = 11;
+  // 使用两个牌效接近、但确实都会进入候选集的牌型，避免新的硬保护策略
+  // 将旧牌型裁剪成唯一弃牌后，测试误以为 Jev 没有发起请求。
+  smartRound.hands[0] = [1, 2, 3, 4, 5, 7, 8, 11, 12, 14, 15, 17, 21];
+  smartRound.drawn[0] = 22;
   smartRound.melds[0] = [];
   smartRound.discards = [[], [], [], []];
   smartRound.shuai = [[], [], [], []];
@@ -120,6 +122,23 @@ const run = async () => {
   assert.deepEqual(await forcedPizi.promise, { op: 'gang', data: { card: 5 } });
   assert.equal(askedJevToPassPizi, false, '朝天笑应由规则层直接决定，不允许 Jev 放弃');
 
+  // 普通暗杠同样是确定动作，不能让 Jev 选择“过”。
+  smartRound.pizi = 18;
+  smartRound.laizi = 19;
+  smartRound.hands[0] = [7, 7, 7, 1, 2, 3, 4, 5, 8, 9, 11, 12, 13];
+  smartRound.drawn[0] = 7;
+  smartRound.melds[0] = [];
+  smartRound.pending = { kind: 'self', seat: 0, hu: false, qys: false, gang: [7] };
+  let askedJevToPassAnGang = false;
+  const forcedAnGang = smartRound.prepareAutoPlayJev(0, {
+    chooseSelfAction: async () => {
+      askedJevToPassAnGang = true;
+      return { op: 'pass', data: {} };
+    },
+  });
+  assert.deepEqual(await forcedAnGang.promise, { op: 'gang', data: { card: 7 } });
+  assert.equal(askedJevToPassAnGang, false, '普通暗杠应由规则层直接决定，不允许 Jev 放弃');
+
   // 对家打出的合法点杠同样是确定性收益，不能再让 Jev 改成“过”。
   smartRound.hands[0] = [7, 7, 7, 1, 2, 4, 5, 8, 9, 11, 12, 13, 14];
   smartRound.drawn[0] = null;
@@ -137,6 +156,24 @@ const run = async () => {
   });
   assert.deepEqual(await forcedMingGang.promise, { op: 'gang', data: { card: 7 } });
   assert.equal(askedJevToPassMingGang, false, '合法点杠应由规则层直接决定，不允许 Jev 放弃');
+
+  // 1223 中的两张 2 虽然规则允许碰，但碰后会拆掉已经完成的 123。
+  // 这是本地牌形硬约束，不能再把 peng 交给 Jev 覆盖。
+  smartRound.hands[0] = [1, 2, 2, 3, 5, 6, 9, 13, 13, 15, 16, 17, 17];
+  smartRound.pending = {
+    kind: 'discard', from: 1, card: 2,
+    candidates: [{ seat: 0, ops: { hu: 0, peng: true, gang: false } }],
+    replies: new Map(),
+  };
+  let askedJevToBreakSequence = false;
+  const protectedSequence = smartRound.prepareAutoPlayJev(0, {
+    chooseDiscardResponse: async () => {
+      askedJevToBreakSequence = true;
+      return { op: 'peng', data: {} };
+    },
+  });
+  assert.deepEqual(await protectedSequence.promise, { op: 'pass' });
+  assert.equal(askedJevToBreakSequence, false, '1223 应保护 123 成牌，不允许 Jev 改成碰');
 
   // Jev 返回前若操作窗口已经变化，旧结果绝不能落到下一手。
   let responded = false;

@@ -292,6 +292,11 @@ const R234_MANIFEST_FILE = path.join(ROOT, 'originals', 'ios', 'qjqp-r234-projec
 const APP_ID = 'com.haoke.gandengyan';
 const APP_NAME = '潜江干瞪眼';
 const EXECUTABLE_NAME = 'QianjiangGandengyan';
+const PACKAGE_VERSION = arg('package-version', '1.0.6');
+const BUILD_NUMBER = arg('build-number', '238');
+if (!/^\d+\.\d+\.\d+$/.test(PACKAGE_VERSION) || !/^\d+$/.test(BUILD_NUMBER)) {
+  throw new Error('iOS 版本号无效，请使用 --package-version x.y.z --build-number n');
+}
 const WECHAT_APPID = process.env.QJQP_WECHAT_APPID || 'wx296b8ef20e6de62f';
 const normalizeWechatAppLink = (value) => {
   const raw = String(value || '').trim();
@@ -403,7 +408,7 @@ try {
     root: ROOT,
     workDir: stage,
     assetVersion: requestedAssetVersion,
-    packageVersion: '1.0.6',
+    packageVersion: PACKAGE_VERSION,
     serviceBaseUrl: HTTP_BASE,
     allowPrivateServiceUrl: true,
   });
@@ -573,9 +578,9 @@ l.default.uiHelper.showTip(t);
     `d['CFBundleIdentifier']=sys.argv[3]\n` +
     `d['CFBundleDisplayName']=sys.argv[4]\n` +
     `d['CFBundleName']=sys.argv[4]\n` +
-    `d['CFBundleShortVersionString']='1.0.6'\n` +
-    `d['CFBundleVersion']='238'\n` +
-    `d['version']='1.0.6'\n` +
+    `d['CFBundleShortVersionString']=sys.argv[10]\n` +
+    `d['CFBundleVersion']=sys.argv[11]\n` +
+    `d['version']=sys.argv[10]\n` +
     `d['NSLocationWhenInUseUsageDescription']=sys.argv[4]+'需要访问位置信息，以提供房间防作弊功能。'\n` +
     `d['NSMicrophoneUsageDescription']=sys.argv[4]+'需要使用麦克风，以发送游戏语音。'\n` +
     `d['QJQPVoiceBaseURL']=sys.argv[9]\n` +
@@ -596,7 +601,8 @@ l.default.uiHelper.showTip(t);
     `  icon.pop('CFBundleIconName',None)\n` +
     `with open(p,'wb') as f: plistlib.dump(d,f,fmt=plistlib.FMT_BINARY,sort_keys=False)\n`);
   run('python3', [plistScript, path.join(app, 'Info.plist'), EXECUTABLE_NAME, APP_ID, APP_NAME, WECHAT_APPID,
-    WECHAT_APPLINK, process.env.QJQP_VOICE_APPID || '', process.env.QJQP_VOICE_APPKEY || '', HTTP_BASE]);
+    WECHAT_APPLINK, process.env.QJQP_VOICE_APPID || '', process.env.QJQP_VOICE_APPKEY || '', HTTP_BASE,
+    PACKAGE_VERSION, BUILD_NUMBER]);
 
   const iconSource = path.join(ROOT, 'assets', 'branding', 'icon.png');
   for (const name of fs.readdirSync(app).filter((name) => /^AppIcon.*\.png$/.test(name))) {

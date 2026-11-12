@@ -2,6 +2,9 @@ const rules = require('./rules');
 const { maxStep } = require('./shared');
 const { MAX_CLUB_CARDS } = require('./clubs');
 const chinaDay = (time) => new Date(Number(time) + 8 * 3600000).toISOString().slice(0, 10);
+const DAY_MS = 86400000;
+const BOT_UID_MIN = 800000000;
+const BOT_UID_MAX = 900000000;
 
 const fail = (error, status = 400) => ({ error, status });
 const page = (items, query = {}) => {
@@ -26,7 +29,18 @@ const memberHand = (round, member, gameType) => {
 };
 
 class AdminData {
-  constructor(app, store) { this.app = app; this.store = store; }
+  constructor(app, store, { testTools = false } = {}) {
+    this.app = app; this.store = store; this.testTools = !!testTools;
+  }
+
+  botUids() {
+    const uids = new Set([...this.app.playersByUid.values()]
+      .filter((player) => player && player.bot).map((player) => Number(player.uid)));
+    for (const [token, player] of this.app.players.entries()) {
+      if (player && (player.bot || String(token).startsWith('t_bot_'))) uids.add(Number(player.uid));
+    }
+    return uids;
+  }
 
   onlineUids() {
     return new Set([...this.app.conns.values()].filter((conn) => conn.player && !conn.player.bot)
@@ -156,10 +170,21 @@ class AdminData {
     const table = this.app.tables.get(Number(id));
     if (!table || table.closed) return fail('房间不存在或已结束', 404);
     const round = table.round && !table.round.over ? table.round : null;
+    // 未开启测试工具时不返回任何玩家手牌和剩余牌堆。
+    if (!this.testTools) {
+      return { ...this.roomSummary(table), config: table.config, nextWskHandPlan: null,
+        nextWskPartnerPlan: null, wall: null,
+        members: table.members.map((member) => ({ uid: member.player.uid, nickname: member.player.nickname,
+          avatarUrl: member.player.avatarUrl || '', hand: [], drawnCard: null, site: member.site,
+          score: Number(member.score || 0) / (table.gameRules ? table.gameRules.RATIO : rules.RATIO),
+          bot: !!member.bot, spectator: !!member.view, online: !!member.online, trustee: !!member.trustee,
+          managedTrustee: !!member.managedTrustee })) };
+    }
     return { ...this.roomSummary(table), config: table.config,
       nextWskHandPlan: table.nextWskHandPlan ? {
         ...table.nextWskHandPlan, counts: { ...table.nextWskHandPlan.counts },
       } : null,
+      nextWskPartnerPlan: table.nextWskPartnerPlan ? { ...table.nextWskPartnerPlan } : null,
       wall: round ? { remaining: round.wall.remain(), cards: round.wall.remainCards(),
         drawPlan: round.drawPlan ? { ...round.drawPlan, cards: round.drawPlan.cards.slice() } : null } : null,
       members: table.members.map((member) => {
@@ -173,6 +198,7 @@ class AdminData {
   }
 
   setRoomDrawPlan(id, body) {
+    if (!this.testTools) return fail('测试工具未开启', 403);
     const table = this.app.tables.get(Number(id));
     if (!table || table.closed) return fail('房间不存在或已结束', 404);
     if (!table.round || table.round.over || typeof table.round.setDrawPlan !== 'function') {
@@ -185,6 +211,7 @@ class AdminData {
   }
 
   editRoomDrawPlan(id, operation, body) {
+    if (!this.testTools) return fail('测试工具未开启', 403);
     const table = this.app.tables.get(Number(id));
     if (!table || table.closed) return fail('房间不存在或已结束', 404);
     if (!table.round || table.round.over || typeof table.round.appendDrawCard !== 'function') {
@@ -201,6 +228,7 @@ class AdminData {
   }
 
   clearRoomDrawPlan(id) {
+    if (!this.testTools) return fail('测试工具未开启', 403);
     const table = this.app.tables.get(Number(id));
     if (!table || table.closed) return fail('房间不存在或已结束', 404);
     if (!table.round || table.round.over || typeof table.round.clearDrawPlan !== 'function') {
@@ -212,6 +240,7 @@ class AdminData {
   }
 
   setNextWskHandPlan(id, body) {
+    if (!this.testTools) return fail('测试工具未开启', 403);
     const table = this.app.tables.get(Number(id));
     if (!table || table.closed) return fail('房间不存在或已结束', 404);
     if (typeof table.setNextWskHandPlan !== 'function') return fail('该房间不支持指定起手牌');
@@ -222,10 +251,32 @@ class AdminData {
   }
 
   clearNextWskHandPlan(id) {
+    if (!this.testTools) return fail('测试工具未开启', 403);
     const table = this.app.tables.get(Number(id));
     if (!table || table.closed) return fail('房间不存在或已结束', 404);
     if (typeof table.clearNextWskHandPlan !== 'function') return fail('该房间不支持指定起手牌');
     const previous = table.clearNextWskHandPlan();
+    if (previous) this.app.persist();
+    return { roomId: table.roomId, cleared: previous };
+  }
+
+  setNextWskPartnerPlan(id, body) {
+    if (!this.testTools) return fail('测试工具未开启', 403);
+    const table = this.app.tables.get(Number(id));
+    if (!table || table.closed) return fail('房间不存在或已结束', 404);
+    if (typeof table.setNextWskPartnerPlan !== 'function') return fail('该房间不支持指定对家');
+    const result = table.setNextWskPartnerPlan(body.uid, body.partnerUid);
+    if (result.error) return fail(result.error);
+    this.app.persist();
+    return { roomId: table.roomId, nextWskPartnerPlan: result };
+  }
+
+  clearNextWskPartnerPlan(id) {
+    if (!this.testTools) return fail('测试工具未开启', 403);
+    const table = this.app.tables.get(Number(id));
+    if (!table || table.closed) return fail('房间不存在或已结束', 404);
+    if (typeof table.clearNextWskPartnerPlan !== 'function') return fail('该房间不支持指定对家');
+    const previous = table.clearNextWskPartnerPlan();
     if (previous) this.app.persist();
     return { roomId: table.roomId, cleared: previous };
   }
@@ -262,6 +313,55 @@ class AdminData {
       || String(record.id).includes(q) || (record.uids || []).some((uid) => String(uid).includes(q)))
       .slice().sort((a, b) => b.time - a.time).map((record) => this.recordSummary(record));
     return { ...page(items, query), retention: '仅保留最近300场战绩' };
+  }
+
+  leaderboard(query) {
+    const today = chinaDay(this.app.now());
+    const startDate = String(query.startDate || today).trim();
+    const endDate = String(query.endDate || startDate).trim();
+    const parseChinaDay = (value) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return NaN;
+      const time = Date.parse(`${value}T00:00:00+08:00`);
+      return Number.isFinite(time) && chinaDay(time) === value ? time : NaN;
+    };
+    const from = parseChinaDay(startDate);
+    const endStart = parseChinaDay(endDate);
+    if (!Number.isFinite(from) || !Number.isFinite(endStart)) return fail('日期格式无效');
+    if (from > endStart) return fail('开始日期不能晚于结束日期');
+    const to = endStart + DAY_MS;
+    const direction = query.sort === 'asc' ? 'asc' : 'desc';
+    const records = this.store && this.store.listRecordHistoryRange
+      ? this.store.listRecordHistoryRange(from, to)
+      : this.app.records.filter((record) => Number(record.time) >= from && Number(record.time) < to);
+    const botUids = this.botUids();
+    const scores = new Map();
+    for (const record of records) {
+      const gameRules = typeof rules.forGame === 'function' ? rules.forGame(record.gameId) : rules;
+      const ratio = Number(record.scoreRatio) > 0 ? Number(record.scoreRatio)
+        : Number(gameRules && gameRules.RATIO) || rules.RATIO;
+      for (const item of record.players || []) {
+        const uid = Number(item.uid);
+        if (!Number.isSafeInteger(uid) || uid <= 0) continue;
+        const player = this.app.playerByUid(uid);
+        if (item.bot || botUids.has(uid) || (uid >= BOT_UID_MIN && uid < BOT_UID_MAX)) continue;
+        const current = scores.get(uid) || {
+          uid, nickname: '', avatarUrl: '', score: 0, games: 0,
+        };
+        current.nickname = (player && player.nickname) || item.name || current.nickname || `玩家${uid}`;
+        current.avatarUrl = (player && player.avatarUrl) || item.avatarUrl || current.avatarUrl || '';
+        current.score += Number(item.score || 0) / ratio;
+        current.games++;
+        scores.set(uid, current);
+      }
+    }
+    const items = [...scores.values()].map((item) => ({
+      ...item, score: Math.round(item.score * 100) / 100,
+    })).filter((item) => item.score !== 0).sort((a, b) => {
+      const scoreOrder = direction === 'asc' ? a.score - b.score : b.score - a.score;
+      return scoreOrder || a.uid - b.uid;
+    });
+    return { ...page(items, { ...query, limit: query.limit || 50 }), startDate, endDate,
+      sort: direction, records: records.length };
   }
 
   record(id) {
@@ -435,6 +535,36 @@ class AdminData {
     const changed = this.app.setTrusteeWhitelist(uid, body.enabled);
     if (changed.error) return fail(changed.error);
     return { ...this.trustees(), changed };
+  }
+
+  recordCardWhitelist() {
+    const online = this.onlineUids();
+    const uids = (this.app.botSettings.recordCardWhitelist || []).slice().sort((a, b) => a - b);
+    const items = uids.map((uid) => {
+      const player = this.app.playerByUid(uid);
+      const roomId = Number(this.app.uidRoom.get(uid) || 0);
+      const connected = online.has(uid);
+      return {
+        uid,
+        nickname: player ? player.nickname : `玩家${uid}`,
+        roomId,
+        online: connected,
+        status: roomId && connected ? '牌桌中，可立即使用'
+          : roomId ? '牌桌中，等待重连' : connected ? '在线，进入牌桌后可用' : '离线',
+      };
+    });
+    return { count: items.length, onlineCount: items.filter((item) => item.online).length, items };
+  }
+
+  updateRecordCardWhitelist(body) {
+    const uid = Number(body.uid);
+    if (!Number.isSafeInteger(uid) || uid <= 0) return fail('玩家 ID 无效');
+    if (typeof body.enabled !== 'boolean') return fail('记牌器白名单参数无效');
+    const player = this.app.playerByUid(uid);
+    if (!player || player.bot) return fail('玩家不存在', 404);
+    const changed = this.app.setRecordCardWhitelist(uid, body.enabled);
+    if (changed.error) return fail(changed.error);
+    return { ...this.recordCardWhitelist(), changed };
   }
 
   updateNotices(body) {

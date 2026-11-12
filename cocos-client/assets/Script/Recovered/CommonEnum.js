@@ -89,6 +89,8 @@ e[e.DYHH = 20] = "DYHH";
 e[e.DBDAA = 21] = "DBDAA";
 e[e.XSWSK = 22] = "XSWSK";
 e[e.DDZ = 23] = "DDZ";
+e[e.TDAK = 24] = "TDAK";
+e[e.GD = 25] = "GD";
 })(o.eGameIds || (o.eGameIds = {}));
 (function(e) {
 e[e.MJ = 1] = "MJ";
@@ -97,6 +99,8 @@ e[e.D7 = 3] = "D7";
 e[e.WSK = 4] = "WSK";
 e[e.DBD = 5] = "DBD";
 e[e.DDZ = 6] = "DDZ";
+e[e.TDAK = 7] = "TDAK";
+e[e.GD = 8] = "GD";
 })(o.eGameCategort || (o.eGameCategort = {}));
 (function(e) {
 e[e.View2D = 2] = "View2D";

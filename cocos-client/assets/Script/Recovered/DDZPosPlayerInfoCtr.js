@@ -44,6 +44,25 @@ t.scoreLabel = null;
 t.playerNode = null;
 return t;
 }
+t.prototype.onLoad = function() {
+// The recovered jiab import has originalSize 87x311 instead of 65x65.
+// Player2 uses RAW sizing, so normalize before its first visible frame.
+var sprite = this.jiabei && this.jiabei.getComponent(cc.Sprite);
+var source = sprite && sprite.spriteFrame;
+if (!source) return;
+var rect = source.getRect();
+this._doubleBadgeFrame = new cc.SpriteFrame(source.getTexture(), rect,
+source.isRotated(), cc.v2(0, 0), cc.size(65, 65));
+sprite.sizeMode = cc.Sprite.SizeMode.CUSTOM;
+sprite.type = cc.Sprite.Type.SIMPLE;
+sprite.trim = true;
+sprite.spriteFrame = this._doubleBadgeFrame;
+this.jiabei.setContentSize(65, 65);
+};
+t.prototype.onDestroy = function() {
+if (this._doubleBadgeFrame) this._doubleBadgeFrame.destroy();
+this._doubleBadgeFrame = null;
+};
 t.prototype.start = function() {
 var e = this;
 a.default.eventUtils.on([ s.default.data_player_add, s.default.data_player_update, s.default.data_player_remove, s.default.data_game_score_change ], function() {

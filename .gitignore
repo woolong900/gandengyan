@@ -7,6 +7,16 @@ tools/.cache/
 dist/
 originals/**/*.ipa
 .DS_Store
+*.apk
+*.ipa
+*.idsig
+*.jks
+*.keystore
+*.p12
+*.mobileprovision
+.env
+.env.*
+app/outputs/
 ios-admin/SecretWeapon/GeneratedSecrets.swift
 ios-admin/.mobile-token
 ios-admin/build/

@@ -39,6 +39,7 @@ t.piaoDesc = [];
 return t;
 }
 t.prototype.start = function() {
+require("./PokerActionButtonStyle").applyPiao(this);
 for (var e = i.default.isWatcher(), t = 0, o = this.piaoBtns.length; t < o; t++) {
 this.piaoBtns[t].active = !1;
 this.piaoBtns[t].getComponent(cc.Button).interactable = !e;

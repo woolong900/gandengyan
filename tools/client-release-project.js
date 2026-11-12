@@ -120,6 +120,24 @@ const assertCurrentFixes = (source) => {
     ['3D 摸牌间距', 'if (C && l === o - 1)'],
     ['牌面异步加载防串图', 'o.__qjqpImgRequestId === n'],
     ['说胡子最新出牌定位', 'this.siteInfos.setLastPut(e);'],
+    ['说胡子完整记牌器点数', u2b('t._rankNames = [ "大", "小", "2", "A", "K", "Q", "J", "十", "9", "8", "7", "6", "5", "4", "3" ];')],
+    ['说胡子记牌器仅显示余牌', u2b('this._drawPanelBackground(515, 180);')],
+    ['说胡子记牌器白名单权限', 'u.default.gameLogic().isRecordCard(i.default.config) || !!i.default.recordCardWhitelisted'],
+    ['说胡子观战视角同步', 'msghead: "wsk_watch_view"'],
+    ['说胡子看牌申请', 'msghead: "wsk_watch_hand_request"'],
+    ['说胡子观战牌序同步', 'msghead: "wsk_hand_sort"'],
+    ['说胡子观战按目标牌序显示', 'handSortType: null != m.hand_sort_type ? Number(m.hand_sort_type) : 0'],
+    ['说胡子看牌同意弹窗', u2b('申请查看您的手牌，是否同意？')],
+    ['说胡子看牌按钮复用观看者图标', 'var a = i && i.spriteFrame ? i.spriteFrame : "Hall/Res/Texture/Game/icon_watch";'],
+    ['说胡子原生观战视角图标', 't = "Hall/Res/Texture/Game/icon_watch"'],
+    ['说胡子观战看牌按钮常显', 'this._watchHandButton.active = !!(l.default.isWatcher() && e && !(e.isWatcher && e.isWatcher()));'],
+    ['说胡子观战按钮安全初始化', 'WSK watch controls install failed'],
+    ['观战退出成功主动返回', '0 === e.error ? o && i.default.leaveRoom(!1)'],
+    ['记牌器白名单实时同步', '"record_card_access" === e && this._recordCardAccess(t);'],
+    ['牌桌防自动息屏', 'jsb.Device.setKeepScreenOn(!!e);'],
+    ['进房开启常亮', 'r.default.roomId = e.roomid;\nr.default.setKeepScreenOn(!0);'],
+    ['托管操作后清理旧按钮', '_.category !== i.eOperateCategory.Guo && R && R.updateOperateOptions(null);'],
+    ['说胡子记牌器余量配色', 'return 0 === e ? cc.color(85, 85, 85) : e <= 3 ? cc.color(255, 68, 68) : 4 === e ? cc.color(68, 255, 68) : cc.color(46, 125, 50);'],
     ['说胡子无牌可压提示', u2b('"没有牌大过对方"')],
     ['说胡子千分整牌资源', 'return "Games/Poker/card_" + t + o;'],
     ['说胡子千分手牌间距', 'var t = .93 * (this._totalW - 127);'],
@@ -129,6 +147,7 @@ const assertCurrentFixes = (source) => {
     ['战绩玩法动态名称', 'e.prototype.playName = function() {'],
     ['房间结束分享只显示玩法名', 'u = "' + u2b('玩法：') + '" + o;'],
     ['单局结算算分隐藏喜钱明细', 'n = String(n || "").split("' + u2b(',喜钱：') + '")[0];'],
+    ['纸牌总结算算分隐藏喜钱明细', 'o = String(o || "").split("' + u2b(',喜钱：') + '")[0];'],
     ['潜江晃晃玩法名', u2b('desc: "潜江晃晃"')],
     ['应用下载分享地址', 'var t = this.downloadBaseUrl() + "/download";'],
     ['客服会话历史', 'msghead: "support_history"'],
@@ -137,6 +156,9 @@ const assertCurrentFixes = (source) => {
     ['热更新失败断点重试', 'this._am.downloadFailedAssets();'],
     ['热更新临时文件自愈', 'this._storagePath + "_temp/"'],
     ['热更新恢复状态持久化', '__QJQP_HOT_UPDATE_RECOVERY__'],
+    ['热更新单文件失败不清空进度', 'this._failedFiles++;'],
+    ['热更新文件大小校验', 't.prototype._verifyAsset = function(e, t) {'],
+    ['整包升级清理热更新状态', 'e.prototype._cleanHotUpdateState = function() {'],
     ['热更新下载量提示', 'this._eventNumber(t, "getDownloadedBytes")'],
     ['热更新阶段明确提示', u2b('正在更新游戏资源，请勿退出')],
     ['热更新界面优先绘制', 't.scheduleOnce(function() {\nt.hotUpdate.hotUpdate(n.version, l);\n}, .05);'],
@@ -148,6 +170,14 @@ const assertCurrentFixes = (source) => {
   ];
   for (const [label, snippet] of required) {
     if (!source.includes(snippet)) throw new Error(`客户端单一源码缺少“${label}”修复`);
+  }
+  const wskGameInfo = source.indexOf('t.prototype._gameInfo = function', source.indexOf('"AnalysisMsgWSK"'));
+  const wskWatchView = source.indexOf('t.prototype._watchView = function', wskGameInfo);
+  const wskParsePlayer = source.indexOf('t.prototype._parsePlayer = function', wskGameInfo);
+  if (wskGameInfo < 0 || wskWatchView < 0 || wskParsePlayer < 0
+      || !(wskGameInfo < wskWatchView && wskWatchView < wskParsePlayer)
+      || !source.slice(wskGameInfo, wskWatchView).includes('c.default.updateGameData(D);')) {
+    throw new Error('说胡子看牌消息处理方法被错误嵌套进 _gameInfo');
   }
 };
 
@@ -189,8 +219,8 @@ const buildReleaseProjectSource = ({
     const serviceHttp = serviceBaseUrl.replace(/\/$/, '');
     const serviceWs = `${serviceUrl.protocol === 'https:' ? 'wss:' : 'ws:'}//${serviceUrl.host}`;
     source = source
-      .split('https://gmhiu.com').join(serviceHttp)
-      .split('wss://gmhiu.com').join(serviceWs)
+      .split('https://gandengyan.top').join(serviceHttp)
+      .split('wss://gandengyan.top').join(serviceWs)
       .split('https://game.auxvv.com').join(serviceHttp)
       .split('wss://game.auxvv.com').join(serviceWs);
 

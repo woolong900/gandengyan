@@ -13,6 +13,10 @@ const SOURCE_ICON = path.join(ROOT, 'assets', 'branding', 'icon.png');
 if (!fs.existsSync(INDEX)) throw new Error(`Cocos Web 构建不存在：${INDEX}`);
 if (!fs.existsSync(SOURCE_ICON)) throw new Error(`PWA 图标不存在：${SOURCE_ICON}`);
 
+// Keep recovered GD subframes at their original size, including rotated buttons.
+require('./repair-gd-atlas-frames').repair(BUILD);
+require('./repair-gd-atlas-frames').repairMarkers(BUILD);
+
 const writeIcon = (size) => {
   const output = path.join(BUILD, `icon-${size}.png`);
   try {
@@ -101,6 +105,7 @@ const walk = (directory) => {
 walk(BUILD);
 files.sort();
 const fingerprint = crypto.createHash('sha256');
+fingerprint.update('pwa-cache-policy-v2');
 for (const filename of files) {
   fingerprint.update(path.relative(BUILD, filename));
   fingerprint.update(fs.readFileSync(filename));
@@ -118,7 +123,9 @@ fs.writeFileSync(path.join(BUILD, 'sw.js'), `const CACHE = "qjqp-pwa-${version}"
 const PRECACHE = ${JSON.stringify(precache)};
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(PRECACHE)));
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(
+    PRECACHE.map((url) => new Request(url, { cache: "reload" }))
+  )));
   self.skipWaiting();
 });
 
@@ -143,7 +150,9 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  event.respondWith(caches.match(request).then((cached) => cached || fetch(request).then((response) => {
+  // A new build cache must not be populated from the previous build's HTTP
+  // cache. Cocos bundles keep stable filenames across recovered rebuilds.
+  event.respondWith(caches.open(CACHE).then((cache) => cache.match(request)).then((cached) => cached || fetch(request, { cache: "no-cache" }).then((response) => {
     if (response.ok && response.status === 200) {
       caches.open(CACHE).then((cache) => cache.put(request, response.clone()));
     }

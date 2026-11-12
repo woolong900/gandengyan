@@ -28,6 +28,7 @@ for (var t = e.siteInfos || [], o = 0, r = t.length; o < r; o++) {
 var i = t[o], l = i.pos, c = this.siteInfos.get(l);
 c.clean(!1);
 c.udpateHandCards(i.handCards);
+null != i.handSortType && c.sortCards(Number(i.handSortType) || 0);
 c.updateRank(i.rank, !1);
 c.updatePickUpScore(i.pickScore, !1);
 c.updateXiCard(i.xiCards, !1);

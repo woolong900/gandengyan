@@ -48,6 +48,11 @@ this._right = this._sv.node.getContentSize().width / 2;
 this._left = -this._right;
 };
 t.prototype.update = function() {
+// Recovered web builds may contain only the default render group. Assigning
+// a missing group gives the node an invalid index and hides every club table.
+// The ScrollView mask still clips its children without this optional culling.
+var groups = cc.game && cc.game.groupList;
+if (!groups || groups.indexOf("UI") < 0 || groups.indexOf("NoRender") < 0) return;
 var e = this, t = this._con.children;
 if (!(t.length <= 0)) {
 var o = t[0].getContentSize(), n = o.width / 2, r = o.height / 2, i = this._top + r, a = this._bottom - r, s = this._left - n, l = this._right + n;

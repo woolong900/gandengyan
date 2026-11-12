@@ -17,10 +17,11 @@ const options = {
 };
 const source = buildReleaseProjectSource(options);
 const decoded = toJs(buildReleaseProjectJsc(options)).toString('binary');
+const retiredDomain = ['gm', 'hiu.com'].join('');
 assert.equal(decoded, source, '共用源码编解码必须无损');
 assert(source.startsWith('window.__require=function e(t,o,n)'));
-assert(source.includes('throw new Error("Cannot find module \'"+a+"\'")}a=l}var u=o[a]'),
-  '整包生成器丢失模块 basename 回退修复');
+assert(source.includes('throw new Error("Cannot find module \'"+a+"\'")}a=l;if(o[a])return o[a].exports}var u=o[a]'),
+  '整包生成器丢失模块 basename 回退或单例缓存修复');
 assert(!source.includes('throw new Error("Cannot find module \'"+a+"\'")}}var u=o[a]'),
   '整包仍会在模块回退后访问旧 key');
 assert(source.includes('assertVer: 987654,\npackageVer: "1.0.6",'));
@@ -28,6 +29,24 @@ assert(source.includes('https://203.0.113.10/version'));
 assert(source.includes('https://203.0.113.10/login'));
 assert(source.includes('wss://203.0.113.10/ws'));
 assert(!source.includes('game.auxvv.com'), '发布客户端仍包含旧服务域名');
+assert(!source.includes(retiredDomain), '发布客户端仍包含已停用服务域名');
+for (const file of [
+  '.dev.vars',
+  'config/qianjiang-gandengyan.entitlements',
+  'server/avatars.js',
+  'tools/ios-voice-fix/QJVoiceFix.m',
+  'client-release-source/assets/Script/Recovered/GameConstant.js',
+  'client-release-source/assets/Script/Recovered/LoadingLayer.js',
+  'cocos-client/assets/Script/Recovered/GameConstant.js',
+  'cocos-client/assets/Script/Recovered/LoadingLayer.js',
+]) {
+  const absolute = path.join(ROOT, file);
+  if (fs.existsSync(absolute)) {
+    assert(!fs.readFileSync(absolute, 'utf8').includes(retiredDomain), `${file} 仍包含已停用服务域名`);
+  }
+}
+assert(!fs.readdirSync(path.join(ROOT, 'deploy')).some((name) => name.includes(retiredDomain.split('.')[0])),
+  '部署模板文件名仍包含已停用服务名称');
 assert(source.includes('var t = this.downloadBaseUrl() + "/download";'),
   '客户端分享链接没有指向应用下载页');
 assert(source.includes('encodeURIComponent(r) + "=" + encodeURIComponent(String(t[r]))'),
@@ -49,6 +68,12 @@ assert(!source.includes('c = h.default.b3N2(i.length) && e._handDrawnCard, d = 0
 assert(!source.includes('var o = e.handCards.length, n = c.default.b3N2(o) && e._handDrawnCard;'));
 assert(source.includes('S.ready = void 0 !== C.ready ? !!C.ready : S.ready || !1;'),
   '客户端重连没有从房间快照还原准备状态');
+assert(source.includes('jsb.Device.setKeepScreenOn(!!e);')
+  && source.includes('r.default.roomId = e.roomid;\nr.default.setKeepScreenOn(!0);')
+  && source.includes('e.prototype.leaveRoom = function(e) {\nvoid 0 === e && (e = !0);\nthis.setKeepScreenOn(!1);'),
+  '客户端没有在进入牌桌时保持屏幕常亮，或离开时未恢复系统息屏');
+assert(source.includes('_.category !== i.eOperateCategory.Guo && R && R.updateOperateOptions(null);'),
+  '客户端收到托管操作结果后没有清理已失效的操作按钮');
 assert(source.includes('o.__qjqpImgRequestId === n'),
   '客户端缺少牌面异步加载防串图保护');
 assert(source.includes('this._lastPutPos = -1;')
@@ -82,6 +107,8 @@ assert(source.includes('u = "' + Buffer.from('玩法：', 'utf8').toString('bina
   '房间结束分享图没有只显示游戏名');
 assert.equal(source.split('n = String(n || "").split("' + Buffer.from(',喜钱：', 'utf8').toString('binary') + '")[0];').length - 1, 2,
   '单局或整房统计图的算分项仍会显示喜钱明细');
+assert.equal(source.split('o = String(o || "").split("' + Buffer.from(',喜钱：', 'utf8').toString('binary') + '")[0];').length - 1, 1,
+  '纸牌类总结算图的算分项仍会显示喜钱明细');
 assert(source.includes(Buffer.from('desc: "潜江晃晃"', 'utf8').toString('binary'))
   && !source.includes(Buffer.from('desc: "潜江癞晃"', 'utf8').toString('binary')),
   '干瞪眼建房页的子玩法名称不是潜江晃晃');
@@ -94,6 +121,16 @@ assert(source.includes('Date.now() - this._lastProgressAt >= 3e4')
   && source.includes('this._storagePath + "_temp/"')
   && source.includes('__QJQP_HOT_UPDATE_RECOVERY__'),
   '热更新缺少停滞检测、失败重试或临时文件自愈');
+assert(source.includes('case jsb.EventAssetsManager.ERROR_UPDATING:\nthis._failedFiles++;')
+  && !source.includes(Buffer.from('this._scheduleRetry("部分文件校验失败", "restart");', 'utf8').toString('binary')),
+  '热更新单个文件下载失败时不应清空进度或重启');
+assert(source.includes('} else if (this._corruptSeen && !this._retryCleaned) {')
+  && source.includes('t.prototype._verifyAsset = function(e, t) {'),
+  '热更新缺少文件大小校验，或网络失败时仍会清理已下载内容');
+assert(source.includes('e.prototype._cleanHotUpdateState = function() {'),
+  '整包升级时没有清理热更新版本记录和搜索路径');
+assert(source.includes('Math.max(r.default.assertVer, parseInt(cc.sys.localStorage.getItem("__QJQP_ASSERT_VERSION__")'),
+  '版本检测没有使用热更新成功后持久化的资源版本');
 assert(source.includes('this._eventNumber(t, "getDownloadedBytes")')
   && source.includes('this._eventNumber(t, "getTotalBytes")')
   && source.includes('this._formatBytes(n) + "/" + this._formatBytes(r)')
@@ -164,12 +201,27 @@ for (const name of ['editboxTestAccount', 'buttonTestLogin']) {
 }
 assert(!patchedLoginScene.some((entry) => entry?._string === '测试ID登录'
   || entry?._N$string === '测试ID登录'));
+const loadingLayerNode = patchedLoginScene.find((entry) => entry?.__type__ === 'cc.Node'
+  && entry._name === 'LoadingLayer');
+const loadingLayer = loadingLayerNode._components
+  .find((component) => component?.__type__ === 'd9c39za1dlEm6nt66eZh2f0');
+const updateDescLabel = patchedLoginScene[loadingLayer.desc.__id__];
+const updateDescNode = patchedLoginScene[updateDescLabel.node.__id__];
+assert.equal(updateDescNode._contentSize.width, 760, '更新说明区域宽度不足');
+assert.equal(updateDescNode._contentSize.height, 52, '更新说明区域高度不正确');
+assert.equal(updateDescLabel._enableWrapText, false, '更新说明仍会自动换行');
+assert.equal(updateDescLabel._N$horizontalAlign, 1, '更新说明没有居中显示');
 
 for (const script of ['patchapk.js', 'build-ios-ipa.js', 'publish-hot-update.js']) {
   const body = fs.readFileSync(path.join(__dirname, script), 'utf8');
   assert(body.includes("require('./client-release-project')"), `${script} 没有使用客户端单一源码`);
   assert(body.includes('buildReleaseProject'), `${script} 没有调用共用构建器`);
 }
+const apkBuildScript = fs.readFileSync(path.join(__dirname, 'patchapk.js'), 'utf8');
+assert(apkBuildScript.includes(':qjqp_system_ui_restored')
+  && apkBuildScript.includes('Lorg/cocos2dx/lib/Utils;->hideVirtualButton()V')
+  && apkBuildScript.includes('onWindowFocusChanged\\(Z\\)V'),
+  'Android 整包没有在窗口恢复焦点时重新启用沉浸式全屏');
 
 const iosBuildScript = fs.readFileSync(path.join(__dirname, 'build-ios-ipa.js'), 'utf8');
 assert(iosBuildScript.includes("'com.apple.developer.associated-domains': associatedDomains"),
@@ -178,8 +230,8 @@ const iosEntitlements = fs.readFileSync(
   path.join(ROOT, 'config', 'qianjiang-gandengyan.entitlements'),
   'utf8',
 );
-assert(iosEntitlements.includes('<string>applinks:gmhiu.com</string>'),
-  'iOS 企业重签权限文件缺少 gmhiu.com');
+assert(iosEntitlements.includes('<string>applinks:gandengyan.top</string>'),
+  'iOS 企业重签权限文件缺少 gandengyan.top');
 
 const totalEndAsset = 'c94a0fd3-4986-461e-84f9-82e8ed06697c.json';
 for (const script of ['patchapk.js', 'build-ios-ipa.js', 'publish-hot-update.js']) {

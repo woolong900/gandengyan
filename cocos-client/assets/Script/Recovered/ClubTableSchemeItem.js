@@ -117,12 +117,12 @@ r = "开启玩法";
 var l = "<color=#5D461A>" + n + "</c><color=#BB6825>" + o + "</c>";
 a.default.uiHelper.show(f.eWindowID.MsgBoxLayer, l, r, function() {
 var o = !t._auto;
-h.default.clubGameSchemeAuto(e._schemeId, o, function(e, t) {
-if (t) a.default.uiHelper.showTip("设置玩法失败"); else if (0 === e.res.error) {
+h.default.clubGameSchemeAuto(e._schemeId, o, function(reply, t) {
+if (t) a.default.uiHelper.showTip("设置玩法失败"); else if (reply && reply.res && 0 === reply.res.error) {
 a.default.uiHelper.showTip("设置玩法成功");
 a.default.eventUtils.emit(s.default.data_club_get_scheme_list);
 h.default.getClubTableInfo(e._clubId, function() { a.default.eventUtils.emit(s.default.data_club_table_scheme_update); }, !0);
-} else a.default.uiHelper.showTip(e.res.what);
+} else a.default.uiHelper.showTip(reply && reply.res && reply.res.what || "设置玩法失败");
 });
 });
 };

@@ -625,6 +625,21 @@ const boot = (n, extra = {}) => {
 }
 
 {
+  const { round } = boot(2, {
+    玩法: '土豪必杠', 只许自摸: true, 清一色: false, 双大胡: true,
+  });
+  round.seats[0].bot = true;
+  round.pizi = 18;
+  round.laizi = 19;
+  round.hands[0] = [5, 5, 5, 1, 2, 3, 7, 8, 9, 11, 12, 13, 14];
+  round.drawn[0] = 5;
+  round.melds[0] = [];
+  const pending = { kind: 'self', seat: 0, hu: false, gang: [5], qys: false };
+  t('智能机器人摸齐普通暗杠后必定选择暗杠',
+    mahjongBot.chooseSelfAction(round, 0, pending), { op: 'gang', data: { card: 5 } });
+}
+
+{
   const { round } = boot(2, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false });
   round.seats[0].bot = true;
   round.pizi = 15;
@@ -654,6 +669,61 @@ const boot = (n, extra = {}) => {
 {
   const { round } = boot(3, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false });
   round.seats[0].bot = true;
+  round.pizi = 8;
+  round.laizi = 9;
+  // 两副露牌后手里剩 12233344 条。打 1 与打 3 都不退向听，
+  // 但打 1 能保留 333 刻子及后续暗杠机会，不能为了两副顺子拆 3。
+  round.hands[0] = [11, 12, 12, 13, 13, 13, 14];
+  round.drawn[0] = 14;
+  round.melds[0] = [
+    { type: 'peng', card: 1, from: 1 },
+    { type: 'peng', card: 2, from: 2 },
+  ];
+  round.turn = 0;
+  round.pending = null;
+  round.discards = [[], [], []];
+  round.shuai = [[], [], []];
+  round.gangs = [];
+  round.baoQys = [false, false, false];
+  round.inferredVisible = [new Map(), new Map(), new Map()];
+  round.wall.remain = () => 20;
+  const ranked = mahjongBot.rankDiscardOptions(round, 0, { limit: 4 });
+  t('12233344条同牌效时打1保留333刻子', ranked[0].card, 11);
+  t('12233344条不再把拆刻子的3条交给Jev翻案',
+    ranked.map(({ card }) => card).includes(13), false);
+}
+
+{
+  const { round } = boot(3, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false });
+  round.seats[0].bot = true;
+  round.pizi = 28;
+  round.laizi = 29;
+  // 两副露牌后，677788 条外加 12 筒。打 6 与打 8 的向听及胡口一样，
+  // 但打 6 能真正保留 777 刻子 + 88 对子；打 8 的 67778 不能把
+  // 777 同时重复算成 678 搭子。
+  round.hands[0] = [1, 16, 17, 17, 17, 18, 18];
+  round.drawn[0] = 2;
+  round.melds[0] = [
+    { type: 'peng', card: 11, from: 1 },
+    { type: 'peng', card: 12, from: 2 },
+  ];
+  round.turn = 0;
+  round.pending = null;
+  round.discards = [[], [], []];
+  round.shuai = [[], [], []];
+  round.gangs = [];
+  round.baoQys = [false, false, false];
+  round.inferredVisible = [new Map(), new Map(), new Map()];
+  round.wall.remain = () => 30;
+  const ranked = mahjongBot.rankDiscardOptions(round, 0, { limit: 4 });
+  t('677788同牌效时打6保留777刻子和88对子', ranked[0].card, 16);
+  t('677788不再把拆对子的8交给Jev翻案',
+    ranked.map(({ card }) => card).includes(18), false);
+}
+
+{
+  const { round } = boot(3, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false });
+  round.seats[0].bot = true;
   round.pizi = 18;
   round.laizi = 19;
   round.hands[0] = [1, 2, 4, 5, 5, 11, 12, 13, 21, 22, 23, 31, 31];
@@ -669,6 +739,191 @@ const boot = (n, extra = {}) => {
 {
   const { round } = boot(3, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false });
   round.seats[0].bot = true;
+  round.pizi = 4;
+  round.laizi = 5;
+  // 已有两副露，手里 456/789 是两副完整顺子，新摸的 9 是重复闲张。
+  // 即使 5 是癞子，也不能为了补摸和翻倍拆掉 456。
+  round.hands[0] = [4, 5, 6, 7, 8, 9, 9];
+  round.drawn[0] = 9;
+  round.melds[0] = [
+    { type: 'peng', card: 11, from: 1 },
+    { type: 'peng', card: 12, from: 2 },
+  ];
+  round.turn = 0;
+  round.pending = null;
+  round.discards = [[], [], []];
+  round.shuai = [[], [], []];
+  round.gangs = [];
+  t('癞子参与456且有789时保留两副成牌、打重复9条',
+    mahjongBot.chooseDiscard(round, 0), 9);
+}
+
+{
+  const { round } = boot(3, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false, 双大胡: true });
+  round.seats[0].bot = true;
+  round.pizi = 15;
+  round.laizi = 16;
+  // 线上回放实例：5678 两头都可以拆，上家刚打过 5，
+  // 而 8 还没出现过。两种打法向听和完整面子数一样，应打安全5保留678。
+  round.hands[0] = [1, 2, 3, 6, 7, 8, 13, 13, 13, 15, 16, 18, 18];
+  round.drawn[0] = 5;
+  round.melds = [[], [], [{ type: 'peng', card: 9, from: 1 }]];
+  round.turn = 0;
+  round.pending = null;
+  round.discards = [
+    [19, 7, 19, 19, 9, 1, 3, 12],
+    [1, 12, 12, 3, 2, 5, 11],
+    [1, 2, 2, 12, 11, 3, 18, 6],
+  ];
+  round.shuai = [[16], [], []];
+  round.gangs = [];
+  round.baoQys = [false, false, false];
+  round.inferredVisible = [new Map(), new Map(), new Map()];
+  round.wall.remain = () => 7;
+  const ranked = mahjongBot.rankDiscardOptions(round, 0, { limit: 4 });
+  t('5678两头拆法都进入候选', ranked.map(({ card }) => card).includes(5), true);
+  t('5678残局打已见安5、保留678', mahjongBot.chooseDiscard(round, 0), 5);
+}
+
+{
+  const { round } = boot(3, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false, 双大胡: true });
+  round.seats[0].bot = true;
+  round.pizi = 9;
+  round.laizi = 1;
+  // 线上第 5 小局回放：其他四副顺子已成，筒子 12345 中
+  // 打 4 只胡 5，打 1 则保留 2345，可胡 2/5。
+  round.hands[0] = [3, 4, 5, 7, 8, 9, 12, 13, 14, 15, 17, 18, 19];
+  round.drawn[0] = 11;
+  round.melds = [[], [{ type: 'peng', card: 11, from: 2 }], []];
+  round.turn = 0;
+  round.pending = null;
+  round.discards = [
+    [8, 4, 14, 17, 19],
+    [18, 18, 6, 7, 14, 12],
+    [12, 16, 4, 17, 8, 8],
+  ];
+  round.shuai = [[1, 1], [], [1, 1]];
+  round.gangs = [];
+  round.baoQys = [false, false, false];
+  round.inferredVisible = [new Map([[11, 3]]), new Map(), new Map()];
+  round.wall.remain = () => 10;
+  const ranked = mahjongBot.rankDiscardOptions(round, 0, { limit: 4 });
+  t('12345听牌时打1筒保留2/5筒双面听', ranked[0].card, 11);
+  t('12345打1筒后胡口是2/5筒',
+    ranked[0].analysis.waits.map(({ card }) => card), [12, 15]);
+}
+
+{
+  const { round } = boot(3, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false, 双大胡: true });
+  round.seats[0].bot = true;
+  round.pizi = 2;
+  round.laizi = 3;
+  // 线上第 15 小局回放：全手下一张的有效进张数虽然相同，
+  // 但 6779 打 9 留下 677，后续牌形明显比打 6 留 779 更完整。
+  round.hands[0] = [1, 3, 5, 6, 6, 7, 7, 13, 14, 16, 17, 17, 19];
+  round.drawn[0] = 2;
+  round.melds = [[], [], []];
+  round.turn = 0;
+  round.pending = null;
+  round.discards = [[9], [1], [9]];
+  round.shuai = [[3], [], []];
+  round.gangs = [];
+  round.baoQys = [false, false, false];
+  round.inferredVisible = [new Map(), new Map(), new Map()];
+  round.wall.remain = () => 27;
+  const ctx = mahjongBot._test.context(round, 0);
+  const tiles = round.looseTiles(0);
+  const after16 = tiles.slice();
+  after16.splice(after16.indexOf(16), 1);
+  const after19 = tiles.slice();
+  after19.splice(after19.indexOf(19), 1);
+  const ranked = mahjongBot.rankDiscardOptions(round, 0, { limit: 4 });
+  t('6779两种拆法的全手即时进张相同',
+    Number(mahjongBot._test.analyze(ctx, after16, 0).expectedOuts.toFixed(6)),
+    Number(mahjongBot._test.analyze(ctx, after19, 0).expectedOuts.toFixed(6)));
+  t('6779进张相同时打9筒保留677', ranked[0].card, 19);
+}
+
+{
+  const { round } = boot(3, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false, 双大胡: true });
+  round.seats[0].bot = true;
+  round.pizi = 2;
+  round.laizi = 3;
+  // 房 452247 第 10 局：上家打 8 筒，下家收到碰提示后选过，
+  // 所以本家能从公开时序中推出 8 筒至少已出现三张。79 筒只剩
+  // 一张可进，前中盘应拆死嵌张，不应拆 99 条对子保它。
+  round.hands[0] = [2, 3, 3, 5, 5, 5, 7, 9, 9, 11, 12, 17, 19];
+  round.drawn[0] = 12;
+  round.melds = [[], [{ type: 'peng', card: 1, from: 2 }], []];
+  round.turn = 0;
+  round.pending = null;
+  round.discards = [[], [18], []];
+  round.shuai = [[], [], []];
+  round.gangs = [];
+  round.baoQys = [false, false, false];
+  round.inferredVisible = [new Map([[18, 3]]), new Map(), new Map()];
+  round.wall.remain = () => 30;
+  const ctx = mahjongBot._test.context(round, 0);
+  t('下家过8筒碰后推断全局只剩1张8筒', ctx.remaining.get(18), 1);
+  const ranked = mahjongBot.rankDiscardOptions(round, 0, { limit: 4 });
+  t('79筒成为死嵌张时打9筒保留99条',
+    [ranked[0].card, ranked[0].staleGapEscape], [19, true]);
+  round.inferredVisible = [new Map(), new Map(), new Map()];
+  t('8筒仍有多张时不为拆嵌张强行退向听',
+    mahjongBot.chooseDiscard(round, 0), 9);
+}
+
+{
+  const { round } = boot(3, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false, 双大胡: true });
+  round.seats[0].bot = true;
+  round.pizi = 12;
+  round.laizi = 13;
+  // 房 452247 第 15 小局：暗杠 4 条补摸后，112 筒兼具对子、
+  // 123 顺子和朝天发展，不能只因即时进张略多就拆 1 筒。
+  round.hands[0] = [2, 5, 6, 6, 7, 11, 11, 12, 16, 19];
+  round.drawn[0] = 16;
+  round.melds = [[{ type: 'an', card: 4, from: 0 }], [{ type: 'peng', card: 1, from: 2 }], []];
+  round.turn = 0;
+  round.pending = null;
+  round.discards = [[], [7], [1]];
+  round.shuai = [[], [], []];
+  round.gangs = [{ seat: 0, type: 'an', card: 4, from: null }];
+  round.baoQys = [false, false, false];
+  round.inferredVisible = [new Map(), new Map(), new Map()];
+  round.seats[0].score = -720;
+  round.seats[1].score = 4680;
+  round.seats[2].score = -3960;
+  round.wall.remain = () => 28;
+  const ranked = mahjongBot.rankDiscardOptions(round, 0, { limit: 6 });
+  t('112筒与孤9筒并存时先打9筒', ranked[0].card, 19);
+  t('前中盘使用固定成本三轮模拟',
+    [ranked[0].projection.rounds, ranked[0].strategy.mode], [3, 'attack']);
+}
+
+{
+  const { round } = boot(3, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false });
+  const profile = () => mahjongBot._test.strategyProfile(mahjongBot._test.context(round, 0));
+  round.seats.forEach((member) => { member.score = 0; });
+  t('累计分接近时采用均衡策略', profile().mode, 'balanced');
+  round.seats[0].score = 1000;
+  t('整场明显领先时切换防守策略', profile().mode, 'defense');
+  round.seats[0].score = -1000;
+  round.seats[1].score = 1000;
+  t('整场明显落后时切换进攻策略', profile().mode, 'attack');
+  t('进攻策略提高成牌收益权重',
+    profile().projectionWinWeight > 15000, true);
+
+  round.shuai[1] = [round.laizi, round.laizi, round.laizi];
+  const threeLaizi = profile();
+  t('对手三癞后碰杠风险权重提高到2.5倍',
+    [threeLaizi.laiziPressure.maximum, threeLaizi.riskMultiplier], [3, 2.5]);
+  round.shuai[1].push(round.laizi);
+  t('对手四癞后碰杠风险权重提高到4倍', profile().riskMultiplier, 4);
+}
+
+{
+  const { round } = boot(3, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false });
+  round.seats[0].bot = true;
   round.pizi = 18;
   round.laizi = 19;
   round.hands[0] = [5, 5, 5, 1, 2, 4, 6, 7, 8, 11, 12, 13, 21];
@@ -679,6 +934,67 @@ const boot = (n, extra = {}) => {
   t('机器人对合法点杠直接选择杠',
     mahjongBot.chooseDiscardResponse(round, 0, pending, candidate),
     { op: 'gang', data: { card: 5 } });
+}
+
+{
+  const { round } = boot(3, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false });
+  round.seats[0].bot = true;
+  round.pizi = 18;
+  round.laizi = 19;
+  round.hands[0] = [1, 2, 2, 3, 5, 6, 9, 13, 13, 15, 16, 17, 17];
+  round.drawn[0] = null;
+  round.melds[0] = [];
+  const pending = { kind: 'discard', from: 1, card: 2 };
+  const candidate = { seat: 0, ops: { hu: 0, peng: true, gang: false } };
+  t('1223筒保留123成牌不碰2筒',
+    mahjongBot.chooseDiscardResponse(round, 0, pending, candidate),
+    { op: 'pass' });
+  t('1223筒被识别为碰后拆顺子',
+    mahjongBot.pengBreaksCompletedSequence(round, 0, 2), true);
+
+  // 没有占用完整顺子的普通对子仍按牌效判断，避免把机器人所有碰牌都关掉。
+  round.hands[0] = [2, 2, 4, 9, 11, 13, 14, 14, 16, 16, 16, 17, 17];
+  t('普通对子仍可按牌效选择碰',
+    mahjongBot.chooseDiscardResponse(round, 0, pending, candidate),
+    { op: 'peng' });
+  t('普通对子不触发拆顺子保护',
+    mahjongBot.pengBreaksCompletedSequence(round, 0, 2), false);
+}
+
+{
+  // 11 条 / 44 条对倒，旁边已有 345678 筒。碰掉别人打出的 1 条后，
+  // 应允许拆掉筒子长顺的一端改成三面听，而不是死守两副顺子单听 4 条。
+  const { round } = boot(3, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false });
+  round.seats[0].bot = true;
+  round.pizi = 9;
+  round.laizi = 8;
+  round.hands[0] = [1, 1, 4, 4, 13, 14, 15, 16, 17, 18, 21, 22, 23];
+  round.drawn[0] = null;
+  round.melds = [[], [], []];
+  round.discards = [[], [1], []];
+  round.shuai = [[], [], []];
+  round.gangs = [];
+  round.wall.remain = () => 30;
+  const pending = { kind: 'discard', from: 1, card: 1 };
+  const candidate = { seat: 0, ops: { hu: 0, peng: true, gang: false } };
+  t('11条44条对倒配345678筒时选择碰1条',
+    mahjongBot.chooseDiscardResponse(round, 0, pending, candidate), { op: 'peng' });
+
+  const afterPeng = round.hands[0].filter((card) => card !== 1);
+  const ranked = mahjongBot._test.evaluateDiscardCandidates(
+    mahjongBot._test.context(round, 0), afterPeng, 1, [...new Set(afterPeng)],
+    { lookahead: false }
+  );
+  t('碰1条后拆筒子长顺一端形成三面听',
+    {
+      discard: ranked[0].card,
+      waits: ranked[0].analysis.waits.map((item) => item.card),
+      outs: ranked[0].analysis.winningOuts,
+    },
+    { discard: 13, waits: [13, 16, 19], outs: 10 });
+  const discardEight = ranked.find((item) => item.card === 18);
+  t('碰后打8筒可胡258筒',
+    discardEight && discardEight.analysis.waits.map((item) => item.card), [12, 15, 18]);
 }
 
 {
@@ -852,9 +1168,64 @@ const boot = (n, extra = {}) => {
   const decision = mahjongBot._test.shuaiDecision(
     mahjongBot._test.context(round, 0), round.looseTiles(0), 0
   );
-  t('手里多于一张癞子时必须先甩到剩一张',
+  t('双癞且牌形未到一向听时先留癞子',
     { should: decision.should, reason: decision.reason },
-    { should: true, reason: '多癞子必须先甩' });
+    { should: false, reason: '牌形未到一向听' });
+}
+
+{
+  const { round } = boot(4, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false });
+  round.seats[0].bot = true;
+  round.laizi = 19;
+  round.pizi = 18;
+  // 甩掉一张9筒后，123/456条、123/55筒已成，手里79筒听8筒。
+  // 这时应先解除“多癞不能胡”，而不是继续拖着双癞。
+  round.hands[0] = [1, 2, 3, 4, 5, 6, 11, 12, 13, 15, 15, 17, 19];
+  round.drawn[0] = 19;
+  round.melds[0] = [];
+  round.shuai = [[], [], [], []];
+  round.gangs = [];
+  const decision = mahjongBot._test.shuaiDecision(
+    mahjongBot._test.context(round, 0), round.looseTiles(0), 0
+  );
+  t('双癞甩一张后直接听牌时主动甩癞', decision.should, true);
+  t('双癞好牌由托管选择甩9筒', mahjongBot.chooseDiscard(round, 0), 19);
+}
+
+{
+  const { round } = boot(3, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false, 双大胡: true });
+  round.seats[0].bot = true;
+  round.pizi = 4;
+  round.laizi = 5;
+  // 线上第 2 小局回放：起手两张 5 癞子时牌形还差，
+  // 应先打普通废牌，不能因为“多癞不能胡”就立即甩癞。
+  round.hands[0] = [4, 5, 5, 6, 8, 9, 11, 11, 12, 14, 15, 19, 19];
+  round.drawn[0] = 18;
+  round.melds = [[], [], []];
+  round.discards = [[], [7], [6]];
+  round.shuai = [[], [], []];
+  round.gangs = [];
+  round.wall.remain = () => 29;
+  const first = mahjongBot._test.shuaiDecision(
+    mahjongBot._test.context(round, 0), round.looseTiles(0), 0
+  );
+  t('起手双癞牌形较差时暂时都保留',
+    { should: first.should, reason: first.reason },
+    { should: false, reason: '牌形未到一向听' });
+
+  // 后续已甩过一张并补摸 9 筒：原来的9筒变成一对，
+  // 此时依然应保留最后一张癞子组成 456。
+  round.hands[0] = [4, 5, 6, 8, 9, 11, 11, 12, 14, 15, 18, 19, 19];
+  round.drawn[0] = 9;
+  round.shuai[0] = [5];
+  round.wall.remain = () => 28;
+  const second = mahjongBot._test.shuaiDecision(
+    mahjongBot._test.context(round, 0), round.looseTiles(0), 0
+  );
+  t('双癞先甩一张后保留第二张组456',
+    { should: second.should, reason: second.reason },
+    { should: false, reason: '保留癞子组成的完整顺子' });
+  t('双癞补摸第二张9后不连甩癞子', mahjongBot.chooseDiscard(round, 0), 12);
 }
 
 {
@@ -884,8 +1255,7 @@ const boot = (n, extra = {}) => {
   round.seats[0].bot = true;
   round.pizi = 13;
   round.laizi = 14;
-  // 暗杠后已有确定正杠账。甩癞会暂时退一向听，但补回来的进张
-  // 明显多于保留癞子路线，不应被“只剩最后一圈”的旧阈值卡住。
+  // 已有正杠账也不能拆掉合法听口。癞子参与顺子时应保留。
   round.hands[0] = [2, 4, 7, 7, 11, 11, 12, 13, 14, 15];
   round.drawn[0] = 3;
   round.melds = [[{ type: 'an', card: 9, from: 0 }], []];
@@ -895,9 +1265,20 @@ const boot = (n, extra = {}) => {
   const decision = mahjongBot._test.shuaiDecision(
     mahjongBot._test.context(round, 0), round.looseTiles(0), 1
   );
-  t('自己已有暗杠时正杠账能突破末圈限制', decision.should, true);
-  t('正杠账放宽仍只允许退一向听',
+  t('自己已有暗杠仍不能甩癞退听', decision.should, false);
+  t('保听保护给出明确原因', decision.reason, '保留听牌不甩癞');
+  t('甩癞会让合法听牌退一向听',
     decision.throwAnalysis.shanten - decision.keep.shanten, 1);
+  for (const fourth of [false, true]) {
+    round.melds[0] = [{ type: 'ming', card: 9, from: 1 }];
+    round.gangs = [{ seat: 0, type: 'ming', from: 1, burst: true }];
+    round.shuai[0] = fourth ? [14, 14, 14] : [];
+    const point = mahjongBot._test.shuaiDecision(
+      mahjongBot._test.context(round, 0), round.looseTiles(0), 1);
+    t(`别人点笑后${fourth ? '第四赖喜钱也' : ''}不允许甩赖退听`, point.should, false);
+    t('甩赖前存在合法听口', point.keep.winningOuts > 0, true);
+    t('正常策略保留赖子', mahjongBot.chooseDiscard(round, 0) !== round.laizi, true);
+  }
 }
 
 {
@@ -914,14 +1295,67 @@ const boot = (n, extra = {}) => {
   const noGang = mahjongBot._test.shuaiDecision(
     mahjongBot._test.context(round, 0), round.looseTiles(0), 0
   );
-  // 1 号明杠是 2 号点的，0 号本家没有直接杠债，但仍要考虑对手杠势。
+  // 1 号只有一次由 2 号点出的明杠，按新策略不把它当作甩癞风险。
   round.gangs = [{ seat: 1, type: 'ming', from: 2, burst: false }];
   const otherPlayersGang = mahjongBot._test.shuaiDecision(
     mahjongBot._test.context(round, 0), round.looseTiles(0), 0
   );
   t('无别家杠势时边界好牌可甩癞', noGang.should, true);
-  t('别人点给别人的公杠也会降低甩癞意愿', otherPlayersGang.should, false);
-  t('间接对手杠势只轻扣一档', otherPlayersGang.opponentGangPressure, 1);
+  t('只有一次点杠时继续按原牌效甩癞', otherPlayersGang.should, true);
+  t('单次点杠不计风险压力',
+    [otherPlayersGang.opponentGangPressure, otherPlayersGang.ignoreSinglePointGangRisk],
+    [0, true]);
+
+  // 单次点杠不应启动“多癞弃胡”，需要甩几张就连续甩几张。
+  round.hands[0] = [1, 2, 3, 4, 16, 23, 23, 23, 24, 25, 26, 28, 29];
+  round.drawn[0] = 6;
+  const multiLaiziPointGang = mahjongBot._test.shuaiDecision(
+    mahjongBot._test.context(round, 0), round.looseTiles(0), 0
+  );
+  t('只有一次点杠时三癞继续甩',
+    { should: multiLaiziPointGang.should, reason: multiLaiziPointGang.reason },
+    { should: true, reason: '单次点杠不限制甩癞' });
+}
+
+{
+  const { round } = boot(3, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false });
+  round.seats[0].bot = true;
+  round.laizi = 6;
+  round.pizi = 5;
+  round.hands[0] = [1, 2, 4, 6, 6, 6, 7, 8, 15, 17];
+  round.drawn[0] = 18;
+  round.melds = [[], [{ type: 'bu', card: 11, from: 1 }], []];
+  round.discards = [[], [], []];
+  round.shuai = [[], [], []];
+  round.gangs = [{ seat: 1, type: 'bu', card: 11, from: null, burst: false }];
+  const beforeOwnGang = mahjongBot._test.shuaiDecision(
+    mahjongBot._test.context(round, 0), round.looseTiles(0), 0
+  );
+  t('外家回头杠且本家三癞时先弃胡追杠',
+    { mode: mahjongBot._test.gangHuntMode(
+      mahjongBot._test.context(round, 0), round.looseTiles(0)),
+    should: beforeOwnGang.should, reason: beforeOwnGang.reason },
+    { mode: true, should: false, reason: '至少要甩两张才能听牌' });
+
+  round.melds[0] = [{ type: 'an', card: 16, from: 0 }];
+  round.gangs.push({ seat: 0, type: 'an', card: 16, from: null, burst: false });
+  const afterOwnGang = mahjongBot._test.shuaiDecision(
+    mahjongBot._test.context(round, 0), round.looseTiles(0), 1
+  );
+  t('本家暗杠使杠账转正后立即甩三癞',
+    { should: afterOwnGang.should, reason: afterOwnGang.reason,
+      positive: afterOwnGang.ledger.net > 0 },
+    { should: true, reason: '自己的杠账转正', positive: true });
+
+  round.hands[0] = [1, 2, 4, 6, 6, 7, 8, 15, 17];
+  round.drawn[0] = 18;
+  round.shuai[0] = [6];
+  const secondThrow = mahjongBot._test.shuaiDecision(
+    mahjongBot._test.context(round, 0), round.looseTiles(0), 1
+  );
+  t('杠账转正后继续甩到只剩一张癞子',
+    { should: secondThrow.should, reason: secondThrow.reason },
+    { should: true, reason: '自己的杠账转正' });
 }
 
 {
@@ -944,7 +1378,9 @@ const boot = (n, extra = {}) => {
     mahjongBot._test.context(round, 0), round.looseTiles(0), 0
   );
   t('无杠债时充足听口可甩癞', noGang.should, true);
-  t('别人已有暗杠、本家负债时改为保癞', opponentGang.should, false);
+  t('别人已有暗杠但甩后仍听牌时继续甩癞',
+    { should: opponentGang.should, reason: opponentGang.reason },
+    { should: true, reason: '对手暗杠后听牌甩癞' });
   t('别人的全付杠账是负收益', opponentGang.ledger.net < 0, true);
 
   round.gangs = [{ seat: 1, type: 'ming', from: 0, burst: false }];
@@ -955,6 +1391,115 @@ const boot = (n, extra = {}) => {
   t('自己点杠后听牌摸到癞子仍优先甩癞保持听口',
     { should: pointGang.should, reason: pointGang.reason },
     { should: true, reason: '点杠后摸癞保持听牌' });
+}
+
+{
+  const { round } = boot(4, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false });
+  round.seats[0].bot = true;
+  round.laizi = 19;
+  round.pizi = 18;
+  round.hands[0] = [2, 2, 8, 8, 9, 12, 13, 15, 17, 21, 22, 26, 28];
+  round.drawn[0] = 19;
+  round.melds = [[], [{ type: 'an', card: 7, from: 1 }], [], []];
+  round.discards = [[], [], [], []];
+  round.shuai = [[], [], [], []];
+  round.gangs = [{ seat: 1, type: 'an', card: 7, from: null, burst: false }];
+  const decision = mahjongBot._test.shuaiDecision(
+    mahjongBot._test.context(round, 0), round.looseTiles(0), 0
+  );
+  t('别人暗杠后尚未听牌时暂时保留癞子',
+    { should: decision.should, reason: decision.reason },
+    { should: false, reason: '对手暗杠后未听牌先保癞' });
+}
+
+{
+  const { round } = boot(4, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false });
+  round.seats[0].bot = true;
+  round.laizi = 19;
+  round.pizi = 18;
+  // 三赖已经需要连续甩两张才能恢复胡牌，改以追杠为目标。
+  round.hands[0] = [2, 2, 8, 8, 8, 11, 14, 17, 19, 19, 19, 21, 24];
+  round.drawn[0] = 27;
+  round.melds = [[], [{ type: 'an', card: 7, from: 1 }], [], []];
+  round.discards = [[], [], [], []];
+  round.shuai = [[], [], [], []];
+  round.gangs = [{ seat: 1, type: 'an', card: 7, from: null, burst: false }];
+  const ctx = mahjongBot._test.context(round, 0);
+  t('别人暗杠且本家三赖时进入追杠路线',
+    mahjongBot._test.gangHuntMode(ctx, round.looseTiles(0)), true);
+  t('追杠路线保护未露过的对子与坎子',
+    [...mahjongBot._test.liveGangFoundationCards(ctx, round.looseTiles(0))].sort((a, b) => a - b),
+    [2, 8]);
+  t('追杠路线先打散张而不拆对子坎子',
+    [2, 8, 19].includes(mahjongBot.chooseDiscard(round, 0)), false);
+
+  // 2 筒此前已经在外面出现，无法再集齐四张，不继续为追杠保留。
+  round.discards[2] = [2];
+  const appearedCtx = mahjongBot._test.context(round, 0);
+  t('外面出现过的对子不再按追杠基础保护',
+    [...mahjongBot._test.liveGangFoundationCards(appearedCtx, round.looseTiles(0))], [8]);
+}
+
+{
+  const { round } = boot(4, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false });
+  round.seats[0].bot = true;
+  round.laizi = 19;
+  round.pizi = 18;
+  round.hands[0] = [2, 2, 8, 8, 8, 11, 14, 17, 19, 19, 21, 24, 27];
+  round.drawn[0] = 28;
+  round.melds = [[], [{ type: 'an', card: 7, from: 1 }], [], []];
+  round.discards = [[], [], [], []];
+  round.shuai = [[], [], [], []];
+  round.gangs = [{ seat: 1, type: 'an', card: 7, from: null, burst: false }];
+  const tiles = round.looseTiles(0);
+  const ctx = mahjongBot._test.context(round, 0);
+  const decision = mahjongBot._test.shuaiDecision(ctx, tiles, 0);
+  t('对手暗杠后双癞未成顺进入暂时弃胡',
+    { mode: mahjongBot._test.gangHuntMode(ctx, tiles),
+      should: decision.should, reason: decision.reason },
+    { mode: true, should: false, reason: '对手暗杠后双癞未成顺暂时弃胡' });
+  t('双癞弃胡期间保留未露过的对子坎子',
+    [...mahjongBot._test.liveGangFoundationCards(ctx, tiles)].sort((a, b) => a - b),
+    [2, 8]);
+  t('双癞弃胡期间不甩癞也不拆对子坎子',
+    [2, 8, 19].includes(mahjongBot.chooseDiscard(round, 0)), false);
+
+  // 后续牌形变成 789 筒后，双癞已有一张参与自然顺子，
+  // 退出暂时弃胡模式，回到常规的听牌/甩癞评估。
+  round.hands[0] = [2, 2, 8, 8, 11, 14, 17, 18, 19, 19, 21, 24, 27];
+  round.drawn[0] = 28;
+  const formedTiles = round.looseTiles(0);
+  const formedCtx = mahjongBot._test.context(round, 0);
+  t('双癞后续成顺时退出暂时弃胡',
+    { sequence: mahjongBot._test.laiziFormsNaturalSequence(round, formedTiles),
+      mode: mahjongBot._test.gangHuntMode(formedCtx, formedTiles) },
+    { sequence: true, mode: false });
+}
+
+{
+  const { round } = boot(4, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false });
+  round.seats[0].bot = true;
+  round.laizi = 19;
+  round.pizi = 18;
+  round.hands[0] = [2, 2, 5, 8, 11, 14, 17, 19, 19, 19, 21, 24, 27];
+  round.drawn[0] = null;
+  round.melds = [[], [{ type: 'an', card: 7, from: 1 }], [], []];
+  round.discards = [[], [2], [], []];
+  round.shuai = [[], [], [], []];
+  round.gangs = [{ seat: 1, type: 'an', card: 7, from: null, burst: false }];
+  round.pending = { kind: 'discard', from: 1, card: 2,
+    candidates: [{ seat: 0, ops: { hu: 0, peng: true, gang: false } }], replies: new Map() };
+  const candidate = round.pending.candidates[0];
+  t('追杠路线遇到第一张对子牌时主动碰牌',
+    mahjongBot.chooseDiscardResponse(round, 0, round.pending, candidate), { op: 'peng' });
+  let jevCalls = 0;
+  round.prepareAutoPlayJev(0, {
+    chooseDiscardResponse() { jevCalls++; return Promise.resolve({ op: 'pass' }); },
+  });
+  t('Jev不能否决追杠路线的强制碰牌', jevCalls, 0);
+  round.discards[2] = [2];
+  t('此前已有同牌公开时不再强制追碰',
+    mahjongBot._test.shouldChaseGangPeng(mahjongBot._test.context(round, 0), 2), false);
 }
 
 {
@@ -1029,6 +1574,10 @@ const boot = (n, extra = {}) => {
   const otherSuit = mahjongBot._test.estimatedWallCopies(mahjongBot._test.context(round, 0), 5);
   t('对手公开弃牌的花色趋势会修正估计活张', targetSuit > otherSuit, true);
 
+  t('多轮摸牌的成牌概率高于只看下一摸',
+    mahjongBot._test.horizonProbability(40, 4, 4)
+      > mahjongBot._test.horizonProbability(40, 4, 1), true);
+
   const ranked = mahjongBot.rankDiscardOptions(round, 0, { limit: 4 });
   t('Jev 前的本地筛选最多保留四个弃牌候选', ranked.length > 0 && ranked.length <= 4, true);
   t('弃牌候选包含两步胜率和预期收益', ranked.every((item) => (
@@ -1036,7 +1585,29 @@ const boot = (n, extra = {}) => {
       && Number.isFinite(item.analysis.expectedOuts)
       && Number.isFinite(item.projection.immediateWinProbability)
       && Number.isFinite(item.projection.expectedValue)
+      && Number.isFinite(item.horizon.winProbability)
+      && Number.isFinite(item.claimRisk.anyClaimProbability)
   )), true);
+}
+
+{
+  const { round } = boot(4, { 玩法: '土豪必杠', 只许自摸: true, 清一色: false });
+  round.seats[0].bot = true;
+  round.pizi = 18;
+  round.laizi = 19;
+  round.hands[0] = [1, 2, 3, 4, 5, 6, 11, 12, 13, 15, 16, 17, 21];
+  round.drawn[0] = 22;
+  round.melds = [[], [], [], []];
+  round.discards = [[], [], [], []];
+  round.shuai = [[], [], [], []];
+  const freshRisk = mahjongBot._test.publicClaimRisk(
+    mahjongBot._test.context(round, 0), 21
+  ).anyClaimProbability;
+  round.discards[1] = [21, 21];
+  const exhaustedRisk = mahjongBot._test.publicClaimRisk(
+    mahjongBot._test.context(round, 0), 21
+  ).anyClaimProbability;
+  t('公开出现的同牌越多，弃牌被碰杠的估计风险越低', freshRisk > exhaustedRisk, true);
 }
 
 {
@@ -1535,6 +2106,206 @@ const boot = (n, extra = {}) => {
     restored.respond(waiting[0], 'pass');
   }
   t('恢复后牌墙还能摸', restored.wall.remain() < round.wall.remain() || restored.drawn[1] != null, true);
+}
+
+// ---------------------------------------------------------------- 机器人牌效回归：朝天对子、边张改良、末圈甩癞
+
+{
+  const { round } = boot(3, {
+    玩法: '土豪必杠', 只许自摸: true, 清一色: false, 双大胡: true,
+  });
+  round.seats[0].bot = true;
+  round.pizi = 12;
+  round.laizi = 13;
+  // 2 筒是朝天。1223 筒里两张 2 必须一起保留，既可接牌朝天，
+  // 也可再摸一张形成朝天暗杠；有孤 9 筒时不能先拆朝天对子。
+  round.hands[0] = [11, 12, 12, 13, 19, 1, 2, 3, 4, 5, 6, 21, 22];
+  round.drawn[0] = 23;
+  round.melds = [[], [], []];
+  round.discards = [[], [], []];
+  round.shuai = [[], [], []];
+  round.gangs = [];
+  round.turn = 0;
+  round.pending = null;
+  round.wall.remain = () => 30;
+  const choices = mahjongBot.rankDiscardOptions(round, 0, { limit: 6 }).map(({ card }) => card);
+  t('1223筒且2筒为朝天时先打孤9筒', mahjongBot.chooseDiscard(round, 0), 19);
+  t('两张朝天不进入本地或Jev弃牌候选', choices.includes(12), false);
+}
+
+{
+  const { round } = boot(3, {
+    玩法: '土豪必杠', 只许自摸: true, 清一色: false,
+  });
+  round.seats[0].bot = true;
+  round.pizi = 18;
+  round.laizi = 19;
+  // 68 与 89 当前都只进 7，但 68 再摸 5 可转成 56 的 4/7 双进张，
+  // 后续改良空间优于边张 89，因此 689 应打 9 而不是打 6。
+  round.hands[0] = [6, 8, 9, 1, 2, 3, 11, 12, 13, 21, 22, 23, 25];
+  round.drawn[0] = 25;
+  round.melds = [[], [], []];
+  round.discards = [[], [], []];
+  round.shuai = [[], [], []];
+  round.gangs = [];
+  round.turn = 0;
+  round.pending = null;
+  round.wall.remain = () => 30;
+  t('689条优先打9条保留68改良', mahjongBot.chooseDiscard(round, 0), 9);
+}
+
+{
+  const { round } = boot(3, {
+    玩法: '土豪必杠', 只许自摸: true, 清一色: false, 双大胡: true,
+  });
+  round.seats[0].bot = true;
+  round.pizi = 3;
+  round.laizi = 4;
+  // 房间 653723 第13局回放：碰1条后手里是 22344556条+579筒，
+  // 两张4条为癞子。多癞假听会错把打7筒评为有更多进张，
+  // 但打7筒会同时拆掉57和79；应改打其他散张，至少保留一组嵌张。
+  round.hands[0] = [2, 2, 3, 4, 4, 5, 5, 6, 15, 17, 19];
+  round.drawn[0] = null;
+  round.melds = [
+    [{ type: 'peng', card: 1, from: 1 }],
+    [{ type: 'peng', card: 11, from: 0 }],
+    [],
+  ];
+  round.discards = [[9, 12, 11], [12, 16, 1], [5, 18, 17]];
+  round.shuai = [[], [], [4]];
+  round.gangs = [];
+  round.turn = 0;
+  round.pending = null;
+  round.wall.remain = () => 22;
+  const choices = mahjongBot.rankDiscardOptions(round, 0, { limit: 6 })
+    .map(({ card }) => card);
+  t('579筒且持有双癞时不打中间7筒',
+    mahjongBot.chooseDiscard(round, 0) === 17, false);
+  t('579筒中间7筒不交给Jev拆牌', choices.includes(17), false);
+}
+
+{
+  const { round } = boot(3, {
+    玩法: '土豪必杠', 只许自摸: true, 清一色: false, 双大胡: true,
+  });
+  round.seats[1].bot = true;
+  round.pizi = 19;
+  round.laizi = 11;
+  // 房间 519211 第 9 局回放：1 条已是孤张，6678 筒同时保留
+  // 66 对子和 678 顺子。两种打法向听和有效进张完全相同，
+  // 不能因 8 个多轮样本的波动拆掉复合牌形。
+  round.hands[1] = [1, 4, 5, 7, 9, 12, 12, 12, 13, 13, 16, 16, 18];
+  round.drawn[1] = 17;
+  round.melds = [[], [], []];
+  round.discards = [[19], [1], [1]];
+  round.shuai = [[], [], []];
+  round.gangs = [];
+  round.turn = 1;
+  round.pending = null;
+  round.wall.remain = () => 60;
+  const choices = mahjongBot.rankDiscardOptions(round, 1, { limit: 6 })
+    .map(({ card }) => card);
+  t('6678筒与孤1条同向听时先打1条', mahjongBot.chooseDiscard(round, 1), 1);
+  t('6678筒的6筒不排在孤1条前',
+    choices.includes(16) && choices.indexOf(16) < choices.indexOf(1), false);
+}
+
+{
+  const { round } = boot(3, {
+    玩法: '土豪必杠', 只许自摸: true, 清一色: false, 双大胡: true,
+  });
+  round.seats[0].bot = true;
+  round.pizi = 6;
+  round.laizi = 7;
+  // 66788 条中 6 是朝天、7 是癞子；88 既是对子，也和 67 组成复合结构。
+  // 有孤张 1 筒时必须先清孤张，不能把 8 当成普通游离重复张。
+  round.hands[0] = [6, 6, 7, 8, 8, 11, 1, 2, 3, 14, 15, 16, 21, 21];
+  round.drawn[0] = null;
+  round.melds = [[], [], []];
+  round.discards = [[], [], []];
+  round.shuai = [[], [], []];
+  round.gangs = [];
+  round.turn = 0;
+  round.pending = null;
+  round.wall.remain = () => 40;
+  const choices = mahjongBot.rankDiscardOptions(round, 0, { limit: 6 })
+    .map(({ card }) => card);
+  t('66788且6朝天7癞子时先打孤1筒', mahjongBot.chooseDiscard(round, 0), 11);
+  t('66788的8条不交给Jev拆对子复合结构', choices.includes(8), false);
+}
+
+{
+  const { round } = boot(3, {
+    玩法: '土豪必杠', 只许自摸: true, 清一色: false, 双大胡: true,
+  });
+  round.seats[0].bot = true;
+  round.pizi = 28;
+  round.laizi = 29;
+  // 手里 2345 条时，另外三张 2 已由下家碰出。打 2 与打 5 的向听、
+  // 进张和完整顺子相同，但 2 已无任何成对/碰杠价值，且打 5 仍会喂碰。
+  round.hands[0] = [2, 3, 4, 5, 8, 8, 15, 15, 17, 18, 18, 23, 24, 25];
+  round.drawn[0] = null;
+  round.melds = [[], [{ type: 'peng', card: 2, from: 2 }], []];
+  round.discards = [[], [], []];
+  round.shuai = [[], [], []];
+  round.gangs = [];
+  round.turn = 0;
+  round.pending = null;
+  round.wall.remain = () => 40;
+  const choices = mahjongBot.rankDiscardOptions(round, 0, { limit: 6 })
+    .map(({ card }) => card);
+  t('2345且外面碰出三张2时优先打最后一张2', mahjongBot.chooseDiscard(round, 0), 2);
+  t('同牌效下不再把5条交给Jev喂碰', choices.includes(5), false);
+}
+
+{
+  const { round } = boot(3, {
+    玩法: '土豪必杠', 只许自摸: true, 清一色: false, 双大胡: true,
+  });
+  round.seats[0].bot = true;
+  round.pizi = 18;
+  round.laizi = 19;
+  // 房间 634980 第 6 局：碰 1 条后剩 233468 条、1/7 筒和三张癞子。
+  // 3 条同时是 33 对子、234 顺子的中张且连着 23/34，1 筒才是孤张。
+  round.hands[0] = [2, 3, 3, 4, 6, 8, 11, 17, 19, 19, 19];
+  round.drawn[0] = null;
+  round.melds = [[{ type: 'peng', card: 1, from: 1 }], [], []];
+  round.discards = [[3], [1], []];
+  round.shuai = [[], [], []];
+  round.gangs = [];
+  round.turn = 0;
+  round.pending = null;
+  round.wall.remain = () => 30;
+  const choices = mahjongBot.rankDiscardOptions(round, 0, { limit: 6 })
+    .map(({ card }) => card);
+  t('2334复合牌形与孤1筒同向听时先打1筒',
+    mahjongBot.chooseDiscard(round, 0), 11);
+  t('2334中间重复张不交给Jev拆掉', choices.includes(3), false);
+}
+
+{
+  const { round } = boot(3, {
+    玩法: '土豪必杠', 只许自摸: true, 清一色: false,
+  });
+  round.seats[0].bot = true;
+  round.pizi = 18;
+  round.laizi = 19;
+  round.hands[0] = [1, 2, 3, 4, 5, 6, 11, 12, 13, 15, 15, 19, 19];
+  round.drawn[0] = 19;
+  round.melds = [[], [{ type: 'an', card: 9, from: 1 }], []];
+  round.discards = [[], [], []];
+  round.shuai = [[], [19], []];
+  round.gangs = [{ seat: 1, type: 'an', card: 9, from: null, burst: false }];
+  round.turn = 0;
+  round.pending = null;
+  round.wall.remain = () => 1;
+  const decision = mahjongBot._test.shuaiDecision(
+    mahjongBot._test.context(round, 0), round.looseTiles(0), 0
+  );
+  t('三赖至少需甩两张才能听牌时从第一张起就不甩',
+    { should: decision.should, reason: decision.reason, needed: decision.minimumThrowsToWin },
+    { should: false, reason: '至少要甩两张才能听牌', needed: 2 });
+  t('末圈三赖选择普通弃牌', mahjongBot.chooseDiscard(round, 0) !== round.laizi, true);
 }
 
 console.log(`\n${pass} 过 / ${fail} 挂`);

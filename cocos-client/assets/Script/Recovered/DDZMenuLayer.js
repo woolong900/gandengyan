@@ -50,6 +50,15 @@ return t;
 }
 t.prototype.start = function() {
 var e = this;
+var t = this.popMenu && this.popMenu.getChildByName("sz_db"), o = t && t.getComponent(cc.Sprite);
+// The recovered atlas frame is trimmed narrower than the 450 px drawer authored in SceneDDZ.
+// CUSTOM keeps the original menu width instead of snapping the node back to the trimmed frame.
+t && t.setContentSize(450, 720);
+o && (o.sizeMode = cc.Sprite.SizeMode.CUSTOM);
+// SceneDDZ serializes MenuLayer before MyOperateRoot, so the local hand is drawn over the
+// opened drawer.  The original D7/TDak chrome places the menu after the table controls.
+this.node.zIndex = 100;
+this.restoreMenuButtonFrames();
 a.default.eventUtils.on(l.default.data_status_change, function() {
 e._uiDirty = !0;
 }, this, c.eOffType.OnDestroy);
@@ -66,8 +75,8 @@ this.watchNode.active = !1;
 } else {
 this.watchNode.active = a.default.gameLogic().isAllowWatch(s.default.config);
 if (s.default.isWatcher()) {
-var t = s.default.players.getByUid(u.default.uid);
-t && t.isManager ? this.btnForceDestroy.active = !0 : this.btnForceDestroy.active = !1;
+var n = s.default.players.getByUid(u.default.uid);
+n && n.isManager ? this.btnForceDestroy.active = !0 : this.btnForceDestroy.active = !1;
 this.btnDissolve.active = !1;
 this.btnExit.active = !0;
 this.btnLocation.active = !1;
@@ -85,6 +94,40 @@ this.btnExit.active = !0;
 this.btnDissolve.active = !1;
 }
 }
+}
+};
+t.prototype.restoreMenuButtonFrames = function() {
+// Creator's texture importer clamps rotated atlas rectangles against the unrotated
+// texture width (338 - 278 = 60), cutting off the icons. Restore the native DDZ
+// frame geometry, including its logical size and zero trim offset, before layout.
+var drawer = this.popMenu && this.popMenu.getChildByName("sz_db");
+var buttons = drawer && drawer.getChildByName("Btns");
+if (!buttons) return;
+var frames = [ [ "BtnJS", 3, 127 ], [ "BtnExit", 136, 127 ], [ "BtnSetting", 269, 124 ] ];
+for (var index = 0; index < frames.length; index++) {
+var spec = frames[index], node = buttons.getChildByName(spec[0]);
+var sprite = node && node.getComponent(cc.Sprite);
+if (!sprite || !sprite.spriteFrame) continue;
+var texture = sprite.spriteFrame.getTexture();
+var frame = new cc.SpriteFrame(texture, cc.rect(278, spec[1], spec[2], 57),
+!0, cc.v2(0, 0), cc.size(spec[2], 57));
+frame.name = "ddz_menu_" + spec[0];
+sprite.sizeMode = cc.Sprite.SizeMode.CUSTOM;
+sprite.spriteFrame = frame;
+node.setContentSize(spec[2], 57);
+}
+var layout = buttons.getComponent(cc.Layout);
+layout && layout.updateLayout();
+// RAW sizing uses the importer's incorrect whole-atlas originalSize (338x774),
+// causing the location button's invisible hit box to cover the room header.
+var location = this.btnLocation, locationSprite = location && location.getComponent(cc.Sprite);
+if (locationSprite && locationSprite.spriteFrame) {
+locationSprite.sizeMode = cc.Sprite.SizeMode.CUSTOM;
+locationSprite.spriteFrame = new cc.SpriteFrame(locationSprite.spriteFrame.getTexture(),
+cc.rect(278, 651, 57, 57), !1, cc.v2(0, 0), cc.size(57, 57));
+location.setContentSize(57, 57);
+var locationWidget = location.getComponent(cc.Widget);
+locationWidget && locationWidget.updateAlignment();
 }
 };
 t.prototype.update = function() {

@@ -141,6 +141,7 @@ const main = async () => {
         QJQP_WECHAT_APPID: WX_APP_A,
         QJQP_WECHAT_APPSECRET: 'secret-a',
         QJQP_WECHAT_APPS: JSON.stringify({ [WX_APP_B]: 'secret-b' }),
+        QJQP_APPLE_APP_IDS: '4CSMM3394C.com.haoke.gandengyan,3YYH3MTSSU.com.haoke.gandengyan,3YYH3MTSSU.com.apps.epid',
         QJQP_HOT_UPDATE_ROOT: hotUpdateRoot,
         QJQP_HOT_UPDATE_CONFIG: hotUpdateConfig,
         QJQP_PWA_ROOT: pwaRoot,
@@ -191,10 +192,10 @@ const main = async () => {
     t('下载页使用独立样式和脚本',
       downloadPage.text.includes('/download/app.css') && downloadPage.text.includes('/download/app.js'), true);
     t('下载页包含安卓安装包入口',
-      downloadPage.text.includes('href="https://l.heiwuya.cn/QeQZ6I"'), true);
+      downloadPage.text.includes('href="https://vip.lumayun.vip/UTsdzR"'), true);
     t('下载页标明内置资源版本', downloadPage.text.includes('资源 R274'), true);
     t('下载页同时包含 iOS 原生版和 PWA 入口',
-      downloadPage.text.includes('id="iosInstall" href="https://l.heiwuya.cn/UTsdzR"')
+      downloadPage.text.includes('id="iosInstall" href="https://vip.lumayun.vip/UTsdzR"')
         && downloadPage.text.includes('id="pwaInstall" href="https://gandengyan.top/pwa/"'), true);
     const pwaRedirect = await requestText(port, '/pwa');
     t('PWA 无斜杠入口规范化',
@@ -246,6 +247,8 @@ const main = async () => {
     t('AASA 配置可访问', aasa.status, 200);
     t('AASA 使用 JSON 类型', aasa.headers['content-type'], 'application/json; charset=utf-8');
     t('AASA 包含 iOS App ID', JSON.parse(aasa.text).applinks.details[0].appID, '4CSMM3394C.com.haoke.gandengyan');
+    t('AASA 兼容企业重签 App ID', JSON.parse(aasa.text).applinks.details[1].appID, '3YYH3MTSSU.com.haoke.gandengyan');
+    t('AASA 兼容企业描述文件 App ID', JSON.parse(aasa.text).applinks.details[2].appID, '3YYH3MTSSU.com.apps.epid');
     const forward = await request(port, '/v1/forwardconfig?key=ym', 'share.example.test');
     t('分享域名配置可用', forward.body.err_code, '0');
     t('分享域名使用当前服务', JSON.parse(forward.body.data).primary.url, `http://share.example.test`);

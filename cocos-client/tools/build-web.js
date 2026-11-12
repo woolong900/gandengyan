@@ -36,6 +36,43 @@ if (!fs.existsSync(installedLong)) {
 fs.mkdirSync(path.join(project, 'node_modules'), { recursive: true });
 fs.cpSync(installedLong, path.join(project, 'node_modules', 'long'), { recursive: true });
 
+// Creator 2.4 can import the 2.2-era recovered assets, but when a scene is
+// imported before its dependency metadata has finished migrating it may fail
+// to resolve Cocos' 22-character UUID form and permanently serialize a null
+// reference.  Expanding only serialized `__uuid__` fields in the disposable
+// staging copy keeps component class ids untouched and makes the old scenes
+// deterministic on a clean build.
+const uuidAlphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+function expandUuid(value) {
+  if (value.length !== 22 && value.length !== 23) return value;
+  const prefixLength = value.length === 23 ? 5 : 2;
+  let hex = value.slice(0, prefixLength);
+  for (let index = prefixLength; index < value.length; index += 2) {
+    const lhs = uuidAlphabet.indexOf(value[index]);
+    const rhs = uuidAlphabet.indexOf(value[index + 1]);
+    if (lhs < 0 || rhs < 0) return value;
+    hex += (lhs >> 2).toString(16);
+    hex += (((lhs & 3) << 2) | (rhs >> 4)).toString(16);
+    hex += (rhs & 15).toString(16);
+  }
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+function expandSerializedUuids(directory) {
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const file = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      expandSerializedUuids(file);
+      continue;
+    }
+    if (!/\.(?:fire|prefab)$/.test(entry.name)) continue;
+    const source = fs.readFileSync(file, 'utf8');
+    const expanded = source.replace(/("__uuid__"\s*:\s*")([^"]+)(")/g,
+      (_, before, uuid, after) => before + expandUuid(uuid) + after);
+    if (expanded !== source) fs.writeFileSync(file, expanded);
+  }
+}
+expandSerializedUuids(path.join(project, 'assets'));
+
 // These recovered built-ins collide with Creator 2.4's own built-in assets.
 for (const type of ['cc.EffectAsset', 'cc.Material']) {
   fs.rmSync(path.join(project, 'assets/resources/_RecoveredDependencies', type), {

@@ -13,7 +13,10 @@
  */
 const { Round } = require('./round');
 const { WskRound } = require('./qjshz-round');
+const { ClubPokerRound } = require('./club-poker-round');
+const isClubPoker = type => [23,24,25].includes(Number(type));
 const { randomBytes } = require('crypto');
+const { normalizeIp } = require('./ip-geo');
 const rules = require('./rules');
 const qjshzRules = require('./qjshz-rules');
 const {
@@ -24,6 +27,9 @@ const DISMISS_SEC = 60;
 const UNSTARTED_ROOM_TTL_MS = 60 * 60 * 1000;
 const STARTED_ROOM_TTL_MS = 12 * 60 * 60 * 1000;
 const ROOM_EXPIRE_TIMER = 'room-expire';
+// 手机息屏后 WebSocket 会被系统暂停或断开。观战者不参与出牌，
+// 保留一段足够覆盖锁屏的重连窗口，同时避免无限占用旁观位。
+const WATCH_RECONNECT_GRACE_MS = 30 * 60 * 1000;
 const BOT_MIN_DELAY_MS = 800;
 const BOT_MAX_DELAY_MS = 1500;
 // Cocos 开局还要播放翻皮子、发牌和理牌动画。首个自动操作从动画缓冲
@@ -31,10 +37,41 @@ const BOT_MAX_DELAY_MS = 1500;
 const BOT_OPENING_PRESENTATION_MS = 3500;
 /** 旁观位上限。客户端 LookOnLayer 按 person.view 列人，没有再限一次。 */
 const MAX_WATCH = 20;
+/** 观战者与真人玩家小于该距离时，禁止申请查看手牌。 */
+const WSK_WATCH_HAND_MIN_DISTANCE_METERS = 100;
 const MAX_CHAT_BYTES = 4096;
 const CHAT_WINDOW_MS = 5000;
 const CHAT_MAX_IN_WINDOW = 10;
 const GANDENGYAN_GAME_TYPE = 2;
+const EMPTY_MAHJONG_OPERATOR = Object.freeze({
+  hu: 0,
+  gang: [],
+  touch: 0,
+  chow: [],
+  bright_qys: false,
+});
+
+const normalizeLocation = (raw) => {
+  if (!raw || typeof raw !== 'object') return null;
+  const latitude = Number(raw.latitude);
+  const longitude = Number(raw.longitude);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)
+    || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180
+    || (latitude === 0 && longitude === 0)) return null;
+  return { latitude, longitude };
+};
+
+const locationDistanceMeters = (left, right) => {
+  if (!left || !right) return null;
+  const radians = (degree) => degree * Math.PI / 180;
+  const latitudeDelta = radians(right.latitude - left.latitude);
+  const longitudeDelta = radians(right.longitude - left.longitude);
+  const latitude1 = radians(left.latitude);
+  const latitude2 = radians(right.latitude);
+  const a = Math.sin(latitudeDelta / 2) ** 2
+    + Math.cos(latitude1) * Math.cos(latitude2) * Math.sin(longitudeDelta / 2) ** 2;
+  return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
 
 class Table {
   constructor(meta, host) {
@@ -68,10 +105,18 @@ class Table {
     this.drawCount = meta.drawCount || 0;
     this.dealerUid = meta.dealerUid || 0;
     this.lastEnd = meta.lastEnd || null;
+    // 本场说胡子大局的观战看牌授权。按观战者保存多个已获准玩家，切换
+    // 视角、临时离线、离房重进或进入下一小局都不撤销；房间销毁时失效。
+    this.wskWatchSessions = new Map();
+    this.pokerMatch = meta.pokerMatch || null;
     this.nextWskHandPlan = meta.nextWskHandPlan ? {
       uid: Number(meta.nextWskHandPlan.uid),
       counts: { ...(meta.nextWskHandPlan.counts || {}) },
       total: Number(meta.nextWskHandPlan.total || 0),
+    } : null;
+    this.nextWskPartnerPlan = meta.nextWskPartnerPlan ? {
+      uid: Number(meta.nextWskPartnerPlan.uid),
+      partnerUid: Number(meta.nextWskPartnerPlan.partnerUid),
     } : null;
     this.dismiss = meta.dismiss || null;
     this.members = [];
@@ -124,8 +169,9 @@ class Table {
         member.trustee = !!member.trusteeBeforeManaged;
         member.trusteeBeforeManaged = false;
       }
-      if (before !== !!member.trustee) {
-        this.broadcast('trustee', { uid: member.player.uid, status: !!member.trustee });
+      if (before !== !!member.trustee || !member.bot) {
+        this.broadcast('trustee', { uid: member.player.uid, status: !!member.trustee,
+          manual_enabled: Number(this.gameType) === GANDENGYAN_GAME_TYPE && !!(this.host.trusteeWhitelisted && this.host.trusteeWhitelisted(member.player.uid)) });
       }
     }
     if (arm) this.armTurns();
@@ -177,6 +223,31 @@ class Table {
     this.nextWskHandPlan = null;
     if (previous) this.host.log(`  [房${this.roomId}] 后台取消下一局起手牌 uid=${previous.uid}`);
     return previous ? { ...previous, counts: { ...previous.counts } } : null;
+  }
+
+  setNextWskPartnerPlan(uid, partnerUid) {
+    if (Number(this.gameType) !== 17) return { error: '只有说胡子房间可指定对家' };
+    if (this.step >= maxStep(this)) return { error: '房间已没有下一局' };
+    uid = Number(uid); partnerUid = Number(partnerUid);
+    if (!Number.isSafeInteger(uid) || !Number.isSafeInteger(partnerUid) || uid <= 0 || partnerUid <= 0) {
+      return { error: '玩家 ID 无效' };
+    }
+    if (uid === partnerUid) return { error: '不能把玩家自己设为对家' };
+    const seated = this.members.filter((member) => !member.view);
+    if (!seated.some((member) => Number(member.player.uid) === uid)
+      || !seated.some((member) => Number(member.player.uid) === partnerUid)) {
+      return { error: '指定玩家不在座位上' };
+    }
+    this.nextWskPartnerPlan = { uid, partnerUid };
+    this.host.log(`  [房${this.roomId}] 后台设置下一局对家 uid=${uid} partnerUid=${partnerUid}`);
+    return { ...this.nextWskPartnerPlan };
+  }
+
+  clearNextWskPartnerPlan() {
+    const previous = this.nextWskPartnerPlan;
+    this.nextWskPartnerPlan = null;
+    if (previous) this.host.log(`  [房${this.roomId}] 后台取消下一局对家 uid=${previous.uid} partnerUid=${previous.partnerUid}`);
+    return previous ? { ...previous } : null;
   }
 
   hasOnlineHuman() {
@@ -263,18 +334,56 @@ class Table {
         const watchers = table.watchers();
         if (!watchers.length) return;
         const data = build(-1);
+        if (msghead === 'game_begin' && Number(table.gameType) === 17) {
+          for (const watcher of watchers) {
+            const session = table.wskWatchSessions.get(Number(watcher.player.uid));
+            const target = session && table.wskWatchTarget({ uid: session.targetUid });
+            if (!target) {
+              table.sendTo(watcher, push(msghead, data));
+              continue;
+            }
+            const reveal = session.grants.has(Number(target.uid))
+              && !table.wskWatchHandDistanceError(watcher, target);
+            const outgoing = { ...data, players: data.players.slice(), watch_pos: target.seat };
+            if (reveal) {
+              outgoing.players[target.seat] = table.round.playerSnapshot(target.seat,
+                target.seat, false);
+            }
+            table.sendTo(watcher, push(msghead, outgoing));
+            // 新局会重建观战按钮状态；同步告诉客户端当前视角仍已授权，
+            // 避免必须重启走重连快照后才重新显示明牌。
+            table.sendTo(watcher, push('wsk_watch_view', {
+              uid: target.uid,
+              pos: target.seat,
+              hand_granted: reveal,
+            }));
+          }
+          return;
+        }
         const frame = push(msghead, data);
         for (const m of watchers) table.sendTo(m, frame);
       },
       one: (seat, msghead, data) => {
         const m = table.seats()[seat];
         if (!m) return;
-        table.host.log(`  [房${table.roomId}] -> ${m.player.uid} ${msghead} ${JSON.stringify(data)}`);
-        table.sendTo(m, push(msghead, data));
+        // 托管时服务端会替玩家完成碰、杠、过。若仍把真实候选项下发给
+        // 客户端，代打结束后旧版客户端可能把按钮留在桌面上。发空候选项
+        // 既能主动清掉已有按钮，也不影响服务端保存和执行真实操作。
+        const hideOperator = msghead === 'game_operator'
+          && Number(table.gameType) === GANDENGYAN_GAME_TYPE
+          && !!m.trustee;
+        const outgoing = hideOperator ? EMPTY_MAHJONG_OPERATOR : data;
+        table.host.log(`  [房${table.roomId}] -> ${m.player.uid} ${msghead}${hideOperator ? ' [托管隐藏]' : ''} ${JSON.stringify(outgoing)}`);
+        table.sendTo(m, push(msghead, outgoing));
       },
       over: (result) => {
         const seats = table.seats();
         const tape = table.round && table.round.tape;
+        // 托管中的真人和陪玩一样自动准备下一局。后台白名单托管
+        // 会在 round 清空后暂时解除，所以必须先记住结算瞬间的托管状态。
+        const autoReadyUids = new Set(seats
+          .filter((member) => member.bot || member.trustee || member.managedTrustee)
+          .map((member) => Number(member.player.uid)));
         const winners = result.winners || (result.winner >= 0 ? [result.winner] : []);
         if (table.host.recordBotResult) {
           table.host.recordBotResult(seats.map((member, seat) => ({ member, seat }))
@@ -310,8 +419,8 @@ class Table {
           }
         });
         for (const m of table.members) {
-          m.ready = !!m.bot;
-          if (m.bot) table.broadcast('game_ready', { uid: m.player.uid, site: m.site });
+          m.ready = !m.view && autoReadyUids.has(Number(m.player.uid));
+          if (m.ready) table.broadcast('game_ready', { uid: m.player.uid, site: m.site });
         }
         table.host.log(`  [房${table.roomId}] 第 ${table.step}/${maxStep(table)} 局结束`);
         if (table.step >= maxStep(table)) {
@@ -320,7 +429,9 @@ class Table {
           table.dissolve(0, { totalAlreadySent: true, notifyExit: false });
         } else {
           if (table.host.botsEnabled && !table.host.botsEnabled()) table.removeBots();
-          else table.host.persist();
+          const fail = table.tryStartNext();
+          if (fail) table.host.log(`  [房${table.roomId}] 托管自动开始下一局失败：${fail}`);
+          if (!table.round) table.host.persist();
         }
       },
     };
@@ -528,8 +639,28 @@ class Table {
     this.roomExpireAt = this.lastRoundStartedAt + STARTED_ROOM_TTL_MS;
     this.armRoomExpiry();
     this.step += 1;
-    const RoundClass = Number(this.gameType) === 17 ? WskRound : Round;
-    this.round = new RoundClass(seats, { config: this.config, dealerSeat }, this.makeIo());
+    // 已同意的看牌授权覆盖整场大局。新小局只取消尚未处理的旧申请，
+    // 已授权玩家继续有效；每次生成明牌快照仍会重新执行距离校验。
+    for (const session of this.wskWatchSessions.values()) {
+      if (session.pending instanceof Map) session.pending.clear();
+    }
+    const RoundClass = isClubPoker(this.gameType) ? ClubPokerRound : Number(this.gameType) === 17 ? WskRound : Round;
+    let appliedPartnerPlan = Number(this.gameType) === 17 && this.nextWskPartnerPlan
+      ? { ...this.nextWskPartnerPlan } : null;
+    if (appliedPartnerPlan) {
+      const seatedUids = new Set(seats.map((member) => Number(member.player.uid)));
+      if (!seatedUids.has(appliedPartnerPlan.uid) || !seatedUids.has(appliedPartnerPlan.partnerUid)) {
+        this.host.log(`  [房${this.roomId}] 下一局指定对家已失效：玩家已不在座位`);
+        this.nextWskPartnerPlan = null;
+        appliedPartnerPlan = null;
+      }
+    }
+    this.round = new RoundClass(seats, {
+      config: this.config,
+      dealerSeat,
+      forcedPartner: appliedPartnerPlan,
+      protectedHandUid: this.nextWskHandPlan ? this.nextWskHandPlan.uid : 0,
+    }, this.makeIo());
     // 开局后准备态即已消费，不能带到行牌中的重连快照。
     for (const member of seats) member.ready = false;
     let deckOverride = null;
@@ -549,8 +680,12 @@ class Table {
         }
       }
     }
-    this.round.start(deckOverride);
     this.syncManagedTrustees({ arm: false });
+    this.round.start(deckOverride);
+    if (appliedPartnerPlan) {
+      this.host.log(`  [房${this.roomId}] 已应用后台指定对家 uid=${appliedPartnerPlan.uid} partnerUid=${appliedPartnerPlan.partnerUid}`);
+      this.nextWskPartnerPlan = null;
+    }
     if (appliedHandPlan) {
       this.host.log(`  [房${this.roomId}] 已发放后台指定起手牌 uid=${appliedHandPlan.uid} ${JSON.stringify(appliedHandPlan.counts)}`);
       this.nextWskHandPlan = null;
@@ -672,6 +807,9 @@ class Table {
    * 这里给说胡子构造一份“等待中”的快照，避免读取 players.length 时直接中断切场。
    */
   waitingGameSnapshot() {
+    if (isClubPoker(this.gameType)) return {begin:false,step:this.step,game_stage:0,drift_stage:false,landlord:0,bottom_card:[],level_card:20,bomb_bet_score:1,
+      players:this.seats().map(m=>({uid:m.player.uid,total:m.score||0,ready:!!m.ready,bet_num:1,op_redouble:1,bomb_num:0,card_step_out:0,self_level_card:20,
+        card:{hand_card:[],hand_card_num:0,last_dis_card:[],last_pass:false}}))};
     if (Number(this.gameType) !== 17) return {};
     return {
       begin: false,
@@ -703,7 +841,7 @@ class Table {
     };
   }
 
-  join(player, connId) {
+  join(player, connId, location) {
     let mine = this.members.find((m) => m.player.uid === player.uid);
     const rejoining = !!mine;
     if (mine) {
@@ -731,6 +869,9 @@ class Table {
     } else {
       return { error: this.watchers().length >= MAX_WATCH ? '观战人数已满' : '房间已满' };
     }
+    // 每次进房或重连都重新取本次上报的位置。缺失时清空旧值，防止用历史
+    // 坐标绕过近距离校验；位置只保留到本桌服务进程内存中。
+    mine.location = normalizeLocation(location);
     if (!this.hostUid && mine && !mine.view) this.hostUid = player.uid;
     player.roomId = this.roomId;
     this.host.onUidRoom(player.uid, this.roomId);
@@ -740,7 +881,21 @@ class Table {
     let game = this.waitingGameSnapshot();
     if (this.round && !this.round.over) {
       const seat = this.round.seatOf(player.uid);
-      game = this.round.snapshot(seat >= 0 ? seat : -1, { begin: true });
+      if (seat >= 0 || Number(this.gameType) !== 17 || !mine.view) {
+        game = this.round.snapshot(seat >= 0 ? seat : -1, { begin: true });
+      } else {
+        const session = this.wskWatchSession(player.uid);
+        const targetSeat = this.round.seatOf(session.targetUid);
+        const target = targetSeat >= 0 ? {
+          uid: Number(session.targetUid),
+          seat: targetSeat,
+          member: this.seats()[targetSeat],
+        } : null;
+        const reveal = !!target && session.grants.has(Number(session.targetUid))
+          && !this.wskWatchHandDistanceError(mine, target);
+        game = this.round.watcherSnapshot(targetSeat, reveal, { begin: true });
+        if (targetSeat >= 0) game.watch_pos = targetSeat;
+      }
     } else if (this.lastEnd) {
       const seat = this.seats().findIndex((m) => m.player.uid === player.uid);
       if (seat >= 0 && this.lastEnd[seat]) game = this.lastEnd[seat];
@@ -848,11 +1003,169 @@ class Table {
     return { error: 0, chat: encoded };
   }
 
+  wskWatchSession(uid) {
+    uid = Number(uid);
+    let session = this.wskWatchSessions.get(uid);
+    if (!session) {
+      session = { targetUid: 0, grants: new Set(), pending: new Map() };
+      this.wskWatchSessions.set(uid, session);
+    }
+    return session;
+  }
+
+  wskWatchTarget(body) {
+    if (Number(this.gameType) !== 17 || !this.round || this.round.over) return null;
+    const targetUid = Number(body && body.uid);
+    const seat = this.round.seatOf(targetUid);
+    if (seat < 0) return null;
+    return { uid: targetUid, seat, member: this.seats()[seat] };
+  }
+
+  sendWskWatcherSnapshot(watcher, session, target) {
+    const reveal = session.grants.has(Number(target.uid))
+      && !this.wskWatchHandDistanceError(watcher, target);
+    // 切换观战视角发生在当前牌局中。begin=false 会被原生说胡子客户端
+    // 解释成 SingleEnd，继而弹出结算动画并离开房间。
+    const snapshot = this.round.watcherSnapshot(target.seat, reveal, { begin: true });
+    snapshot.watch_pos = target.seat;
+    this.sendTo(watcher, push('game_info', snapshot));
+  }
+
+  handleWskWatchView(watcher, body) {
+    const target = this.wskWatchTarget(body);
+    if (!target) return { error: 1, what: '观战目标不存在' };
+    const session = this.wskWatchSession(watcher.player.uid);
+    session.targetUid = target.uid;
+    // 切换视角不撤销此前已经取得的授权；切回该玩家时直接恢复明牌。
+    this.sendWskWatcherSnapshot(watcher, session, target);
+    this.sendTo(watcher, push('wsk_watch_view', {
+      uid: target.uid,
+      pos: target.seat,
+      hand_granted: session.grants.has(target.uid)
+        && !this.wskWatchHandDistanceError(watcher, target),
+    }));
+    return { error: 0 };
+  }
+
+  wskWatchHandDistanceError(watcher, target) {
+    const members = [];
+    if (target && target.member && !target.member.bot) {
+      members.push({ member: target.member, teammate: false });
+    }
+    // 说胡子固定为对面座位组队。查看一个人的手牌也会泄露他所在队伍的
+    // 信息，因此观战者接近该玩家的真人队友时同样禁止查看。
+    if (this.round && target && Number.isInteger(target.seat)) {
+      const teammateSeat = typeof this.round.teammate === 'function'
+        ? this.round.teammate(target.seat) : (target.seat + 2) % 4;
+      const teammate = this.seats()[teammateSeat];
+      if (teammate && !teammate.bot && teammate !== target.member) {
+        members.push({ member: teammate, teammate: true });
+      }
+    }
+    // 全机器人队没有现实位置，也不存在与观战者串通的风险。
+    if (!members.length) return '';
+    const watcherIp = normalizeIp(watcher && watcher.player && watcher.player.lastIp);
+    for (const item of members) {
+      const distance = locationDistanceMeters(
+        watcher && watcher.location, item.member && item.member.location,
+      );
+      if (distance != null && distance < WSK_WATCH_HAND_MIN_DISTANCE_METERS) {
+        return item.teammate
+          ? '您与该玩家的队友距离过近，不能查看手牌'
+          : '双方距离过近，不能查看手牌';
+      }
+      // 旧原生包的定位桥接可能返回空值。缺少任一方坐标时，以登录时由
+      // 服务端记录的公网 IP 降级判断；同一网络仍禁止看牌，不同网络则
+      // 允许申请，避免定位桥接失效导致所有正常观战者都无法使用功能。
+      if (distance == null && watcherIp) {
+        const memberIp = normalizeIp(item.member && item.member.player
+          && item.member.player.lastIp);
+        if (memberIp && memberIp === watcherIp) {
+          return item.teammate
+            ? '检测到您与该玩家的队友使用同一网络，不能查看手牌'
+            : '检测到双方使用同一网络，不能查看手牌';
+        }
+      }
+    }
+    return '';
+  }
+
+  handleWskWatchHandRequest(watcher, body) {
+    const target = this.wskWatchTarget(body);
+    if (!target) return { error: 1, what: '当前无法申请查看手牌' };
+    const session = this.wskWatchSession(watcher.player.uid);
+    if (session.targetUid && session.targetUid !== target.uid) {
+      return { error: 1, what: '请先切换到该玩家视角' };
+    }
+    session.targetUid = target.uid;
+    const distanceError = this.wskWatchHandDistanceError(watcher, target);
+    if (distanceError) return { error: 1, what: distanceError };
+    if (session.grants.has(target.uid)) {
+      this.sendWskWatcherSnapshot(watcher, session, target);
+      this.sendTo(watcher, push('wsk_watch_hand_granted', { uid: target.uid }));
+      return { error: 0 };
+    }
+    // 陪玩机器人没有客户端连接，收不到确认弹窗。观战者申请查看机器人
+    // 手牌时直接授权，否则请求会永远停留在 pending 状态，看起来像按钮失效。
+    if (target.member.bot) {
+      session.pending.delete(target.uid);
+      session.grants.add(target.uid);
+      this.host.persist();
+      this.sendWskWatcherSnapshot(watcher, session, target);
+      this.sendTo(watcher, push('wsk_watch_hand_granted', { uid: target.uid }));
+      return { error: 0 };
+    }
+    const requestId = randomBytes(12).toString('hex');
+    session.pending.set(target.uid, requestId);
+    this.sendTo(target.member, push('wsk_watch_hand_request', {
+      request_id: requestId,
+      watcher_uid: Number(watcher.player.uid),
+      watcher_name: watcher.player.nickname || `玩家${watcher.player.uid}`,
+    }));
+    return { error: 0 };
+  }
+
+  handleWskWatchHandReply(uid, body) {
+    if (Number(this.gameType) !== 17 || !this.round || this.round.over) {
+      return { error: 1, what: '牌局已结束' };
+    }
+    const requestId = String(body && body.request_id || '');
+    const watcherUid = Number(body && body.watcher_uid);
+    const session = this.wskWatchSessions.get(watcherUid);
+    if (!session || !(session.pending instanceof Map)
+      || session.pending.get(Number(uid)) !== requestId) {
+      return { error: 1, what: '申请已失效' };
+    }
+    const target = this.wskWatchTarget({ uid });
+    if (!target) return { error: 1, what: '玩家已不在牌局中' };
+    session.pending.delete(Number(uid));
+    // 拒绝只在服务端结束申请，不给观战者弹提示。
+    if (!body || !body.agree) return { error: 0 };
+    const watcher = this.members.find((member) => member.view
+      && Number(member.player.uid) === watcherUid);
+    if (!watcher) return { error: 1, what: '观战者已离开房间' };
+    const distanceError = this.wskWatchHandDistanceError(watcher, target);
+    if (distanceError) return { error: 1, what: distanceError };
+    session.grants.add(Number(uid));
+    this.host.persist();
+    if (watcher) {
+      if (session.targetUid === Number(uid)) this.sendWskWatcherSnapshot(watcher, session, target);
+      this.sendTo(watcher, push('wsk_watch_hand_granted', { uid: Number(uid) }));
+    }
+    return { error: 0 };
+  }
+
   leave(uid, connId) {
     const mine = this.members.find((m) => m.player.uid === uid);
     if (!mine || mine.connId !== connId) return;
     if (mine.view) {
-      this.dropWatcher(uid, { notify: false });
+      mine.connId = null;
+      mine.online = false;
+      this.host.log(`  [房${this.roomId}] ${uid} 观战离线，保留重连`);
+      this.broadcast('lineperson', { uid, line: false });
+      this.broadcast('roominfo', roomInfo(this));
+      this.host.schedule(`kick-${uid}`, this.host.now() + WATCH_RECONNECT_GRACE_MS);
+      this.host.persist();
       return;
     }
     mine.connId = null;
@@ -951,6 +1264,8 @@ class Table {
   handle200(uid, msghead, body) {
     const mine = this.members.find((m) => m.player.uid === uid);
     if (mine && mine.view) {
+      if (msghead === 'wsk_watch_view') return this.handleWskWatchView(mine, body);
+      if (msghead === 'wsk_watch_hand_request') return this.handleWskWatchHandRequest(mine, body);
       if (msghead === 'dissmissroom') {
         this.dropWatcher(uid, { notify: true });
         return { error: 0 };
@@ -963,6 +1278,23 @@ class Table {
       }
       return { error: 0 };
     }
+    if (msghead === 'wsk_hand_sort') {
+      if (Number(this.gameType) !== 17 || !mine) return { error: 1, what: '当前无法同步牌序' };
+      const sortType = Number(body && body.sort_type);
+      if (!Number.isInteger(sortType) || sortType < 0 || sortType > 2) {
+        return { error: 1, what: '牌序类型无效' };
+      }
+      mine.wskHandSortType = sortType;
+      for (const watcher of this.watchers()) {
+        const session = this.wskWatchSessions.get(Number(watcher.player.uid));
+        if (session && Number(session.targetUid) === Number(uid)) {
+          this.sendTo(watcher, push('wsk_hand_sort', { uid: Number(uid), sort_type: sortType }));
+        }
+      }
+      this.host.persist();
+      return { error: 0 };
+    }
+    if (msghead === 'wsk_watch_hand_reply') return this.handleWskWatchHandReply(uid, body);
     if (msghead === 'dissmissroom' || msghead === 'nodissmissroom') {
       this.handleDismiss(uid, msghead === 'dissmissroom');
       this.host.persist();
@@ -985,9 +1317,32 @@ class Table {
           mine.trustee = false;
         } else {
           mine.trustee = !mine.trustee;
+          if (mine.trustee) {
+            // 主动再次开启允许恢复白名单策略；取消后仍不会自行重新开启。
+            mine.managedTrusteeOptOut = false;
+            if (this.managedTrusteeEligible(mine)) {
+              mine.managedTrustee = true;
+              mine.trusteeBeforeManaged = false;
+            }
+          }
         }
-        this.broadcast('trustee', { uid, status: mine.trustee });
+        this.broadcast('trustee', { uid, status: mine.trustee,
+          manual_enabled: Number(this.gameType) === GANDENGYAN_GAME_TYPE
+            && !!(this.host.trusteeWhitelisted && this.host.trusteeWhitelisted(uid)) });
         this.host.log(`  [房${this.roomId}] ${uid} ${mine.trustee ? '托管' : '取消托管'}`);
+        // 结算回调会先把 this.round 清空；此时客户端可能紧接着发送
+        // 取消托管。没有牌局时必须用 -1，避免 null >= 0 被 JS 判为 true。
+        const activeRound = this.round;
+        const seat = activeRound ? activeRound.seatOf(uid) : -1;
+        if (seat >= 0) {
+          if (mine.trustee) {
+            // 操作按钮已经显示后再开启托管，也要立刻清掉当前候选项。
+            this.sendTo(mine, push('game_operator', EMPTY_MAHJONG_OPERATOR));
+          } else if (typeof activeRound.replayOps === 'function') {
+            // 取消托管后仍处于当前操作窗口时，恢复玩家可手动选择的按钮。
+            activeRound.replayOps(seat);
+          }
+        }
         this.armTurns(uid);
       }
       this.host.persist();
@@ -1019,7 +1374,7 @@ class Table {
   restoreRound(rawRound) {
     if (!rawRound) return;
     try {
-      const RoundClass = rawRound.kind === 'qjshz' || Number(this.gameType) === 17 ? WskRound : Round;
+      const RoundClass = isClubPoker(this.gameType) ? ClubPokerRound : rawRound.kind === 'qjshz' || Number(this.gameType) === 17 ? WskRound : Round;
       this.round = RoundClass.restore(rawRound, this.seats(), this.makeIo(), this.config);
     } catch (err) {
       this.host.log(`  房 ${this.roomId} 牌局恢复失败，房间留下、当局作废`);
@@ -1058,9 +1413,16 @@ class Table {
       drawCount: this.drawCount,
       dealerUid: this.dealerUid || 0,
       lastEnd: this.lastEnd || null,
+      pokerMatch: this.pokerMatch,
       nextWskHandPlan: this.nextWskHandPlan ? {
         ...this.nextWskHandPlan, counts: { ...this.nextWskHandPlan.counts },
       } : null,
+      nextWskPartnerPlan: this.nextWskPartnerPlan ? { ...this.nextWskPartnerPlan } : null,
+      wskWatchSessions: [...this.wskWatchSessions.entries()].map(([watcherUid, session]) => ({
+        watcherUid: Number(watcherUid),
+        targetUid: Number(session.targetUid) || 0,
+        grants: [...session.grants].map(Number).filter(Number.isSafeInteger),
+      })),
       dismiss: this.dismiss ? { agree: this.dismiss.agree, time: this.dismiss.time } : null,
       cardCharges: this.cardCharges,
       hands: this.hands,
@@ -1082,6 +1444,7 @@ class Table {
         view: !!m.view,
         bot: !!m.bot,
         botStrategy: m.botStrategy === 'jev' ? 'jev' : 'local',
+        wskHandSortType: Number(m.wskHandSortType) || 0,
       })),
       round: this.round && !this.round.over ? this.round.dump() : null,
     };
@@ -1106,7 +1469,9 @@ class Table {
       drawCount: raw.drawCount || 0,
       dealerUid: raw.dealerUid || 0,
       lastEnd: raw.lastEnd || null,
+      pokerMatch: raw.pokerMatch || null,
       nextWskHandPlan: raw.nextWskHandPlan || null,
+      nextWskPartnerPlan: raw.nextWskPartnerPlan || null,
       dismiss: raw.dismiss || null,
       cardCharges: raw.cardCharges || [],
       hands: raw.hands || [],
@@ -1137,7 +1502,20 @@ class Table {
         view: !!m.view,
         bot: !!m.bot,
         botStrategy: m.botStrategy === 'jev' ? 'jev' : 'local',
+        wskHandSortType: Number(m.wskHandSortType) || 0,
       }));
+    }
+    const seatedUids = new Set(table.seats().map((member) => Number(member.player.uid)));
+    const watcherUids = new Set(table.watchers().map((member) => Number(member.player.uid)));
+    for (const saved of raw.wskWatchSessions || []) {
+      const watcherUid = Number(saved && saved.watcherUid);
+      if (!watcherUids.has(watcherUid)) continue;
+      table.wskWatchSessions.set(watcherUid, {
+        targetUid: seatedUids.has(Number(saved.targetUid)) ? Number(saved.targetUid) : 0,
+        grants: new Set((saved.grants || []).map(Number).filter((uid) => seatedUids.has(uid))),
+        // 未处理的申请不跨服务重启恢复，避免旧弹窗产生新的授权。
+        pending: new Map(),
+      });
     }
     if (raw.round) table.restoreRound(raw.round);
     return table;
@@ -1151,6 +1529,7 @@ module.exports = {
   UNSTARTED_ROOM_TTL_MS,
   STARTED_ROOM_TTL_MS,
   ROOM_EXPIRE_TIMER,
+  WATCH_RECONNECT_GRACE_MS,
   BOT_MIN_DELAY_MS,
   BOT_MAX_DELAY_MS,
   BOT_OPENING_PRESENTATION_MS,

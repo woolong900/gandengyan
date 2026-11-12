@@ -27,6 +27,7 @@ const buildRecord = (table, now) => {
     score: m.score || 0,
     avatarUrl: m.player.avatarUrl || '',
     winner: false,
+    bot: !!(m.bot || m.player.bot),
   }));
   const top = Math.max(0, ...players.map((p) => p.score));
   for (const p of players) p.winner = p.score === top && top > 0;

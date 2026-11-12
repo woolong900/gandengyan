@@ -29,6 +29,7 @@ function t() {
 return null !== e && e.apply(this, arguments) || this;
 }
 t.prototype.parse = function(t, o) {
+if (require('./PokerNetworkFlow').route(this,t,o)) return;
 cc.log(t, o);
 "game_info" === t && this._gameInfo(o);
 "game_biddealer" === t && this._dealDrift(o);
@@ -47,7 +48,8 @@ this.parse("game_info", e);
 t.prototype._gameBegin = function(e) {
 i.default.gameInfoDDZ.m_iLaiziValue = 0;
 this._gameInfo(e);
-u.default.getInstance().playAnimationBegin();
+var done=require('./PokerNetworkFlow').begin(this);
+u.default.getInstance().playAnimationBegin(done);
 };
 t.prototype._gameInfo = function(e) {
 var t = e.begin, o = e.drift_stage, n = e.players, r = e.step, a = e.bottom_card || [ 0, 0, 0, 0 ], l = e.landlord || 0, c = 1;

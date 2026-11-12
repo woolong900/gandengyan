@@ -1,8 +1,13 @@
 (function () {
   'use strict';
-  var state = { csrf: '', view: 'dashboard', page: 1, q: '', loading: false };
+  var chinaToday = function () { return new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10); };
+  var state = { csrf: '', view: 'dashboard', page: 1, q: '', loading: false,
+    startDate: chinaToday(), endDate: chinaToday(), scoreSort: 'desc' };
+  var datePickerOpen = false;
+  var datePickerDraft = { start: chinaToday(), end: chinaToday(), month: chinaToday().slice(0, 7), selectingEnd: false };
   var labels = { dashboard: '数据面板', players: '玩家管理', rooms: '房间管理', records: '牌局管理',
-    clubs: '俱乐部管理', economy: '房卡与奖励', bots: '机器人管理', trustees: '托管白名单',
+    leaderboard: '积分榜', clubs: '俱乐部管理', economy: '房卡与奖励', bots: '机器人管理', trustees: '托管白名单',
+    'record-card-whitelist': '记牌器白名单',
     'agent-applications': '合伙人申请', support: '客服会话', messages: '通知管理', notices: '大厅公告',
     'hot-update': '热更新灰度', audit: '操作日志', system: '备份与系统' };
   var content = document.getElementById('content');
@@ -44,6 +49,72 @@
   var detail = function (name, value) { return '<div class="detail"><span>' + escape(name) + '</span><strong>' +
     escape(value) + '</strong></div>'; };
   var field = function (name, input) { return '<div class="field"><label>' + escape(name) + '</label>' + input + '</div>'; };
+  var calendarDate = function (value) {
+    var parts = String(value || '').split('-').map(Number);
+    return new Date(Date.UTC(parts[0], parts[1] - 1, parts[2] || 1));
+  };
+  var calendarText = function (value) { return value.toISOString().slice(0, 10); };
+  var shiftCalendarDay = function (value, days) {
+    var result = calendarDate(value); result.setUTCDate(result.getUTCDate() + days); return calendarText(result);
+  };
+  var shiftCalendarMonth = function (value, months) {
+    var parts = String(value).split('-').map(Number);
+    var result = new Date(Date.UTC(parts[0], parts[1] - 1 + months, 1));
+    return calendarText(result).slice(0, 7);
+  };
+
+  function calendarMonth(value, side) {
+    var parts = value.split('-').map(Number);
+    var first = new Date(Date.UTC(parts[0], parts[1] - 1, 1));
+    var offset = (first.getUTCDay() + 6) % 7;
+    var gridStart = new Date(first.getTime()); gridStart.setUTCDate(1 - offset);
+    var days = [];
+    for (var index = 0; index < 42; index++) {
+      var item = new Date(gridStart.getTime()); item.setUTCDate(gridStart.getUTCDate() + index);
+      var text = calendarText(item);
+      var classes = ['date-range-day'];
+      if (item.getUTCMonth() !== first.getUTCMonth()) classes.push('outside');
+      if (text === chinaToday()) classes.push('today');
+      if (text === datePickerDraft.start || text === datePickerDraft.end) classes.push('selected');
+      if (datePickerDraft.end && text > datePickerDraft.start && text < datePickerDraft.end) classes.push('in-range');
+      days.push('<button type="button" class="' + classes.join(' ') + '" data-action="leaderboard-date-day" data-target="' +
+        text + '">' + item.getUTCDate() + '</button>');
+    }
+    var previous = side === 'left' ? '<button type="button" data-action="leaderboard-date-month" data-target="-12" aria-label="上一年">«</button>' +
+      '<button type="button" data-action="leaderboard-date-month" data-target="-1" aria-label="上个月">‹</button>' : '<span></span>';
+    var next = side === 'right' ? '<button type="button" data-action="leaderboard-date-month" data-target="1" aria-label="下个月">›</button>' +
+      '<button type="button" data-action="leaderboard-date-month" data-target="12" aria-label="下一年">»</button>' : '<span></span>';
+    return '<div class="date-range-calendar"><div class="date-range-month-head"><span class="date-range-nav">' + previous +
+      '</span><strong>' + parts[0] + '年 ' + parts[1] + '月</strong><span class="date-range-nav">' + next + '</span></div>' +
+      '<div class="date-range-week"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>' +
+      '<div class="date-range-days">' + days.join('') + '</div></div>';
+  }
+  function datePickerPanel() {
+    var presets = [['today', '今天'], ['24h', '过去24小时'], ['yesterday', '昨天'], ['7d', '过去7天'],
+      ['30d', '过去30天'], ['90d', '过去90天'], ['last-month', '上月']];
+    return '<div class="date-range-body"><div class="date-range-presets">' + presets.map(function (preset) {
+      return '<button type="button" data-action="leaderboard-date-preset" data-target="' + preset[0] + '">' + preset[1] + '</button>';
+    }).join('') + '</div><div class="date-range-main"><div class="date-range-inputs"><div><span>开始时间</span><strong>' +
+      escape(datePickerDraft.start || '请选择') + '</strong></div><div><span>结束时间</span><strong>' +
+      escape(datePickerDraft.end || '请选择') + '</strong></div></div><div class="date-range-calendars">' +
+      calendarMonth(datePickerDraft.month, 'left') + calendarMonth(shiftCalendarMonth(datePickerDraft.month, 1), 'right') +
+      '</div></div></div><div class="date-range-footer"><span>(GMT+08:00) Asia/Shanghai</span><div>' +
+      '<button type="button" class="date-range-clear" data-action="leaderboard-date-clear">清除</button>' +
+      '<button type="button" class="button" data-action="leaderboard-date-cancel">取消</button>' +
+      '<button type="button" class="button primary" data-action="leaderboard-date-confirm"' +
+      (!datePickerDraft.start || !datePickerDraft.end ? ' disabled' : '') + '>确定</button></div></div>';
+  }
+  function refreshDatePicker() {
+    var panel = document.getElementById('leaderboard-date-popover');
+    if (panel) panel.innerHTML = datePickerPanel();
+  }
+  function closeDatePicker() {
+    datePickerOpen = false;
+    var panel = document.getElementById('leaderboard-date-popover');
+    var trigger = document.querySelector('.date-range-trigger');
+    if (panel) panel.classList.add('hidden');
+    if (trigger) trigger.setAttribute('aria-expanded', 'false');
+  }
 
   function toast(message, isError) {
     toastNode.textContent = message;
@@ -98,15 +169,20 @@
     try {
       var view = state.view;
       var query = '?page=' + state.page + '&q=' + encodeURIComponent(state.q);
-      var data = await api('/' + view + (['players', 'rooms', 'records', 'clubs', 'agent-applications', 'support'].includes(view) ? query : ''));
+      var leaderboardQuery = '?page=' + state.page + '&startDate=' + encodeURIComponent(state.startDate) +
+        '&endDate=' + encodeURIComponent(state.endDate) + '&sort=' + encodeURIComponent(state.scoreSort);
+      var data = await api('/' + view + (view === 'leaderboard' ? leaderboardQuery
+        : (['players', 'rooms', 'records', 'clubs', 'agent-applications', 'support'].includes(view) ? query : '')));
       if (view === 'dashboard') renderDashboard(data);
       else if (view === 'players') renderPlayers(data);
       else if (view === 'rooms') renderRooms(data);
       else if (view === 'records') renderRecords(data);
+      else if (view === 'leaderboard') renderLeaderboard(data);
       else if (view === 'clubs') renderClubs(data);
       else if (view === 'economy') renderEconomy(data);
       else if (view === 'bots') renderBots(data);
       else if (view === 'trustees') renderTrustees(data);
+      else if (view === 'record-card-whitelist') renderRecordCardWhitelist(data);
       else if (view === 'agent-applications') renderAgentApplications(data);
       else if (view === 'support') renderSupport(data);
       else if (view === 'messages') renderMessages(data);
@@ -198,6 +274,31 @@
       '<span class="muted">' + escape(data.retention) + '</span></div>' +
       table(['房号', '结算时间', '俱乐部', '已打局数', '玩家', '操作'], rows) + pager(data) + '</section>';
   }
+  function renderLeaderboard(data) {
+    datePickerOpen = false;
+    datePickerDraft = { start: data.startDate, end: data.endDate, month: data.startDate.slice(0, 7), selectingEnd: false };
+    var offset = (data.page - 1) * data.limit;
+    var rows = data.items.map(function (player, index) {
+      var avatar = player.avatarUrl ? '<img class="leaderboard-avatar" src="' + escape(player.avatarUrl) + '" alt="">'
+        : '<span class="leaderboard-avatar placeholder">' + escape(String(player.nickname || '玩').slice(0, 1)) + '</span>';
+      var scoreClass = player.score > 0 ? 'positive' : (player.score < 0 ? 'negative' : '');
+      var scoreText = (player.score > 0 ? '+' : '') + number(player.score);
+      return '<tr><td class="leaderboard-rank">' + number(offset + index + 1) + '</td><td><div class="leaderboard-player">' +
+        avatar + '<div><strong>' + short(player.nickname, 24) + '</strong><small>玩家 #' + escape(player.uid) +
+        '</small></div></div></td><td class="leaderboard-score ' + scoreClass + '">' + scoreText +
+        '</td><td>' + number(player.games) + '</td></tr>';
+    });
+    var filter = '<div class="date-range-control"><button type="button" class="date-range-trigger" ' +
+      'data-action="leaderboard-date-toggle" aria-expanded="false"><span>' + escape(data.startDate) + ' 至 ' +
+      escape(data.endDate) + '</span><i class="date-range-icon" aria-hidden="true"></i></button>' +
+      '<div id="leaderboard-date-popover" class="date-range-popover hidden">' + datePickerPanel() + '</div></div>';
+    var scoreHead = '<button type="button" class="leaderboard-sort-head" data-action="leaderboard-sort">' +
+      '输赢总积分 <span aria-hidden="true">' + (data.sort === 'asc' ? '↑' : '↓') + '</span></button>';
+    content.innerHTML = intro('玩家积分榜', '按北京时间汇总指定日期范围内已结束牌局的玩家输赢总积分。',
+      button('refresh', '刷新数据')) + '<section class="card"><div class="toolbar leaderboard-toolbar">' + filter +
+      '<span class="muted">' + number(data.records) + ' 场牌局 · ' + number(data.total) + ' 位玩家</span></div>' +
+      table(['排名', '玩家', scoreHead, '参与牌局'], rows) + pager(data) + '</section>';
+  }
   function renderClubs(data) {
     var rows = data.items.map(function (club) { return '<tr><td class="mono">' + club.id +
       '</td><td>' + short(club.name, 20) + '</td><td>' + club.ownerUid + '</td><td>' +
@@ -266,6 +367,24 @@
       field('玩家 ID', '<input name="uid" type="number" min="1" step="1" placeholder="请输入玩家 ID" required>') +
       '</div><p class="note">加入后立即生效；如果玩家尚未进入干瞪眼小局，则在下次开局时自动托管。其他玩法、等待房间和局间阶段不会托管。</p>' +
       '<button class="button primary" type="submit">加入托管白名单</button></form></section>' +
+      '<section class="card" style="margin-top:18px"><h3>已加入的玩家</h3>' +
+      table(['玩家 ID', '昵称', '状态', '房间', '在线', '操作'], rows) + '</section>';
+  }
+  function renderRecordCardWhitelist(data) {
+    var rows = data.items.map(function (item) { return '<tr><td class="mono">' + item.uid +
+      '</td><td>' + short(item.nickname, 20) + '</td><td>' +
+      badge(item.status, item.roomId && item.online ? 'green' : (item.online ? 'gold' : '')) + '</td><td>' +
+      (item.roomId || '—') + '</td><td>' + badge(item.online ? '在线' : '离线', item.online ? 'green' : '') +
+      '</td><td>' + button('record-card-remove', '移出白名单', item.uid, 'danger') + '</td></tr>'; });
+    content.innerHTML = intro('记牌器白名单', '白名单权限仅对 Android 生效；Android 玩家即使进入未勾选记牌器的房间，也能使用记牌器。',
+      button('refresh', '刷新数据', '', 'primary')) +
+      '<div class="grid metrics"><div class="metric"><span class="label">白名单人数</span><strong>' +
+      number(data.count) + '</strong><span class="hint">设置会持久保存</span></div><div class="metric"><span class="label">当前在线</span><strong class="accent">' +
+      number(data.onlineCount) + '</strong><span class="hint">牌桌内变更会立即同步</span></div></div>' +
+      '<section class="card"><form id="record-card-whitelist-form"><div class="form-grid">' +
+      field('玩家 ID', '<input name="uid" type="number" min="1" step="1" placeholder="请输入玩家 ID" required>') +
+      '</div><p class="note">加入后仅在 Android 生效；iOS 不会启用白名单权限。房间本身勾选记牌器时仍按正常玩法配置处理。移出后，如果当前房间本身没有勾选记牌器，玩家的记牌器入口会立即关闭。</p>' +
+      '<button class="button primary" type="submit">加入记牌器白名单</button></form></section>' +
       '<section class="card" style="margin-top:18px"><h3>已加入的玩家</h3>' +
       table(['玩家 ID', '昵称', '状态', '房间', '在线', '操作'], rows) + '</section>';
   }
@@ -614,7 +733,23 @@
       var handLimit = remove34 ? 23 : 27;
       var wskStatus = wskHandDraft.dirty ? '当前选择尚未保存。' : (wskPlan ?
         '已设置玩家 #' + wskPlan.uid + '，指定 ' + wskPlan.total + '张牌。' : '当前没有指定起手牌。');
-      wskHandHtml = '<div class="room-plan-head"><div><h4>选择手牌</h4><small>下一局指定起手牌</small></div>' +
+      var partnerPlan = room.nextWskPartnerPlan;
+      var seatedPlayers = room.members.filter(function (member) { return !member.spectator; });
+      var playerOptions = seatedPlayers.map(function (member) {
+        return '<option value="' + member.uid + '">' + escape(member.nickname) + '（#' + member.uid + '）</option>';
+      }).join('');
+      var partnerHtml = '<div class="room-plan-head"><div><h4>指定对家</h4><small>下一局生效</small></div>' +
+        '<span>' + (partnerPlan ? '已设置 #' + partnerPlan.uid + ' ↔ #' + partnerPlan.partnerUid : '当前随机决定') + '</span></div>' +
+        '<p class="note">选择基准玩家及其对家。下一局基准玩家作为庄家，两人坐在相对位置；开局后自动清除。</p>' +
+        '<form id="wsk-partner-plan-form" data-target="' + room.roomId + '"><div class="inline-fields">' +
+        '<label>基准玩家<select name="uid" required><option value="">请选择</option>' + playerOptions + '</select></label>' +
+        '<label>指定对家<select name="partnerUid" required><option value="">请选择</option>' + playerOptions + '</select></label></div>' +
+        '<div class="room-plan-actions"><button type="submit" class="room-plan-button primary"' +
+        (seatedPlayers.length < 2 ? ' disabled' : '') + '><span>保存对家</span><small>下一局生效</small></button>' +
+        '<button type="button" class="room-plan-button secondary" data-action="room-wsk-partner-clear" data-target="' +
+        room.roomId + '"' + (!partnerPlan ? ' disabled' : '') + '><span>清除对家</span><small>恢复随机决定</small></button></div></form>';
+      wskHandHtml = partnerHtml + '<div class="room-plan-divider"></div>' +
+        '<div class="room-plan-head"><div><h4>选择手牌</h4><small>下一局指定起手牌</small></div>' +
         '<span>目标玩家：<strong>' + escape(wskTarget ? wskTarget.nickname : '请在左侧选择') + '</strong></span></div><p class="note">' + wskStatus +
         '未指定的部分依然随机；开始下一小局后自动清除，服务器重启不会丢失。</p>' +
         '<form id="wsk-hand-plan-form" data-target="' + room.roomId + '"><div class="wsk-selection-head"><strong>选择牌面数量</strong>' +
@@ -727,6 +862,64 @@
   }
   async function handleAction(action, target) {
     try {
+      if (action === 'leaderboard-date-toggle') {
+        datePickerOpen = !datePickerOpen;
+        var picker = document.getElementById('leaderboard-date-popover');
+        var pickerTrigger = document.querySelector('.date-range-trigger');
+        if (picker) picker.classList.toggle('hidden', !datePickerOpen);
+        if (pickerTrigger) pickerTrigger.setAttribute('aria-expanded', datePickerOpen ? 'true' : 'false');
+        return;
+      }
+      if (action === 'leaderboard-date-preset') {
+        var today = chinaToday(); var start = today; var end = today;
+        if (target === '24h') start = shiftCalendarDay(today, -1);
+        if (target === 'yesterday') start = end = shiftCalendarDay(today, -1);
+        if (target === '7d') start = shiftCalendarDay(today, -6);
+        if (target === '30d') start = shiftCalendarDay(today, -29);
+        if (target === '90d') start = shiftCalendarDay(today, -89);
+        if (target === 'last-month') {
+          var currentMonth = today.slice(0, 7);
+          start = shiftCalendarMonth(currentMonth, -1) + '-01';
+          end = shiftCalendarDay(currentMonth + '-01', -1);
+        }
+        datePickerDraft = { start: start, end: end, month: start.slice(0, 7), selectingEnd: false };
+        refreshDatePicker(); return;
+      }
+      if (action === 'leaderboard-date-month') {
+        datePickerDraft.month = shiftCalendarMonth(datePickerDraft.month, Number(target));
+        refreshDatePicker(); return;
+      }
+      if (action === 'leaderboard-date-day') {
+        if (!datePickerDraft.selectingEnd) {
+          datePickerDraft.start = target; datePickerDraft.end = ''; datePickerDraft.selectingEnd = true;
+        } else {
+          datePickerDraft.end = target;
+          if (datePickerDraft.end < datePickerDraft.start) {
+            var selectedStart = datePickerDraft.start;
+            datePickerDraft.start = datePickerDraft.end; datePickerDraft.end = selectedStart;
+          }
+          datePickerDraft.selectingEnd = false;
+        }
+        refreshDatePicker(); return;
+      }
+      if (action === 'leaderboard-date-clear') {
+        var resetDay = chinaToday();
+        datePickerDraft = { start: '', end: '', month: resetDay.slice(0, 7), selectingEnd: false };
+        refreshDatePicker(); return;
+      }
+      if (action === 'leaderboard-date-cancel') {
+        datePickerDraft = { start: state.startDate, end: state.endDate,
+          month: state.startDate.slice(0, 7), selectingEnd: false };
+        closeDatePicker(); return;
+      }
+      if (action === 'leaderboard-date-confirm') {
+        if (!datePickerDraft.start || !datePickerDraft.end) return;
+        state.startDate = datePickerDraft.start; state.endDate = datePickerDraft.end;
+        state.page = 1; closeDatePicker(); render(); return;
+      }
+      if (action === 'leaderboard-sort') {
+        state.scoreSort = state.scoreSort === 'asc' ? 'desc' : 'asc'; state.page = 1; render(); return;
+      }
       if (action === 'logout') { await api('/logout', 'POST', {}); state.csrf = ''; showLogin(); return; }
       if (action === 'close-modal') { closeModal(); return; }
       if (action === 'refresh') { render(); return; }
@@ -804,6 +997,11 @@
         toast('下一局指定起手牌已清除');
         await detailRoom(target); return;
       }
+      if (action === 'room-wsk-partner-clear') {
+        await api('/rooms/' + target + '/next-wsk-partner', 'DELETE');
+        toast('下一局指定对家已清除');
+        await detailRoom(target); return;
+      }
       if (action === 'record-detail') return detailRecord(target);
       if (action === 'club-detail') return detailClub(target);
       if (action === 'support-detail') return detailSupport(target);
@@ -847,6 +1045,11 @@
         if (!window.confirm('确定将玩家 #' + target + ' 移出托管白名单？正在进行的后台托管会立即停止。')) return;
         await api('/trustees', 'PUT', { uid: Number(target), enabled: false });
         toast('已移出托管白名单'); render(); return;
+      }
+      if (action === 'record-card-remove') {
+        if (!window.confirm('确定将玩家 #' + target + ' 移出记牌器白名单？')) return;
+        await api('/record-card-whitelist', 'PUT', { uid: Number(target), enabled: false });
+        toast('已移出记牌器白名单'); render(); return;
       }
       if (action === 'backup') {
         var result = await api('/backup', 'POST', {});
@@ -910,6 +1113,10 @@
         await api('/trustees', 'PUT', { uid: Number(values.uid), enabled: true });
         toast('玩家已加入托管白名单'); render(); return;
       }
+      if (form.id === 'record-card-whitelist-form') {
+        await api('/record-card-whitelist', 'PUT', { uid: Number(values.uid), enabled: true });
+        toast('玩家已加入记牌器白名单'); render(); return;
+      }
       if (form.id.indexOf('hot-update-form-') === 0) {
         var splitList = function (value) { return String(value || '').split(/[,，\s]+/).map(function (item) {
           return item.trim();
@@ -959,6 +1166,13 @@
           plan.nextWskHandPlan.total + ' 张起手牌');
         await detailRoom(target); return;
       }
+      if (form.id === 'wsk-partner-plan-form') {
+        var partnerResult = await api('/rooms/' + target + '/next-wsk-partner', 'POST',
+          { uid: Number(values.uid), partnerUid: Number(values.partnerUid) });
+        toast('已指定 #' + partnerResult.nextWskPartnerPlan.uid + ' 的对家为 #' +
+          partnerResult.nextWskPartnerPlan.partnerUid);
+        await detailRoom(target); return;
+      }
       if (form.id === 'club-form') {
         await api('/clubs/' + target + '/settings', 'POST',
           { announcement: values.announcement, closed: values.closed === 'true' });
@@ -974,17 +1188,22 @@
     if (view) { setView(view.getAttribute('data-view')); return; }
     var action = event.target.closest('[data-action]');
     if (action) handleAction(action.getAttribute('data-action'), action.getAttribute('data-target'));
+    else if (datePickerOpen && !event.target.closest('.date-range-control')) closeDatePicker();
     if (event.target === modal) closeModal();
   });
   document.addEventListener('submit', function (event) {
     event.preventDefault();
     handleForm(event.target);
   });
-  document.addEventListener('keydown', function (event) { if (event.key === 'Escape') closeModal(); });
+  document.addEventListener('keydown', function (event) {
+    if (event.key !== 'Escape') return;
+    if (datePickerOpen) closeDatePicker(); else closeModal();
+  });
   window.setInterval(async function () {
     if (!activeRoomId || modal.classList.contains('hidden') || roomPollBusy || roomEditPending) return;
     if (document.activeElement && document.activeElement.closest &&
-      document.activeElement.closest('#wsk-hand-plan-form')) return;
+      (document.activeElement.closest('#wsk-hand-plan-form')
+        || document.activeElement.closest('#wsk-partner-plan-form'))) return;
     var id = activeRoomId;
     roomPollBusy = true;
     try {

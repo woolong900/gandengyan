@@ -44,12 +44,14 @@ o.pos === s.default.myAbsolutePos() && (e._uiDirty = !0);
 this._updateUI();
 };
 t.prototype.update = function() {
+if (this.myCardsPointer._dealing) return;
 if (this._uiDirty) {
 this._uiDirty = !1;
 this._updateUI();
 }
 };
 t.prototype._updateUI = function() {
+if (this.myCardsPointer._dealing) { this._uiDirty = !0; return; }
 for (var e = s.default.myAbsolutePos(), t = s.default.gameInfoDDZ.siteInfos.get(e).handCards.length, o = 0; o < t; o++) this.myCardsPointer.initPosition(o, t);
 };
 r([ p(c.default) ], t.prototype, "myCardsPointer", void 0);

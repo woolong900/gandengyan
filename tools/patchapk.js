@@ -46,7 +46,7 @@ const loadDotEnv = () => {
   const p = path.join(__dirname, '..', '.dev.vars');
   if (!fs.existsSync(p)) return;
   for (const line of fs.readFileSync(p, 'utf8').split('\n')) {
-    const m = line.match(/^(QJQP_VOICE_APPID|QJQP_VOICE_APPKEY|QJQP_WECHAT_APPID|QJQP_PUBLIC_BASE_URL)=(.*)$/);
+    const m = line.match(/^(QJQP_VOICE_APPID|QJQP_VOICE_APPKEY|QJQP_WECHAT_APPID|QJQP_WECHAT_APPLINK|QJQP_PUBLIC_BASE_URL)=(.*)$/);
     if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim();
   }
 };
@@ -109,6 +109,13 @@ const STOREPASS = 'qjqp123456';
 const VOICE_APPID = arg('voice-appid', process.env.QJQP_VOICE_APPID);
 const VOICE_APPKEY = arg('voice-appkey', process.env.QJQP_VOICE_APPKEY);
 const WECHAT_APPID = arg('wechat-appid', process.env.QJQP_WECHAT_APPID);
+const WECHAT_APPLINK = arg('wechat-applink', process.env.QJQP_WECHAT_APPLINK);
+const PACKAGE_VERSION = arg('package-version', '1.0.6');
+const VERSION_CODE = Number(arg('version-code', PACKAGE_VERSION.replace(/\D/g, '')));
+if (!/^\d+\.\d+\.\d+$/.test(PACKAGE_VERSION)
+    || !Number.isSafeInteger(VERSION_CODE) || VERSION_CODE < 1) {
+  throw new Error('Android 版本号无效，请使用 --package-version x.y.z [--version-code n]');
+}
 const ORIGINAL_PACKAGE = 'com.yuanlai.qjqp';
 const APP_PACKAGE = arg('package', 'com.haoke.gandengyan');
 const APP_NAME = arg('app-name', '潜江干瞪眼');
@@ -477,7 +484,7 @@ RULES.push([
 // 1.0.6 是自己的热更新引导包；235 是其内置资源基线。
 RULES.push([
   'assertVer: 234,\npackageVer: "1.0.2",',
-  `assertVer: ${ASSET_VERSION},\npackageVer: "1.0.6",`,
+  `assertVer: ${ASSET_VERSION},\npackageVer: "${PACKAGE_VERSION}",`,
   true,
 ]);
 
@@ -1219,6 +1226,34 @@ const configureLocalHotUpdate = (decoded) => {
   console.log(`      已生成 Android 热更新基线清单 R${ASSET_VERSION}`);
 };
 
+const patchImmersiveFullscreen = (decoded) => {
+  const activityFile = path.join(
+    decoded, 'smali', 'org', 'cocos2dx', 'lib', 'Cocos2dxActivity.smali',
+  );
+  let source = fs.readFileSync(activityFile, 'utf8');
+  const marker = ':qjqp_system_ui_restored';
+  if (!source.includes(marker)) {
+    const methodPattern = /\.method public onWindowFocusChanged\(Z\)V[\s\S]*?\.end method/;
+    const method = source.match(methodPattern)?.[0];
+    const anchor = '    invoke-super {p0, p1}, Landroid/app/Activity;->onWindowFocusChanged(Z)V';
+    if (!method || !method.includes(anchor)) {
+      throw new Error('找不到 Cocos 窗口焦点回调，无法固化沉浸式全屏');
+    }
+    const patched = method.replace(anchor, [
+      anchor,
+      '',
+      '    if-eqz p1, :qjqp_system_ui_restored',
+      '',
+      '    invoke-static {}, Lorg/cocos2dx/lib/Utils;->hideVirtualButton()V',
+      '',
+      '    :qjqp_system_ui_restored',
+    ].join('\n'));
+    source = source.replace(method, patched);
+    fs.writeFileSync(activityFile, source);
+  }
+  console.log('      已在窗口恢复焦点时重新隐藏系统状态栏和导航栏');
+};
+
 const applyBranding = (decoded) => {
   const shoppingMallPrefab = path.join(decoded, 'assets', SHOPPING_MALL_PREFAB_ASSET);
   if (!fs.existsSync(shoppingMallPrefab)) throw new Error(`缺少商城界面：${shoppingMallPrefab}`);
@@ -1251,9 +1286,10 @@ const applyBranding = (decoded) => {
   const apktoolFile = path.join(decoded, 'apktool.yml');
   let apktool = fs.readFileSync(apktoolFile, 'utf8');
   apktool = apktool
-    .replace(/(^\s*versionCode:\s*)\d+$/m, '$1106')
-    .replace(/(^\s*versionName:\s*).*$/m, '$11.0.6');
-  if (!/^\s*versionCode:\s*106$/m.test(apktool) || !/^\s*versionName:\s*1\.0\.6$/m.test(apktool)) {
+    .replace(/(^\s*versionCode:\s*)\d+$/m, `$1${VERSION_CODE}`)
+    .replace(/(^\s*versionName:\s*).*$/m, `$1${PACKAGE_VERSION}`);
+  if (!new RegExp(`^\\s*versionCode:\\s*${VERSION_CODE}$`, 'm').test(apktool)
+      || !new RegExp(`^\\s*versionName:\\s*${PACKAGE_VERSION.replaceAll('.', '\\.')}$`, 'm').test(apktool)) {
     throw new Error('Android 版本号替换失败');
   }
   fs.writeFileSync(apktoolFile, apktool);
@@ -1270,6 +1306,7 @@ const applyBranding = (decoded) => {
       if (changed !== source) fs.writeFileSync(file, changed);
     });
   }
+  patchImmersiveFullscreen(decoded);
 
   const oldCallbacks = path.join(decoded, 'smali', ...oldDescriptor.split('/'));
   const newCallbacks = path.join(decoded, 'smali', ...newDescriptor.split('/'));
@@ -1421,7 +1458,7 @@ const applyBranding = (decoded) => {
   fs.copyFileSync(SPLASH_SOURCE, path.join(decoded, 'res', 'mipmap', 'splash_screen.png'));
   console.log(`      包名 ${ORIGINAL_PACKAGE} -> ${APP_PACKAGE}`);
   console.log(`      应用名称 -> ${APP_NAME}`);
-  console.log(`      Android 版本 -> 1.0.6，资源版本 -> R${ASSET_VERSION}`);
+  console.log(`      Android 版本 -> ${PACKAGE_VERSION}，资源版本 -> R${ASSET_VERSION}`);
   console.log('      已替换各分辨率应用图标');
   console.log('      已替换登录标题、登录背景和启动画面');
   console.log('      已替换大厅背景和卡通人物');
@@ -1441,6 +1478,18 @@ const writeMeta = (xml, name, value) => {
   const out = xml.replace(pattern, `$1${value}$2`);
   if (!out.includes(`android:name="${name}" android:value="${value}"`)) {
     throw new Error(`没改到 ${name}`);
+  }
+  return out;
+};
+
+const writeOrInsertMeta = (xml, name, value, afterName) => {
+  if (!value) return xml;
+  if (xml.includes(`android:name="${name}"`)) return writeMeta(xml, name, value);
+  const anchor = new RegExp(`(<meta-data android:name="${afterName}" android:value="[^"]*"\/>)`);
+  const out = xml.replace(anchor,
+    `$1\n        <meta-data android:name="${name}" android:value="${value}"/>`);
+  if (!out.includes(`android:name="${name}" android:value="${value}"`)) {
+    throw new Error(`没写入 ${name}`);
   }
   return out;
 };
@@ -1468,7 +1517,9 @@ const writeVoiceMeta = (xml, appid, appkey, httpBase) => {
 };
 
 /** SDK 配置写入清单；启用 GME 时一并替换 Java 桥和 .so。密钥不打日志。 */
-const injectNativeConfig = (apkPath, { voiceAppid, voiceAppkey, wechatAppid }) => {
+const injectNativeConfig = (apkPath, {
+  voiceAppid, voiceAppkey, wechatAppid, wechatApplink,
+}) => {
   const withVoice = !!(voiceAppid && voiceAppkey);
   if (!fs.existsSync(APKTOOL)) {
     throw new Error(`没有可用的 apktool，无法写入原生 SDK 配置（APKTOOL=${APKTOOL}）`);
@@ -1487,6 +1538,10 @@ const injectNativeConfig = (apkPath, { voiceAppid, voiceAppkey, wechatAppid }) =
     if (wechatAppid) {
       manifest = writeMeta(manifest, 'SDK_WX_APPID', wechatAppid);
       console.log('      已写入自己的微信 AppID');
+    }
+    if (wechatApplink) {
+      manifest = writeOrInsertMeta(manifest, 'SDK_WX_APPLINK', wechatApplink, 'SDK_WX_APPID');
+      console.log(`      已写入微信 Universal Link：${wechatApplink}`);
     }
     if (withVoice) {
       manifest = writeVoiceMeta(manifest, voiceAppid, voiceAppkey, http);
@@ -1539,7 +1594,7 @@ const js = buildReleaseProjectSource({
   root: path.join(__dirname, '..'),
   workDir: stage,
   assetVersion: ASSET_VERSION,
-  packageVersion: '1.0.6',
+  packageVersion: PACKAGE_VERSION,
   serviceBaseUrl: http,
   allowPrivateServiceUrl: true,
 });
@@ -1584,6 +1639,7 @@ injectNativeConfig(out, {
   voiceAppid: VOICE_APPID,
   voiceAppkey: VOICE_APPKEY,
   wechatAppid: WECHAT_APPID,
+  wechatApplink: WECHAT_APPLINK,
 });
 
 console.log('4/6 删掉旧签名');

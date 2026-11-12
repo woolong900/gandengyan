@@ -86,6 +86,10 @@ assert.deepEqual(app.setTrusteeWhitelist(otherOwner.uid, true), {
   uid: otherOwner.uid, enabled: true, active: 0,
 });
 assert.deepEqual(app.dump().botSettings.trusteeWhitelist, [otherOwner.uid]);
+assert.deepEqual(app.setRecordCardWhitelist(otherOwner.uid, true), {
+  uid: otherOwner.uid, enabled: true, notified: 0,
+});
+assert.deepEqual(app.dump().botSettings.recordCardWhitelist, [otherOwner.uid]);
 
 table.round = { over: false, dump: () => ({}) };
 const activeBotUid = table.members.find((member) => member.bot).player.uid;
@@ -103,6 +107,8 @@ assert.equal(restored.botSettings.mode, 'ab');
 assert.equal(restored.botSettings.stats.jev.wins, 1);
 assert.deepEqual(restored.botSettings.trusteeWhitelist, [otherOwner.uid],
   '托管白名单应随服务端存档恢复');
+assert.deepEqual(restored.botSettings.recordCardWhitelist, [otherOwner.uid],
+  '记牌器白名单应随服务端存档恢复');
 
 // 旧版本可能已给其他房主的等待房添加过机器人；重启恢复时必须清理。
 const legacyApp = new GameApp({ persist: () => {} });
@@ -124,6 +130,8 @@ assert.equal(restoredEligible.tables.get(table.roomId).creatorUid, 285636,
   '房间存档必须保留原始创建者');
 assert.deepEqual(restoredEligible.botSettings.trusteeWhitelist, [],
   '旧版存档缺少托管白名单时应自动初始化为空');
+assert.deepEqual(restoredEligible.botSettings.recordCardWhitelist, [],
+  '旧版存档缺少记牌器白名单时应自动初始化为空');
 
 for (const id of app.timeouts.values()) clearTimeout(id);
 for (const id of restored.timeouts.values()) clearTimeout(id);

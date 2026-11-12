@@ -53,6 +53,7 @@ t.getInstance = function() {
 return this._instance;
 };
 t.prototype.start = function() {
+require("./PokerActionButtonStyle").apply(this.node);
 var e = this, t = cc.instantiate(this.dismissRoomPre);
 this.dismissRoot.addChild(t);
 this.dismissRoot.active = !1;

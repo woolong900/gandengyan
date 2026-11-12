@@ -1,0 +1,262 @@
+{
+  "frameRate": 24,
+  "isGlobal": 0,
+  "armature": [
+    {
+      "defaultActions": [
+        {
+          "gotoAndPlay": "newAnimation"
+        }
+      ],
+      "type": "MovieClip",
+      "frameRate": 24,
+      "ik": [],
+      "bone": [
+        {
+          "name": "root",
+          "transform": {}
+        },
+        {
+          "transform": {},
+          "name": "jf2",
+          "parent": "root"
+        },
+        {
+          "transform": {},
+          "name": "jf1",
+          "parent": "root"
+        }
+      ],
+      "aabb": {
+        "width": 0,
+        "y": 0,
+        "height": 0,
+        "x": 0
+      },
+      "slot": [
+        {
+          "displayIndex": -1,
+          "name": "jf1",
+          "parent": "jf1",
+          "color": {}
+        },
+        {
+          "z": 1,
+          "displayIndex": -1,
+          "name": "jf2",
+          "parent": "jf2",
+          "color": {}
+        }
+      ],
+      "name": "MovieClip",
+      "animation": [
+        {
+          "ffd": [],
+          "playTimes": 0,
+          "duration": 28,
+          "frame": [],
+          "bone": [
+            {
+              "frame": [
+                {
+                  "transform": {},
+                  "duration": 28
+                }
+              ],
+              "name": "root"
+            },
+            {
+              "frame": [
+                {
+                  "tweenEasing": 0,
+                  "transform": {
+                    "scX": 0.01,
+                    "x": -50
+                  },
+                  "duration": 6
+                },
+                {
+                  "tweenEasing": 0,
+                  "transform": {},
+                  "duration": 10
+                },
+                {
+                  "tweenEasing": 0,
+                  "transform": {
+                    "x": 25
+                  },
+                  "duration": 6
+                },
+                {
+                  "tweenEasing": 0,
+                  "transform": {
+                    "x": 27
+                  },
+                  "duration": 6
+                },
+                {
+                  "transform": {
+                    "x": 30
+                  },
+                  "duration": 0
+                }
+              ],
+              "name": "jf2"
+            },
+            {
+              "frame": [
+                {
+                  "tweenEasing": 0,
+                  "transform": {},
+                  "duration": 4
+                },
+                {
+                  "tweenEasing": 0,
+                  "transform": {
+                    "x": -16.08
+                  },
+                  "duration": 2
+                },
+                {
+                  "tweenEasing": 0,
+                  "transform": {
+                    "x": -20
+                  },
+                  "duration": 10
+                },
+                {
+                  "tweenEasing": 0,
+                  "transform": {
+                    "x": 2
+                  },
+                  "duration": 6
+                },
+                {
+                  "tweenEasing": 0,
+                  "transform": {
+                    "x": 11
+                  },
+                  "duration": 6
+                },
+                {
+                  "transform": {
+                    "x": 42
+                  },
+                  "duration": 0
+                }
+              ],
+              "name": "jf1"
+            }
+          ],
+          "slot": [
+            {
+              "frame": [
+                {
+                  "tweenEasing": 0,
+                  "duration": 6
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 10
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 6
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 6
+                },
+                {
+                  "tweenEasing": null,
+                  "color": {
+                    "aM": 0
+                  },
+                  "duration": 0
+                }
+              ],
+              "name": "jf2"
+            },
+            {
+              "frame": [
+                {
+                  "tweenEasing": 0,
+                  "color": {
+                    "aM": 0
+                  },
+                  "duration": 4
+                },
+                {
+                  "tweenEasing": 0,
+                  "color": {
+                    "aM": 0
+                  },
+                  "duration": 2
+                },
+                {
+                  "tweenEasing": 0,
+                  "color": {
+                    "aM": 48
+                  },
+                  "duration": 10
+                },
+                {
+                  "tweenEasing": 0,
+                  "duration": 6
+                },
+                {
+                  "tweenEasing": 0,
+                  "color": {
+                    "aM": 54
+                  },
+                  "duration": 6
+                },
+                {
+                  "tweenEasing": null,
+                  "color": {
+                    "aM": 0
+                  },
+                  "duration": 0
+                }
+              ],
+              "name": "jf1"
+            }
+          ],
+          "name": "newAnimation",
+          "ik": []
+        }
+      ],
+      "skin": [
+        {
+          "slot": [
+            {
+              "display": [
+                {
+                  "path": "jf2",
+                  "type": "image",
+                  "name": "jf2",
+                  "transform": {}
+                }
+              ],
+              "name": "jf2"
+            },
+            {
+              "display": [
+                {
+                  "path": "jf1",
+                  "type": "image",
+                  "name": "jf1",
+                  "transform": {}
+                }
+              ],
+              "name": "jf1"
+            }
+          ],
+          "name": ""
+        }
+      ]
+    }
+  ],
+  "name": "jiefeng",
+  "version": "5.0"
+}

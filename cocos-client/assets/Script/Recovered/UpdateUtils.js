@@ -35,6 +35,16 @@ var e = (jsb.fileUtils ? jsb.fileUtils.getWritablePath() : "/") + r.default.appN
 cc.log("path:", e);
 return e;
 };
+e.prototype._cleanHotUpdateState = function() {
+var e = this.getStoragePath();
+try {
+jsb.fileUtils.removeDirectory(e);
+jsb.fileUtils.removeDirectory(e.replace(/\/+$/, "") + "_temp/");
+} catch (e) {}
+for (var t = [ "__QJQP_ASSERT_VERSION__", "__KY_Hot_Update_Search_Paths__", "__QJQP_HOT_UPDATE_RECOVERY__" ], o = 0; o < t.length; o++) try {
+cc.sys.localStorage.removeItem(t[o]);
+} catch (e) {}
+};
 e.prototype.cleanLocalCache = function() {
 if (cc.sys.isNative) {
 var e = "__KY_PACKAGE_VERSION__", t = cc.sys.localStorage.getItem(e);
@@ -43,12 +53,12 @@ var o = r.default.packageVer;
 cc.log("package version is:" + o);
 if (t) if (t == o) ; else {
 cc.log("local version is not equal to package: remove storage files.");
-jsb.fileUtils.removeDirectory(this.getStoragePath());
+this._cleanHotUpdateState();
 cc.sys.localStorage.setItem(e, o);
 cc.game.restart();
 } else {
 cc.log("local version is null : remove storage files.");
-jsb.fileUtils.removeDirectory(this.getStoragePath());
+this._cleanHotUpdateState();
 cc.sys.localStorage.setItem(e, o);
 }
 }

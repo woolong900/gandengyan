@@ -42,7 +42,9 @@ t.btnClubOnline = null;
 t.btnClubInvite = null;
 return t;
 }
-t.prototype.start = function() {};
+t.prototype.start = function() {
+require("./PokerActionButtonStyle").applyWaiting(this);
+};
 t.prototype.onEnable = function() {
 var e = this;
 this.updateUI();

@@ -36,23 +36,31 @@ t.ctrRoot = null;
 t.clockRoot = null;
 return t;
 }
-t.prototype.play = function() {
-for (var e = this, t = i.default.myAbsolutePos(), o = i.default.gameInfoDDZ.siteInfos.get(t).handCards, n = o.length, r = this.myCardsPointer.getCard(0).node.width, a = cc.winSize.width / 2 + r, c = 0; c < n; c++) {
+t.prototype.play = function(complete) {
+this.myCardsPointer._dealing = !0;
+this.myCardsPointer.hideAll();
+for (var e = this, t = i.default.myAbsolutePos(), o = i.default.gameInfoDDZ.siteInfos.get(t).handCards.slice(), n = o.length, r = this.myCardsPointer.getCard(0).node.width, a = cc.winSize.width / 2 + r, c = 0; c < n; c++) {
+this.myCardsPointer.initPosition(c, n);
 this.myCardsPointer.setCard(c, s.DDZ_HIDE_ID);
 this.myCardsPointer.getCard(c).node.x = a;
 }
 var u = .09 * (n - 1) + .18, d = .04 * n;
 this.ctrRoot.active = !1;
 this.clockRoot.active = !1;
-this.scheduleOnce(function() {
+var finish = function() {
+e.myCardsPointer._dealing = !1;
 e.ctrRoot.active = !0;
 e.clockRoot.active = !0;
-}, u + d);
+if (complete) complete();
+};
+if (!n) { finish(); return; }
 var p = function(t) {
 var r = .09 * t, i = cc.delayTime(r), a = cc.callFunc(function() {
 l.default.getInstance().dealCard();
 }), s = f.myCardsPointer.getPosition(t, n), c = cc.moveTo(.18, s), d = u - r - .18 + .04 * (n - t), p = cc.delayTime(d), h = cc.callFunc(function() {
 e.myCardsPointer.setCard(t, o[t]);
+// Card 0 flips last in the original right-to-left reveal sequence.
+if (t === 0) finish();
 }), m = cc.sequence(i, a, c, p, h), y = f.myCardsPointer.getCard(t).node;
 y.stopAllActions();
 y.runAction(m);

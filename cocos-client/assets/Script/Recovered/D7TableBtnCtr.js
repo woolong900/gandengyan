@@ -43,6 +43,7 @@ t.totalPre = null;
 return t;
 }
 t.prototype.start = function() {
+require("./PokerActionButtonStyle").applyWaiting(this);
 var e = this;
 this.updateUI();
 i.default.eventUtils.on([ s.default.data_status_change, a.default.data_player_update ], function() {

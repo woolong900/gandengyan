@@ -47,6 +47,7 @@ e._uiDirty = !0;
 l.default.eventUtils.on(u.default.data_round_change, function() {
 e._uiDirty = !0;
 }, this, a.eOffType.OnDestroy);
+require("./GameMsgWSK").default.getInstance().syncHandSort(require("./Storage").default.wskHandCardsSortType.getValue());
 }
 };
 t.prototype.update = function() {
@@ -64,6 +65,7 @@ t.prototype.onClick = function() {
 s.default.clickBtn();
 var e = i.default.myAbsolutePos();
 i.default.gameInfoWSK.siteInfos.get(e).tidyCards();
+require("./GameMsgWSK").default.getInstance().syncHandSort(require("./Storage").default.wskHandCardsSortType.getValue());
 l.default.eventUtils.emit(u.default.ui_my_card_tidy);
 };
 r([ f(cc.Node) ], t.prototype, "btnNode", void 0);

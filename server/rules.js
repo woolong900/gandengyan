@@ -11,6 +11,7 @@
 
 /** 底分。param1 的千位是档次编号，对应客户端那张 1/2/2.5/5/10/20/25 的表 */
 const qjshzRules = require('./qjshz-rules');
+const pokerRules = require('./club-poker-rules');
 
 const BASE_SCORE = { 1: 1, 2: 2, 3: 2.5, 4: 5, 5: 10, 6: 20, 7: 25 };
 
@@ -88,6 +89,7 @@ function parseConfig(param1, param2) {
 
 /** 建房只接受当前服务端真正实现的玩法和人数范围。 */
 function validateRoomConfig({ gameType, num, param1, param2 } = {}) {
+  if (pokerRules.types.includes(Number(gameType))) return pokerRules.validateRoomConfig({gameType,num,param1,param2});
   if (Number(gameType) === qjshzRules.GAME_TYPE) {
     return qjshzRules.validateRoomConfig({ gameType, num, param1, param2 });
   }
@@ -106,6 +108,7 @@ function validateRoomConfig({ gameType, num, param1, param2 } = {}) {
 
 /** 按游戏 ID 取对应规则；未登记的玩法仍落到潜江晃晃并由建房校验拒绝。 */
 function forGame(gameType) {
+  if (pokerRules.types.includes(Number(gameType))) return pokerRules.forGame(Number(gameType));
   return Number(gameType) === qjshzRules.GAME_TYPE ? qjshzRules : module.exports;
 }
 

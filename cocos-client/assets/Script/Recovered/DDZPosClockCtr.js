@@ -40,6 +40,9 @@ t.lastEventPos = -1;
 t._timeOffset = 0;
 return t;
 }
+t.prototype.onLoad = function() {
+this._clockFrame = require("./PokerClockStyle").apply(this.rootNode);
+};
 t.prototype.start = function() {
 var e = this;
 this.schedule(this._updateTime, 1, cc.macro.REPEAT_FOREVER);
@@ -54,15 +57,41 @@ this._reset();
 t.prototype._reset = function(e) {
 var t = this;
 void 0 === e && (e = !1);
+if (this._pendingClockReset) {
+this.unschedule(this._pendingClockReset);
+this._pendingClockReset = null;
+}
 this.rootNode.active = !1;
-this.buttonRoot.active = !1;
-a.default.gameInfoDDZ.b_isDelay_time && e ? this.scheduleOnce(function() {
-t.resetClockFuction();
+// Every seat references the same local button row. Opponent events must not
+// reactivate it (or its child clock) while local controls are still updating.
+if (this.posCtr.uiPos === 0) this.buttonRoot.active = !1;
+this._clockDirty = !1;
+if (a.default.gameInfoDDZ.b_isDelay_time && e) {
+this._pendingClockReset = function() {
+if (t._pendingClockReset !== reset) return;
+t._pendingClockReset = null;
+t._clockDirty = !0;
 a.default.gameInfoDDZ.b_isDelay_time = !1;
-}, 2) : this.resetClockFuction();
+};
+var reset = this._pendingClockReset;
+this.scheduleOnce(reset, 2);
+} else this._clockDirty = !0;
+};
+t.prototype.lateUpdate = function() {
+if (this._clockDirty) {
+this._clockDirty = !1;
+this.resetClockFuction();
+}
+};
+t.prototype.onDestroy = function() {
+if (this._pendingClockReset) this.unschedule(this._pendingClockReset);
+this._pendingClockReset = null;
+if (this._clockFrame) this._clockFrame.destroy();
+this._clockFrame = null;
 };
 t.prototype.resetClockFuction = function() {
-this.buttonRoot.active = !0;
+if (this.posCtr.uiPos === 0) this.buttonRoot.active = !0;
+this.rootNode.active = !1;
 var e = a.default.gameInfoDDZ.status;
 if (e === l.eDDZGameStatus.JiaoDiZhu) {
 var t = this.posCtr.deskPos();
@@ -79,8 +108,19 @@ o.roundType === l.eRoundTypeDDZ.Turn && this._resetShow();
 }
 };
 t.prototype._resetShow = function() {
-this.timeLabel.string = a.default.getCountDown() + "";
+this._writeTime(a.default.getCountDown());
 this.rootNode.active = !0;
+if (this.timeLabel.setVertsDirty) this.timeLabel.setVertsDirty();
+};
+t.prototype._writeTime = function(value) {
+// Keep bitmap-font input numeric and refresh geometry after clock reactivation.
+value = Number(value);
+value = isFinite(value) ? Math.max(0, Math.ceil(value)) : 0;
+var label = this.timeLabel;
+label.enabled = !0;
+if (label.node) label.node.active = !0;
+label.string = String(value);
+if (label.setVertsDirty) label.setVertsDirty();
 };
 t.prototype._updateTime = function() {
 if (this.rootNode.active) {
@@ -90,7 +130,7 @@ this._timeOffset = e;
 e <= 5 && e >= 0 && s.default.getInstance().clock();
 }
 e < 0 && (e = 0);
-this.timeLabel.string = "" + e;
+this._writeTime(e);
 }
 };
 r([ h(i.default) ], t.prototype, "posCtr", void 0);

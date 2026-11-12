@@ -39,6 +39,7 @@ t.btnClubInvite = null;
 return t;
 }
 t.prototype.start = function() {
+require("./PokerActionButtonStyle").applyWaiting(this);
 var e = this;
 this.updateUI();
 u.default.eventUtils.on([ h.default.data_status_change, a.default.data_player_update ], function() {

@@ -42,6 +42,19 @@ return t;
 }
 t.prototype.start = function() {
 var e = this;
+// The native header is rotated in atlas 1edfa2102. Creator clamps its logical
+// 488 px width to 226 px during import, leaving the room/count without a background.
+var headerSprite = this.node.getComponent(cc.Sprite);
+if (headerSprite && headerSprite.spriteFrame) {
+var headerFrame = new cc.SpriteFrame(headerSprite.spriteFrame.getTexture(),
+cc.rect(3, 511, 488, 55), !0, cc.v2(-.5, .5), cc.size(493, 60));
+headerFrame.name = "ddz_room_header";
+headerSprite.sizeMode = cc.Sprite.SizeMode.CUSTOM;
+headerSprite.spriteFrame = headerFrame;
+this.node.setContentSize(488, 55);
+var headerWidget = this.node.getComponent(cc.Widget);
+headerWidget && headerWidget.updateAlignment();
+}
 this.timeLabel.string = i.default.dateFormat(a.default.millisecond, "hh:mm");
 this.schedule(function() {
 e.timeLabel.string = i.default.dateFormat(a.default.millisecond, "hh:mm");

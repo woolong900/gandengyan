@@ -21,7 +21,11 @@ e.prototype.parse = function(e, t) {
 "chatroom" === e && this._chatMsg(t);
 "game_bye" === e && this._totalEnd(t);
 "trustee" === e && this._autoGame(t);
+"record_card_access" === e && this._recordCardAccess(t);
 "game_end" === e && this._gameEndCleanAutoGame();
+};
+e.prototype._recordCardAccess = function(e) {
+r.default.setRecordCardAccess(e && e.enabled);
 };
 e.prototype._gameEndCleanAutoGame = function() {
 r.default.players.getByUid(f.default.uid).isAutoGameing() && n.default.gameMsgBase().autoGame();
@@ -175,12 +179,20 @@ this._cleanAutoGame();
 };
 e.prototype._parseAutoGame = function(e, t) {
 var o = (t = t || {}).status || !1, i = r.default.players.getByUid(e), a = t.last_ts || 0;
+if (void 0 !== t.manual_enabled) {
+i.manualTrusteeAllowed = !!t.manual_enabled;
+if (Number(e) === Number(f.default.uid)) r.default._manualTrusteeAllowed = i.manualTrusteeAllowed;
+}
 n.default.gameLogic().isAutoGameRoom(r.default.config) ? i.isTurn = a > 0 : i.isTurn = !1;
 i.updateAutoGame(o);
 };
 e.prototype._autoGame = function(e) {
-var t = e.uid, o = e.status || !1;
-r.default.players.getByUid(t).updateAutoGame(o);
+var t = e.uid, o = e.status || !1, i = r.default.players.getByUid(t);
+if (void 0 !== e.manual_enabled) {
+i.manualTrusteeAllowed = !!e.manual_enabled;
+if (Number(t) === Number(f.default.uid)) r.default._manualTrusteeAllowed = i.manualTrusteeAllowed;
+}
+i.updateAutoGame(o);
 };
 e.prototype._roomInfo = function(e) {
 cc.log(">>>>>>>>>>>>>>>>_roomInfo obj:", e);
@@ -195,8 +207,10 @@ d.other[27] = Number(e.xi_money.kings) || 0;
 }
 this._curGameCount = e.step || 0;
 r.default.roomId = e.roomid;
+r.default.setKeepScreenOn(!0);
 r.default.owner = e.host;
 r.default.scoreRatio = e.score_ratio || 1;
+void 0 !== e.record_card_access && r.default.setRecordCardAccess(e.record_card_access);
 r.default.config = new i.default({
 index: t,
 ipLimit: d.ipLimit,
@@ -205,6 +219,10 @@ other: d.other
 });
 r.default.gameInfo && (r.default.gameInfo.clickCard = !1);
 r.default.config.category() == u.eGameCategort.DDZ && r.default.DoOtherInfo(e);
+if (r.default.config.category() == u.eGameCategort.GD) {
+r.default.DoOtherInfo(e);
+this.gdRoomInfo(e);
+}
 r.default.players || (r.default.players = new a.default());
 for (var p = function(e) {
 for (var t = 0, o = c.length; t < o; t++) if (c[t].uid == e) return !0;
@@ -281,6 +299,8 @@ if (o === u.eGameCategort.PDK) return e - 1;
 if (o === u.eGameCategort.WSK) return e - 1;
 if (o === u.eGameCategort.DBD) return e - 1;
 if (o === u.eGameCategort.DDZ) return e - 1;
+if (o === u.eGameCategort.GD) return e - 1;
+if (o === u.eGameCategort.TDAK) return e - 1;
 cc.error("数据错误～");
 };
 e.prototype.cleanCountDown = function() {
@@ -295,6 +315,7 @@ e.prototype.recordCountDown = function(e) {
 this.cleanCountDown();
 r.default.players.getByUid(e).isTurn = !0;
 };
+e.prototype.gdRoomInfo = function(e) {};
 return e;
 }();
 o.default = m;

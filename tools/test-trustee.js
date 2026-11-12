@@ -5,6 +5,7 @@ const {
   Table, BOT_MIN_DELAY_MS, BOT_MAX_DELAY_MS, BOT_OPENING_PRESENTATION_MS,
 } = require('../server/table');
 const { emptyMember } = require('../server/shared');
+const { protocol } = require('../server/net');
 const rules = require('../server/rules');
 
 let pass = 0;
@@ -17,6 +18,8 @@ const fixture = (timeout = 0, random = 0) => {
   let now = 10000;
   const timers = new Map();
   const moves = [];
+  const sent = [];
+  const replayed = [];
   const whitelist = new Set();
   const config = rules.parseConfig(...Object.values(rules.buildParam({ 人数: 2 })));
   config.托管 = timeout;
@@ -24,7 +27,7 @@ const fixture = (timeout = 0, random = 0) => {
     now: () => now,
     schedule: (name, dueAt) => timers.set(name, dueAt),
     cancel: (name) => timers.delete(name),
-    send: () => {},
+    send: (connId, frame) => sent.push({ connId, frame }),
     persist: () => {},
     log: () => {},
     onUidRoom: () => {},
@@ -48,13 +51,30 @@ const fixture = (timeout = 0, random = 0) => {
       moves.push({ seat, policy: policy || null });
       this.waiting = [];
     },
+    replayOps(seat) { replayed.push(seat); },
   };
   table.round = round;
   const member = table.members[0];
   const key = `turn-${member.player.uid}`;
   const toggle = () => table.handle200(member.player.uid, 'trustee', {});
-  return { table, round, member, timers, moves, whitelist, key, toggle,
+  return { table, round, member, timers, moves, sent, replayed, whitelist, key, toggle,
     now: () => now, advance: (ms) => { now += ms; } };
+};
+
+const pushed = (item) => {
+  const payload = item.frame.subarray(12, item.frame.readUInt32BE(8));
+  const envelope = JSON.parse(protocol[999].sc.decode(payload).json);
+  return { msghead: envelope.msghead, data: JSON.parse(envelope.msgdata) };
+};
+
+const finishRound = (fixtureValue) => {
+  fixtureValue.table.step = 1;
+  fixtureValue.table.makeIo().over({
+    winner: -1,
+    winners: [],
+    scores: [0, 0],
+    stat: [{}, {}],
+  });
 };
 
 {
@@ -106,6 +126,49 @@ const fixture = (timeout = 0, random = 0) => {
   t('取消后旧回调不能重新开启托管', f.member.trustee, false);
   t('取消后旧回调不能出牌', f.moves, []);
   t('取消后旧回调不能重新创建计时器', f.timers.has(f.key), false);
+}
+
+{
+  const f = fixture();
+  f.member.trustee = true;
+  f.table.makeIo().one(0, 'game_operator', {
+    hu: 0, gang: [13], touch: 13, chow: [], bright_qys: true,
+  });
+  t('托管玩家收到空操作集以清除碰杠过按钮', pushed(f.sent.at(-1)), {
+    msghead: 'game_operator',
+    data: { hu: 0, gang: [], touch: 0, chow: [], bright_qys: false },
+  });
+}
+
+{
+  const f = fixture();
+  f.table.makeIo().one(0, 'game_operator', {
+    hu: 0, gang: [13], touch: 13, chow: [], bright_qys: true,
+  });
+  t('手动玩家仍收到真实碰杠操作', pushed(f.sent.at(-1)), {
+    msghead: 'game_operator',
+    data: { hu: 0, gang: [13], touch: 13, chow: [], bright_qys: true },
+  });
+}
+
+{
+  const f = fixture();
+  f.toggle();
+  t('操作窗口内开启托管会立即清除当前按钮', pushed(f.sent.at(-1)), {
+    msghead: 'game_operator',
+    data: { hu: 0, gang: [], touch: 0, chow: [], bright_qys: false },
+  });
+  f.toggle();
+  t('操作窗口内取消托管会重发真实按钮', f.replayed, [0]);
+}
+
+{
+  const f = fixture();
+  f.member.trustee = true;
+  f.table.round = null;
+  t('结算清空牌局后取消托管仍正常返回', f.toggle(), { error: 0 });
+  t('结算清空牌局后不尝试重发操作按钮', f.replayed, []);
+  t('结算清空牌局后托管状态正常取消', f.member.trustee, false);
 }
 
 {
@@ -226,6 +289,10 @@ const fixture = (timeout = 0, random = 0) => {
 
 {
   const f = fixture();
+  const trusteeMessages = [];
+  f.table.broadcast = (msghead, data) => {
+    if (msghead === 'trustee') trusteeMessages.push(data);
+  };
   f.whitelist.add(f.member.player.uid);
   f.table.syncManagedTrustees();
   t('干瞪眼小局中白名单玩家立即进入后台托管',
@@ -235,7 +302,22 @@ const fixture = (timeout = 0, random = 0) => {
   t('后台托管期间客户端可以立即取消并记录主动退出',
     [f.member.trustee, f.member.managedTrustee, f.member.managedTrusteeOptOut],
     [false, false, true]);
+  t('取消后台托管仍向客户端下发可再次开启权限',
+    trusteeMessages.at(-1),
+    { uid: f.member.player.uid, status: false, manual_enabled: true });
   t('主动取消后台托管立即停止代打', f.timers.has(f.key), false);
+
+  f.toggle();
+  t('主动再次开启恢复白名单策略并清除退出标记',
+    [f.member.trustee, f.member.managedTrustee, f.member.managedTrusteeOptOut],
+    [true, true, false]);
+  f.advance(800);
+  f.table.onTimer(f.key);
+  t('再次开启托管后正常代打', f.moves, [{ seat: 0, policy: null }]);
+  f.round.waiting = [0];
+  f.toggle();
+  t('再次开启后仍然能够取消', f.member.trustee, false);
+  f.moves.length = 0;
 
   f.table.round = null;
   f.table.syncManagedTrustees();
@@ -299,6 +381,37 @@ const fixture = (timeout = 0, random = 0) => {
   f.table.syncManagedTrustees();
   t('白名单不会在干瞪眼等待阶段启用',
     [f.member.trustee, f.member.managedTrustee, f.timers.has(f.key)], [false, false, false]);
+}
+
+{
+  const f = fixture();
+  f.table.members.forEach((member) => { member.trustee = true; });
+  finishRound(f);
+  t('全部真人托管时小局结束后自动开始下一局',
+    [f.table.step, !!f.table.round, f.table.members.every((member) => member.trustee)],
+    [2, true, true]);
+}
+
+{
+  const f = fixture();
+  f.member.trustee = true;
+  finishRound(f);
+  t('部分玩家托管时只自动准备托管座位',
+    [!!f.table.round, f.member.ready, f.table.members[1].ready], [false, true, false]);
+  f.table.handle200(f.table.members[1].player.uid, 'gameready', { site: 2 });
+  t('未托管玩家准备后正常开始下一局',
+    [f.table.step, !!f.table.round], [2, true]);
+}
+
+{
+  const f = fixture();
+  f.table.members.forEach((member) => f.whitelist.add(member.player.uid));
+  f.table.syncManagedTrustees();
+  finishRound(f);
+  t('后台白名单托管也会自动进入下一局',
+    [f.table.step, !!f.table.round,
+      f.table.members.every((member) => member.managedTrustee && member.trustee)],
+    [2, true, true]);
 }
 
 console.log(`\n${pass} 过 / 0 挂`);
