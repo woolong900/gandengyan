@@ -3734,6 +3734,10 @@ desc: "开启喜钱"
 value: 1,
 desc: "观看队友手牌"
 },
+32: {
+value: 1,
+desc: "观看队友大牌"
+},
 18: {
 value: 4,
 desc: "4人",
@@ -3842,7 +3846,7 @@ desc: "其它",
 weight: 9,
 lineCount: 3,
 defCheck: [],
-detailIds: [ 15, 16, 22, 17, 20 ]
+detailIds: [ 15, 16, 22, 17, 32, 20 ]
 },
 7: {
 desc: "功能",

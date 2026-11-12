@@ -286,6 +286,12 @@ this._saveStyle1(e, n[0]);
 };
 e.prototype.onClicked = function(e) {
 if (this._retiredPokerOption(e)) return;
+if (this.index === l.eGameIds.QJSHZ && (17 === e || 32 === e)) {
+var qjshzOther = 17 === e ? 32 : 17;
+if (!this.isChecked(e) && this.isChecked(qjshzOther)) this._checkbox(qjshzOther);
+this._checkbox(e);
+return;
+}
 var t = function(e, t) {
 for (var o = [], n = 0, r = t.length; n < r; n++) {
 var i = t[n];

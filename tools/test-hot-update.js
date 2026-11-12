@@ -354,7 +354,7 @@ const main = async () => {
   );
   check('说胡子建房其它设置不再显示尾游可以捡分',
     qjshzRoomConfig.includes('desc: "尾游可以捡分",\nisHide: !0') &&
-    qjshzRoomConfig.includes('detailIds: [ 15, 16, 22, 17, 20 ]') &&
+    qjshzRoomConfig.includes('detailIds: [ 15, 16, 22, 17, 32, 20 ]') &&
     !qjshzRoomConfig.includes('detailIds: [ 14, 15, 16, 22, 17, 20 ]'), true);
   const wskSingleEndStart = publishedProject.indexOf('t.prototype._udpateQJSHZ = function()');
   const wskSingleEndModule = publishedProject.slice(

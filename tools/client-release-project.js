@@ -105,6 +105,9 @@ const applyCompatibilityPatches = (input) => {
 const assertCurrentFixes = (source) => {
   const required = [
     ['说胡子入口', 'gameList: [ c.eGameIds.QJHH, c.eGameIds.QJSHZ ],'],
+    ['说胡子观看队友大牌选项', u2b('desc: "观看队友大牌"')],
+    ['说胡子观看队友大牌协议', 'Math.floor(t / 1e14) % 10'],
+    ['说胡子观看队友选项互斥', 'this.index === l.eGameIds.QJSHZ && (17 === e || 32 === e)'],
     ['游客登录入口', 'this.guestNode.active = true;'],
     ['测试账号输入框隐藏', 'this.ebTestAccount.node.active = false;'],
     ['测试ID登录按钮隐藏', 'this.btnTestLogin.node.active = false;'],

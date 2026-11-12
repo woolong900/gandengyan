@@ -232,8 +232,23 @@ class WskRound {
   visibleHand(seat, viewer, reveal) {
     const sameTeam = viewer >= 0 && this.teamOf(seat) === this.teamOf(viewer);
     const viewerFinished = viewer >= 0 && this.ranks && this.ranks[viewer] > 0;
-    const canSeeTeam = sameTeam && (this.config.观看队友手牌 || viewerFinished);
-    if (reveal || viewer === seat || canSeeTeam) return this.hands[seat].slice();
+    if (reveal || viewer === seat || (sameTeam && this.config.观看队友手牌)) {
+      return this.hands[seat].slice();
+    }
+    if (sameTeam && this.config.观看队友大牌) {
+      const counts = new Map();
+      for (const card of this.hands[seat]) {
+        const value = rules.cardValue(card);
+        counts.set(value, (counts.get(value) || 0) + 1);
+      }
+      const has510K = counts.has(5) && counts.has(10) && counts.has(13);
+      return this.hands[seat].map((card) => {
+        const value = rules.cardValue(card);
+        return value >= 14 || counts.get(value) >= 4
+          || (has510K && (value === 5 || value === 10 || value === 13)) ? card : 0;
+      });
+    }
+    if (sameTeam && viewerFinished) return this.hands[seat].slice();
     return this.hands[seat].map(() => 0);
   }
 

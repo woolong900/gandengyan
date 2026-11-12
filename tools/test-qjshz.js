@@ -97,6 +97,10 @@ assert.equal(rules.validateRoomConfig({ gameType: 17, num: 1, param1: 10, param2
 assert.equal(rules.validateRoomConfig({ gameType: 17, num: 5, param1: 10, param2: 0 }), '局数参数无效');
 assert.equal(rules.validateRoomConfig({ gameType: 17, num: 1, param1: 3, param2: 0 }), '底分参数无效');
 assert.equal(rules.parseConfig(1, 10 ** 13).八炸大过四大天王, true);
+assert.equal(rules.parseConfig(1, 10 ** 14).观看队友大牌, true);
+assert.equal(rules.validateRoomConfig({
+  gameType: 17, num: 1, param1: 10, param2: 10 ** 14 + 10 ** 7,
+}), '观看队友手牌与观看队友大牌只能二选一');
 const xiParam1 = rules.encodeXiConfig(10, {
   enabled: true, bomb6: 10, bomb7: 20, bomb8: 30, kings: 40,
 });
@@ -266,6 +270,30 @@ const scenario = ({ hands, turn = 0, ranks = [0, 0, 0, 0], finishOrder = [], fir
   tested.over = false;
   return { round: tested, events: scenarioEvents, final: () => scenarioFinal };
 };
+
+// “观看队友大牌”只显示 A、2、大小王、四张及以上同点炸弹和 510K。
+{
+  const teammateHand = [31, 32, 33, 34, 51, 102, 133, 61, 141, 21, 170, 180];
+  const expectedBigCards = [31, 32, 33, 34, 51, 102, 133, 0, 141, 21, 170, 180];
+  const bigCards = scenario({
+    hands: [[41], [71], teammateHand, [81]],
+    config: { ...plain, 观看队友大牌: true },
+  }).round;
+  assert.deepEqual(bigCards.visibleHand(2, 0, false), expectedBigCards,
+    '大牌模式应隐藏队友的普通牌');
+  assert(bigCards.visibleHand(2, 1, false).every((card) => card === 0),
+    '大牌模式不能看到非队友手牌');
+  bigCards.ranks[0] = 1;
+  assert.deepEqual(bigCards.visibleHand(2, 0, false), expectedBigCards,
+    '选择大牌模式后，出完牌也不能看到队友全部手牌');
+
+  const allCards = scenario({
+    hands: [[41], [71], teammateHand, [81]],
+    config: { ...plain, 观看队友手牌: true },
+  }).round;
+  assert.deepEqual(allCards.visibleHand(2, 0, false), teammateHand,
+    '观看队友手牌模式应保持全部可见');
+}
 
 // 喜钱按实际一手出牌的完整张数计，不按开局摸到的最大张数锁定。
 {

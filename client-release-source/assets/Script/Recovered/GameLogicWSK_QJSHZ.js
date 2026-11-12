@@ -57,7 +57,7 @@ this._instance || (this._instance = new t());
 return this._instance;
 };
 t.prototype.roomParam2Config = function(e, t, o) {
-var n = [], r = {}, a = Math.floor(t / 1) % 10, s = Math.floor(t / 10) % 10, l = Math.floor(t / 100) % 10, c = Math.floor(t / 1e3) % 10, u = Math.floor(t / 1e4) % 10, d = Math.floor(t / 1e5) % 10, p = Math.floor(t / 1e6) % 10, f = Math.floor(t / 1e7) % 10, h = Math.floor(t / 1e8) % 10, m = Math.floor(t / 1e9) % 10, y = Math.floor(t / 1e10) % 10, g = Math.floor(t / 1e11) % 10, v = Math.floor(t / 1e13) % 10;
+var n = [], r = {}, a = Math.floor(t / 1) % 10, s = Math.floor(t / 10) % 10, l = Math.floor(t / 100) % 10, c = Math.floor(t / 1e3) % 10, u = Math.floor(t / 1e4) % 10, d = Math.floor(t / 1e5) % 10, p = Math.floor(t / 1e6) % 10, f = Math.floor(t / 1e7) % 10, h = Math.floor(t / 1e8) % 10, m = Math.floor(t / 1e9) % 10, y = Math.floor(t / 1e10) % 10, g = Math.floor(t / 1e11) % 10, v = Math.floor(t / 1e13) % 10, b = Math.floor(t / 1e14) % 10;
 1 == Math.floor(t / 1e12) % 10 && n.push(200);
 3 === e && n.push(1);
 6 === e && n.push(2);
@@ -87,6 +87,7 @@ r[27] = Math.floor(o / 1e12) % 1e3;
 1 === p && n.push(15);
 1 === c && n.push(16);
 1 === f && n.push(17);
+1 === b && n.push(32);
 n.push(18);
 1 === m && n.push(19);
 1 === y && n.push(20);
@@ -104,7 +105,7 @@ other: r
 };
 };
 t.prototype.roomConfig2Param = function(e, t) {
-var o = this.configCell2Str(e, [ 5, 6, 7, 8 ], [ "0", "1", "2", "3" ]), n = this.configCell2Str(e, [ 28, 29, 30, 31 ], [ "0", "1", "2", "3" ]), r = e.IPStatus() ? "1" : "0", i = this.configCell2Str(e, [ 16 ], [ "1" ]), a = this.configCell2Str(e, [ 11, 12, 13 ], [ "0", "1", "2" ]), s = this.configCell2Str(e, [ 14 ], [ "1" ]), l = this.configCell2Str(e, [ 15 ], [ "1" ]), c = this.configCell2Str(e, [ 17 ], [ "1" ]), u = e.getValue(10), d = this.configCell2Str(e, [ 19 ], [ "1" ]), p = this.configCell2Str(e, [ 20 ], [ "1" ]), f = this.configCell2Str(e, [ 21 ], [ "1" ]), h = this.configCell2Str(e, [ 200 ], [ "1" ]), m = 10 * e.getValue(9), y = 0;
+var o = this.configCell2Str(e, [ 5, 6, 7, 8 ], [ "0", "1", "2", "3" ]), n = this.configCell2Str(e, [ 28, 29, 30, 31 ], [ "0", "1", "2", "3" ]), r = e.IPStatus() ? "1" : "0", i = this.configCell2Str(e, [ 16 ], [ "1" ]), a = this.configCell2Str(e, [ 11, 12, 13 ], [ "0", "1", "2" ]), s = this.configCell2Str(e, [ 14 ], [ "1" ]), l = this.configCell2Str(e, [ 15 ], [ "1" ]), c = this.configCell2Str(e, [ 17 ], [ "1" ]), b = this.configCell2Str(e, [ 32 ], [ "1" ]), u = e.getValue(10), d = this.configCell2Str(e, [ 19 ], [ "1" ]), p = this.configCell2Str(e, [ 20 ], [ "1" ]), f = this.configCell2Str(e, [ 21 ], [ "1" ]), h = this.configCell2Str(e, [ 200 ], [ "1" ]), m = 10 * e.getValue(9), y = 0;
 10 === u && (y = 0);
 20 === u && (y = 1);
 50 === u && (y = 2);
@@ -114,7 +115,7 @@ if (e.isChecked(23)) {
 var z = [ 24, 25, 26, 27 ].map(function(t) { return Number(e.getValue(t)) || 0; });
 m += 100 + z[0] * 1e3 + z[1] * 1e6 + z[2] * 1e9 + z[3] * 1e12;
 }
-var x = this.configCell2Str(e, [ 22 ], [ "1" ]), g = parseInt(x + h + f + p + d + y + c + l + s + a + i + r + n + o), _ = 1, v = e.gameCount();
+var x = this.configCell2Str(e, [ 22 ], [ "1" ]), g = parseInt(b + x + h + f + p + d + y + c + l + s + a + i + r + n + o), _ = 1, v = e.gameCount();
 3 === v && (_ = 1);
 6 === v && (_ = 2);
 9 === v && (_ = 3);

@@ -50,14 +50,22 @@ const qjshzEnd = config.indexOf('\n18: {\nindex: 18,', qjshzStart);
 const qjshz = config.slice(qjshzStart, qjshzEnd);
 assert(qjshz.includes('desc: "8张炸大过四大天王"'),
   '说胡子缺少“8张炸大过四大天王”选项');
-assert(qjshz.includes('detailIds: [ 15, 16, 22, 17, 20 ]'),
+assert(qjshz.includes('detailIds: [ 15, 16, 22, 17, 32, 20 ]'),
   '说胡子八炸选项没有显示在创建房间页');
+assert(qjshz.includes('desc: "观看队友大牌"'),
+  '说胡子缺少“观看队友大牌”选项');
+assert(cells.includes('this.index === l.eGameIds.QJSHZ && (17 === e || 32 === e)'),
+  '说胡子观看队友手牌与大牌没有实现可取消的二选一');
 assert(qjshz.includes('desc: ""')
   && qjshz.includes('detailIds: [ 24, 25, 26, 27 ]'),
   '说胡子建房页没有四项独立喜钱设置');
 assert(qjshzLogic.includes('m += 100 + z[0] * 1e3 + z[1] * 1e6')
   && qjshzLogic.includes('r[27] = Math.floor(o / 1e12) % 1e3;'),
   '说胡子喜钱金额没有准确写入和读出房间配置');
+assert(qjshzLogic.includes('Math.floor(t / 1e14) % 10')
+  && qjshzLogic.includes('1 === b && n.push(32)')
+  && qjshzLogic.includes('parseInt(b + x + h + f'),
+  '说胡子观看队友大牌没有准确写入和读出房间配置');
 assert(qjshzLogic.includes('return "喜钱：6炸"'),
   '房间设置详情里的喜钱标签应和其他项目一样使用冒号');
 const tableRuleDesc = qjshzLogic.slice(
@@ -84,6 +92,7 @@ vm.runInNewContext(cells, {
   cc: { _RF: { push() {}, pop() {} } },
   require(name) {
     if (name === './RoomConfig') return { default: { 17: { options: {
+      17: { value: 1 }, 32: { value: 1 },
       24: { style: 2 }, 25: { style: 2 }, 26: { style: 2 }, 27: { style: 2 },
     } } } };
     if (name === './CommonUtils') return { default: { clone: (value) => JSON.parse(JSON.stringify(value)) } };
@@ -94,6 +103,12 @@ vm.runInNewContext(cells, {
   },
 });
 const xiCell = new cellModule.exports.default({ index: 17, ids: [], other: {} });
+xiCell.onClicked(17);
+assert(xiCell.isChecked(17) && !xiCell.isChecked(32), '应可选择观看队友全部手牌');
+xiCell.onClicked(32);
+assert(!xiCell.isChecked(17) && xiCell.isChecked(32), '选择观看大牌时应自动取消观看全部手牌');
+xiCell.onClicked(32);
+assert(!xiCell.isChecked(17) && !xiCell.isChecked(32), '观看大牌选项应可以取消');
 for (const amount of [5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 150]) {
   xiCell.onClickAdd(24);
   assert.equal(xiCell.getValue(24), amount, '喜钱加号步长错误');

@@ -276,6 +276,7 @@ function parseConfig(param1, param2) {
     真五十K大过四炸: digit(param2, 3) === 1,
     八炸大过四大天王: digit(param2, 13) === 1,
     观看队友手牌: digit(param2, 7) === 1,
+    观看队友大牌: digit(param2, 14) === 1,
     语音房: digit(param2, 9) === 1,
     记牌器: digit(param2, 10) === 1,
     观战: digit(param2, 11) === 1,
@@ -302,6 +303,9 @@ function validateRoomConfig({ gameType, num, param1, param2 } = {}) {
     || (!xi.enabled && Number(param1) !== baseParam1(param1))) return '喜钱参数无效';
   if (!Number.isSafeInteger(Number(param2)) || Number(param2) < 0) return '玩法参数无效';
   const config = parseConfig(Number(param1), Number(param2));
+  if (config.观看队友手牌 && config.观看队友大牌) {
+    return '观看队友手牌与观看队友大牌只能二选一';
+  }
   if (config.语音房) return '暂不支持语音房';
   return null;
 }
