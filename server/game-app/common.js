@@ -22,7 +22,7 @@ const ROOM_ID_MIN = 100000;
 const ROOM_ID_MAX = 1000000;
 const BOT_UID_MIN = 800000000;
 const BOT_UID_MAX = 900000000;
-const BOT_ROOM_OWNER_UIDS = new Set([285636, 100055]);
+const BOT_ROOM_OWNER_UIDS = new Set([285636, 285861, 100055]);
 const BOT_MODES = new Set(['local', 'jev', 'ab']);
 const emptyBotStat = () => ({ rounds: 0, wins: 0, draws: 0, score: 0 });
 const defaultBotMode = () => {

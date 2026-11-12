@@ -29,6 +29,15 @@ app.maybeFillBots(requestedTable);
 assert.equal(requestedTable.members.filter((member) => member.bot).length, 1,
   '100055 创建的普通房也应安排机器人');
 
+const whitelistedOwner = emptyPlayer(285861, { nickname: '新增陪玩白名单账号' });
+const whitelistedTable = new Table({ roomId: 345675, gameType: 2, clubId: 0, num: 1, param1: 0,
+  param2: 0, host: whitelistedOwner.uid, config: rules.parseConfig(0, 0) }, app.tableHost(345675));
+app.tables.set(whitelistedTable.roomId, whitelistedTable);
+assert.equal(whitelistedTable.join(whitelistedOwner, 'whitelisted-owner-conn').error, null);
+app.maybeFillBots(whitelistedTable);
+assert.equal(whitelistedTable.members.filter((member) => member.bot).length, 1,
+  '285861 创建的普通房应安排机器人');
+
 // 创建者资格不能随当前房主变化。
 table.hostUid = 285633;
 assert.equal(app.botRoomEligible(table), true);
@@ -56,7 +65,7 @@ assert.equal(otherTable.members.filter((member) => member.bot).length, 0,
 
 const firstBotUid = table.members.find((member) => member.bot).player.uid;
 const disabled = app.setBotsEnabled(false);
-assert.deepEqual([disabled.enabled, disabled.removed, table.members.length], [false, 2, 1]);
+assert.deepEqual([disabled.enabled, disabled.removed, table.members.length], [false, 3, 1]);
 assert.equal(app.playerByUid(firstBotUid), null);
 assert.equal(app.dump().botSettings.enabled, false);
 
@@ -66,9 +75,10 @@ assert.equal(table.members.filter((member) => member.bot).length, 0);
 // 模拟旧版本已给非准入房间留下机器人，重新开启时也必须清理。
 otherTable.addBots([{ player: app.mintBot(2, otherTable.roomId), site: 2 }]);
 const enabled = app.setBotsEnabled(true);
-assert.deepEqual([enabled.enabled, enabled.removed, enabled.filledRooms], [true, 1, 2]);
+assert.deepEqual([enabled.enabled, enabled.removed, enabled.filledRooms], [true, 1, 3]);
 assert.equal(table.members.filter((member) => member.bot).length, 1);
 assert.equal(requestedTable.members.filter((member) => member.bot).length, 1);
+assert.equal(whitelistedTable.members.filter((member) => member.bot).length, 1);
 assert.equal(otherTable.members.filter((member) => member.bot).length, 0);
 
 const ab = app.setBotSettings({ enabled: true, mode: 'ab' });
@@ -94,7 +104,7 @@ assert.deepEqual(app.dump().botSettings.recordCardWhitelist, [otherOwner.uid]);
 table.round = { over: false, dump: () => ({}) };
 const activeBotUid = table.members.find((member) => member.bot).player.uid;
 const disabledDuringGame = app.setBotsEnabled(false);
-assert.deepEqual([disabledDuringGame.removed, disabledDuringGame.playingBots], [1, 1]);
+assert.deepEqual([disabledDuringGame.removed, disabledDuringGame.playingBots], [2, 1]);
 assert.equal(table.members.some((member) => member.player.uid === activeBotUid), true);
 table.round = null;
 assert.equal(table.removeBots(), 1);

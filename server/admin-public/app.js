@@ -330,7 +330,7 @@
     var stats = ['local', 'jev'].map(function (key) { var item = data.stats[key]; return '<tr><td>' +
       escape(strategyName[key]) + '</td><td>' + number(item.rounds) + '</td><td>' + number(item.wins) +
       '</td><td>' + item.winRate + '%</td><td>' + number(item.draws) + '</td><td>' + number(item.score) + '</td></tr>'; });
-    content.innerHTML = intro('机器人管理', '统一控制服务端是否自动向用户 285636、100055 创建、且只有一位真人的等待房间补充陪玩机器人。') +
+    content.innerHTML = intro('机器人管理', '统一控制服务端是否自动向用户 285636、285861、100055 创建、且只有一位真人的等待房间补充陪玩机器人。') +
       '<div class="grid metrics"><div class="metric"><span class="label">自动补充</span><strong class="' +
       (data.enabled ? 'accent' : '') + '">' + (data.enabled ? '已开启' : '已关闭') +
       '</strong><span class="hint">设置会持久保存</span></div><div class="metric"><span class="label">当前机器人</span><strong>' +
