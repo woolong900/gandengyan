@@ -1,10 +1,15 @@
 #!/usr/bin/env node
-/** 从当前候选版生成仅替换大厅四个按钮的定向灰度版。 */
+/**
+ * 已停用：该脚本曾把 selected-v3 设计稿误称为“原 APP 素材”。
+ * 大厅按钮现在由 publish-hot-update.js 原样保留输入安装包中的验收版本。
+ */
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { toJs, toJsc } = require('./jsc');
 const { releaseGitInfo } = require('./release-git');
+
+throw new Error('该脚本已停用；请使用 publish-hot-update.js 保留安装包内的原版大厅按钮');
 
 const root = path.join(__dirname, '..');
 const args = process.argv.slice(2);

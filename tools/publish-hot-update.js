@@ -27,6 +27,10 @@ const VERSION = Number(arg('version'));
 const FULL_RELEASE = argv.includes('--full-release');
 const STABLE_VERSION = Number(arg('stable-version', String(Math.max(1, VERSION - 1))));
 const PACKAGE_VERSION = arg('package-version', '1.0.6');
+const PACKAGE_VERSIONS = {
+  android: arg('android-package-version', PACKAGE_VERSION),
+  ios: arg('ios-package-version', PACKAGE_VERSION),
+};
 const BASE_URL = arg('base-url', process.env.QJQP_PUBLIC_BASE_URL || '').replace(/\/$/, '');
 const SERVICE_BASE_URL = arg('service-base-url', BASE_URL).replace(/\/$/, '');
 const ANDROID = arg('android');
@@ -41,6 +45,11 @@ if (!SERVICE_BASE_URL || !/^https?:\/\//.test(SERVICE_BASE_URL)) {
   throw new Error('--service-base-url 必须是完整 HTTP(S) 地址');
 }
 if (!ANDROID && !IOS) throw new Error('至少指定 --android APK 或 --ios IPA');
+for (const [platform, version] of Object.entries(PACKAGE_VERSIONS)) {
+  if ((platform === 'android' ? ANDROID : IOS) && !/^\d+\.\d+\.\d+$/.test(version)) {
+    throw new Error(`${platform} 安装包版本号无效：${version}`);
+  }
+}
 if (argv.includes('--require-clean-git') && gitInfo.dirty) {
   throw new Error('正式发布要求干净的 Git 工作区；请先审阅并提交改动');
 }
@@ -94,13 +103,6 @@ const clubHomeBackground = path.join(
 const shoppingMallBackground = path.join(
   ROOT, 'assets', 'branding', 'shop', 'shop-background-r338.png',
 );
-const hallButtonSources = new Map([
-  ['5a582a61-69ad-4721-93c3-c76ae5b19a53', 'club_btn.png'],
-  ['239688a6-a09f-4414-b75b-e631f7a42a5b', 'createroom_btn.png'],
-  ['729289fb-7448-40a2-b047-93553336b3d5', 'joinroom_btn.png'],
-  ['fce0d237-72b2-4de9-b145-ac4de1c62144', 'backroom_btn.png'],
-]);
-const hallButtonRoot = path.join(ROOT, 'assets', 'branding', 'hall', 'selected-v3');
 const tableBackground3d = {
   android: path.join(ROOT, 'assets', 'branding', 'table', 'table-background-3d.jpg'),
   ios: path.join(ROOT, 'assets', 'branding', 'table', 'table-background-3d-ios.png'),
@@ -385,13 +387,13 @@ const patchQjshzAsset = (name, data) => {
   return data;
 };
 
-const patchProject = (bytes) => {
+const patchProject = (bytes, platform) => {
   if (!toJs(bytes)) throw new Error('project.jsc 无法解码');
   return buildReleaseProjectJsc({
     root: ROOT,
     workDir: work,
     assetVersion: VERSION,
-    packageVersion: PACKAGE_VERSION,
+    packageVersion: PACKAGE_VERSIONS[platform],
     serviceBaseUrl: SERVICE_BASE_URL,
   });
 };
@@ -442,7 +444,7 @@ const publishPlatform = (platform, archive) => {
       throw new Error(`${platform} 安装包缺少清单资源：${name}`);
     }
     let data = fs.readFileSync(sourceFile);
-    if (name === 'src/project.jsc') data = patchProject(data);
+    if (name === 'src/project.jsc') data = patchProject(data, platform);
     data = patchQjshzAsset(name, data);
     writeAsset(name, data);
   }
@@ -460,13 +462,8 @@ const publishPlatform = (platform, archive) => {
   // 把旧城市湖景重新带回。该资源沿用原包的 Cocos XOR 封装。
   writeAsset('res/raw-assets/0b/0b113fff-15df-4c89-8321-fb74e12e940f.png',
     encryptCocosImage(shoppingMallBackground), true);
-  // 大厅四个主按钮沿用原 SpriteFrame UUID 和尺寸，热更始终从选定设计稿
-  // 导出的透明资源覆盖，避免旧安装包在后续发布时把按钮恢复成原图。
-  for (const [uuid, filename] of hallButtonSources) {
-    const source = path.join(hallButtonRoot, filename);
-    if (!fs.existsSync(source)) throw new Error(`缺少大厅按钮资源：${source}`);
-    writeAsset(`res/raw-assets/${uuid.slice(0, 2)}/${uuid}.png`, encryptCocosImage(source), true);
-  }
+  // 大厅主按钮必须保留安装包内已经验收的原 APP 素材。这里曾强制覆盖
+  // selected-v3 设计稿，导致人工恢复的原图从 R374 起再次回退。
   // 3D 干瞪眼桌面不能从旧安装包回填；Android 与 iOS 共用同一资源槽位，
   // iOS 源图额外保留中央东南西北灯盘。
   writeAsset('res/raw-assets/0e/0ed69516-3023-4cb0-947a-abd9aab04b9f.jpg',
@@ -570,14 +567,15 @@ try {
     salt: crypto.randomBytes(12).toString('hex'),
   });
   if (published.android) {
-    const name = `qianjiang-gandengyan-${PACKAGE_VERSION}.apk`;
+    const packageVersion = PACKAGE_VERSIONS.android;
+    const name = `qianjiang-gandengyan-${packageVersion}.apk`;
     fs.copyFileSync(published.android.archive, path.join(packages, name));
     config.platforms.android = {
       enabled: true,
       latestAssetVersion: VERSION,
       stableAssetVersion: FULL_RELEASE ? VERSION : STABLE_VERSION,
       rollout: rollout(),
-      minimumPackageVersion: PACKAGE_VERSION,
+      minimumPackageVersion: packageVersion,
       packageAction: 2,
       packageUrl: `${BASE_URL}/hot-update/packages/${name}`,
       packageName: name,
@@ -585,17 +583,18 @@ try {
     };
   }
   if (published.ios) {
-    const name = `qianjiang-gandengyan-${PACKAGE_VERSION}.ipa`;
+    const packageVersion = PACKAGE_VERSIONS.ios;
+    const name = `qianjiang-gandengyan-${packageVersion}.ipa`;
     fs.copyFileSync(published.ios.archive, path.join(packages, name));
     const plistUrl = `${BASE_URL}/hot-update/packages/ios-install.plist`;
-    const plist = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>items</key><array><dict><key>assets</key><array><dict><key>kind</key><string>software-package</string><key>url</key><string>${BASE_URL}/hot-update/packages/${name}</string></dict></array><key>metadata</key><dict><key>bundle-identifier</key><string>com.haoke.gandengyan</string><key>bundle-version</key><string>${PACKAGE_VERSION}</string><key>kind</key><string>software</string><key>title</key><string>潜江干瞪眼</string></dict></dict></array></dict></plist>`;
+    const plist = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>items</key><array><dict><key>assets</key><array><dict><key>kind</key><string>software-package</string><key>url</key><string>${BASE_URL}/hot-update/packages/${name}</string></dict></array><key>metadata</key><dict><key>bundle-identifier</key><string>com.haoke.gandengyan</string><key>bundle-version</key><string>${packageVersion}</string><key>kind</key><string>software</string><key>title</key><string>潜江干瞪眼</string></dict></dict></array></dict></plist>`;
     fs.writeFileSync(path.join(packages, 'ios-install.plist'), plist);
     config.platforms.ios = {
       enabled: true,
       latestAssetVersion: VERSION,
       stableAssetVersion: FULL_RELEASE ? VERSION : STABLE_VERSION,
       rollout: rollout(),
-      minimumPackageVersion: PACKAGE_VERSION,
+      minimumPackageVersion: packageVersion,
       packageAction: 1,
       packageUrl: `itms-services://?action=download-manifest&url=${encodeURIComponent(plistUrl)}`,
       packageName: name,
@@ -604,7 +603,8 @@ try {
   }
   fs.writeFileSync(path.join(stage, 'hot-update.json'), `${JSON.stringify(config, null, 2)}\n`);
   fs.writeFileSync(path.join(stage, 'release.json'), `${JSON.stringify({
-    version: VERSION, packageVersion: PACKAGE_VERSION, baseUrl: BASE_URL,
+    version: VERSION, packageVersion: PACKAGE_VERSION, packageVersions: PACKAGE_VERSIONS,
+    baseUrl: BASE_URL,
     git: gitInfo,
     platforms: Object.fromEntries(Object.entries(published).map(([key, value]) => [key, {
       assetCount: value.assetCount, totalBytes: value.totalBytes,

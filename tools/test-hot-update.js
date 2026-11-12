@@ -114,6 +114,17 @@ const main = async () => {
     '20: {\nvalue: 2,\ndesc: "只许自摸",\nisHide: !0\n}\n' +
     '} else this._checkbox(e);\n};\ne.prototype._checkbox = function(e) {', 'utf8')));
   fs.writeFileSync(path.join(fake, 'assets/src/settings.jsc'), Buffer.from('settings'));
+  const hallButtonFixtures = new Map([
+    ['5a582a61-69ad-4721-93c3-c76ae5b19a53', Buffer.from('original-club-button')],
+    ['239688a6-a09f-4414-b75b-e631f7a42a5b', Buffer.from('original-create-button')],
+    ['729289fb-7448-40a2-b047-93553336b3d5', Buffer.from('original-join-button')],
+    ['fce0d237-72b2-4de9-b145-ac4de1c62144', Buffer.from('original-back-button')],
+  ]);
+  for (const [uuid, bytes] of hallButtonFixtures) {
+    const buttonDir = path.join(fake, 'assets/res/raw-assets', uuid.slice(0, 2));
+    fs.mkdirSync(buttonDir, { recursive: true });
+    fs.writeFileSync(path.join(buttonDir, `${uuid}.png`), bytes);
+  }
   fs.writeFileSync(path.join(fake, 'assets/res/raw-assets/2c/2c8a7447-5900-4cca-b1ef-51d750d90396.manifest'),
     JSON.stringify({ version: '235', assets: {} }));
   fs.mkdirSync(path.join(fake, 'assets/res/import/ee'), { recursive: true });
@@ -177,6 +188,7 @@ const main = async () => {
   const release = path.join(dir, 'release');
   execFileSync(process.execPath, [path.join(__dirname, 'publish-hot-update.js'), '--version', '236',
     '--package-version', '1.0.6', '--base-url', 'https://game.example',
+    '--android-package-version', '1.0.7',
     '--service-base-url', 'https://service.example', '--android', fakeApk,
     '--out', release]);
   const manifest = JSON.parse(fs.readFileSync(path.join(release, 'android/236/project.manifest'), 'utf8'));
@@ -208,17 +220,10 @@ const main = async () => {
       'src/project.jsc', 'src/settings.jsc',
       ...greenPaiDunManifest.map((frame) => frame.asset),
     ].sort()]);
-  for (const [uuid, filename] of [
-    ['5a582a61-69ad-4721-93c3-c76ae5b19a53', 'club_btn.png'],
-    ['239688a6-a09f-4414-b75b-e631f7a42a5b', 'createroom_btn.png'],
-    ['729289fb-7448-40a2-b047-93553336b3d5', 'joinroom_btn.png'],
-    ['fce0d237-72b2-4de9-b145-ac4de1c62144', 'backroom_btn.png'],
-  ]) {
-    const encrypted = fs.readFileSync(path.join(release,
+  for (const [uuid, original] of hallButtonFixtures) {
+    const published = fs.readFileSync(path.join(release,
       `android/236/res/raw-assets/${uuid.slice(0, 2)}/${uuid}.png`));
-    const decoded = Buffer.from(encrypted.subarray(10).map((value) => value ^ encrypted[9]));
-    check(`大厅按钮使用选定设计 ${filename}`, decoded.equals(fs.readFileSync(path.join(__dirname,
-      '../assets/branding/hall/selected-v3', filename))), true);
+    check(`大厅按钮保留安装包原图 ${uuid}`, published.equals(original), true);
   }
   for (const texture of ['1580e8a3b', '191f83490', '1a62d6dfc', '1e79e9934']) {
     const published = fs.readFileSync(path.join(release,
@@ -322,7 +327,8 @@ const main = async () => {
   check('热更新覆盖新版商城背景', shopBody.equals(fs.readFileSync(path.join(__dirname,
     '../assets/branding/shop/shop-background-r338.png'))), true);
   const publishedProject = toJs(fs.readFileSync(path.join(release, 'android/236/src/project.jsc'))).toString('utf8');
-  check('发布器同步脚本资源版本', publishedProject.includes('assertVer: 236'), true);
+  check('发布器同步脚本资源版本及平台安装包版本',
+    publishedProject.includes('assertVer: 236') && publishedProject.includes('packageVer: "1.0.7"'), true);
   check('发布器只携带目标网络地址',
     publishedProject.includes('https://service.example/version') &&
     publishedProject.includes('https://service.example/login') &&
@@ -378,8 +384,9 @@ const main = async () => {
     true);
   const releaseConfig = JSON.parse(fs.readFileSync(path.join(release, 'hot-update.json'))).platforms.android;
   check('发布器默认生成零比例灰度候选版', [releaseConfig.stableAssetVersion,
-    releaseConfig.latestAssetVersion, releaseConfig.rollout.enabled, releaseConfig.rollout.percentage],
-  [235, 236, true, 0]);
+    releaseConfig.latestAssetVersion, releaseConfig.rollout.enabled, releaseConfig.rollout.percentage,
+    releaseConfig.minimumPackageVersion],
+  [235, 236, true, 0, '1.0.7']);
   check('客户端版本检查携带稳定灰度标识',
     publishedProject.includes('rollout_key: f()') && publishedProject.includes('__QJQP_ROLLOUT_UID__') &&
     publishedProject.includes('device_name:'), true);

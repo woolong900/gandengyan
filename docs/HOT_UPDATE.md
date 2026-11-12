@@ -15,6 +15,10 @@ node tools/publish-hot-update.js \
   --require-clean-git
 ```
 
+Android 与 iOS 整包版本不同时，可分别传入 `--android-package-version` 和
+`--ios-package-version`。大厅主按钮以输入安装包内已验收的原 APP 素材为准，
+发布器不得再用设计稿目录强制覆盖。
+
 脚本会从安装包清单中复制资源、重新计算每个文件的 MD5，并把 `project.jsc` 内的资源版本同步为发布版本，避免客户端重启后重复更新。输出目录包含 Android/iOS 版本目录、整包安装文件、iOS 安装清单和 `hot-update.json`。
 
 正式发布前先提交代码；生成产物并验证后执行 `npm run release:mark -- --version 236`。该命令只接受干净工作区，创建 `release-r236` Git 标签，并把提交号写入 `release.json`。发布脚本也会记录构建时的提交号和脏工作区状态。
